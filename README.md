@@ -82,6 +82,30 @@ This builds both application images and layers them in via
 [docker-compose.apps.yml](docker-compose.apps.yml). It is what CI smoke-tests and what phase 11
 deploys. It has no hot reload, so it is not the way to develop.
 
+## Branching
+
+`main` is the tested branch. Work happens on `dev`, and reaches `main` only once CI is green and
+the change has actually been exercised — not merely compiled.
+
+```bash
+git checkout dev          # where the work happens
+# ... build, test, commit ...
+git push origin dev       # CI runs on every branch and every pull request
+```
+
+When a phase is done and verified, open a pull request from `dev` into `main` and merge it once the
+checks pass:
+
+```bash
+gh pr create --base main --head dev --fill
+gh pr checks --watch
+gh pr merge --squash
+```
+
+The rule this encodes: **`main` should always be a commit a stranger could clone and run.** That is
+the same standard each phase's Definition of Done is written to, so the branch and the checklist
+enforce the same thing from two directions.
+
 ## Repository layout
 
 ```text
