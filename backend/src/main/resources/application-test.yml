@@ -8,6 +8,11 @@ app:
   security:
     cookies:
       secure: false
+  rate-limit:
+    # Off by default: a suite that logs in a hundred times would otherwise fail on the
+    # hundred-and-first for a reason that has nothing to do with what it asserts. The limits are
+    # still exercised — by the tests that switch them back on deliberately.
+    enabled: false
 
 logging:
   level:

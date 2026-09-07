@@ -10,6 +10,12 @@
   --color-brand-contrast: oklch(99% 0 0);
   --color-danger: oklch(55% 0.19 26);
   --color-success: oklch(58% 0.13 155);
+  /*
+   * A third tone, for a consequence that is neither a failure nor a success: a service longer
+   * than any stretch of the opening hours saves fine and cannot be booked. Rendering that in
+   * `danger` would say it was refused; rendering it in `ink-muted` would let it pass unread.
+   */
+  --color-warning: oklch(66% 0.14 70);
 }
 
 @layer base {

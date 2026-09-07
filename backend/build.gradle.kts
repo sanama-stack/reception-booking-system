@@ -36,8 +36,19 @@ dependencies {
 
     implementation("org.springdoc:springdoc-openapi-starter-webmvc-ui:2.8.9")
 
+    // In-memory rate limiting. No Redis: one instance in MVP, and the externalisation path is
+    // documented as the first scale-out task (docs/06-security.md §5, docs/02-product-architecture.md §8).
+    implementation("com.bucket4j:bucket4j_jdk17-core:8.14.0")
+
     // Structured JSON logging (docs/06-security.md §10).
     implementation("net.logstash.logback:logstash-logback-encoder:8.1")
+
+    // E.164 phone normalisation using the business's country (docs/06-security.md §9). A
+    // hand-written table of calling codes is the same mistake as a hand-written list of timezones —
+    // and it could only reformat a number, never tell a real one from a typo. Load-bearing from
+    // phase 06, where Customer identity is keyed on (business_id, normalised phone): a normalisation
+    // that disagrees with itself splits one person into two customers.
+    implementation("com.googlecode.libphonenumber:libphonenumber:9.0.7")
 
     runtimeOnly("org.postgresql:postgresql")
 
@@ -47,6 +58,7 @@ dependencies {
     testImplementation("org.testcontainers:junit-jupiter")
     testImplementation("org.testcontainers:postgresql")
     testImplementation("com.tngtech.archunit:archunit-junit5:1.4.0")
+
 }
 
 dependencyManagement {
@@ -60,7 +72,18 @@ tasks.withType<JavaCompile> {
     options.compilerArgs.addAll(listOf("-parameters", "-Xlint:all", "-Xlint:-processing"))
 }
 
+// Mockito's inline mock maker attaches an agent to its own JVM, which a future JDK will refuse —
+// it already warns on every run. Passing the agent explicitly is the documented fix and means the
+// suite does not start failing on a JDK upgrade.
+val mockitoAgent: Configuration by configurations.creating
+
+dependencies {
+    mockitoAgent("org.mockito:mockito-core") { isTransitive = false }
+}
+
 tasks.withType<Test> {
+    // Resolved at execution time rather than during configuration, which Gradle warns about.
+    jvmArgumentProviders.add(CommandLineArgumentProvider { listOf("-javaagent:" + mockitoAgent.asPath) })
     useJUnitPlatform {
         // Live-model tests cost money and are non-deterministic; they never gate the pipeline
         // (docs/08-testing-strategy.md §7, §10).

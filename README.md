@@ -8,8 +8,8 @@ Receptionist acts only through validated tools; those tools call the same endpoi
 calls; and the database makes double-booking structurally impossible regardless of what any layer above it
 believes.
 
-> **Build status: phase 01 of 11 complete.** The full runtime topology is up and CI is green on a real
-> test suite. No domain concept exists yet — by design. See
+> **Build status: phase 02 of 11 complete.** The full runtime topology is up, an owner can register
+> and sign in, and the tenancy seam every later query runs through is in place and enforced. See
 > [docs/09-phase-plan.md](docs/09-phase-plan.md) for the build order.
 
 ## Quick start
@@ -39,8 +39,8 @@ your IDE:
 **Always use `localhost:9080`.** Caddy puts both applications on that one origin — `/api/*` to the
 backend, everything else to the frontend. Hitting the backend or the frontend on its own port puts
 them on *different* origins, which is exactly what the single-origin design exists to avoid: it is
-what lets authentication use httpOnly cookies with no CORS configuration anywhere. From phase 02
-onward, cookie auth simply will not work if you bypass Caddy.
+what lets authentication use httpOnly cookies with no CORS configuration anywhere. As of phase 02
+this is no longer theoretical: sign in through any other port and the cookies will not come back.
 
 `make up` copies `.env.example` to `.env` on first run.
 
@@ -82,6 +82,30 @@ This builds both application images and layers them in via
 [docker-compose.apps.yml](docker-compose.apps.yml). It is what CI smoke-tests and what phase 11
 deploys. It has no hot reload, so it is not the way to develop.
 
+## Branching
+
+`main` is the tested branch. Work happens on `dev`, and reaches `main` only once CI is green and
+the change has actually been exercised — not merely compiled.
+
+```bash
+git checkout dev          # where the work happens
+# ... build, test, commit ...
+git push origin dev       # CI runs on every branch and every pull request
+```
+
+When a phase is done and verified, open a pull request from `dev` into `main` and merge it once the
+checks pass:
+
+```bash
+gh pr create --base main --head dev --fill
+gh pr checks --watch
+gh pr merge --squash
+```
+
+The rule this encodes: **`main` should always be a commit a stranger could clone and run.** That is
+the same standard each phase's Definition of Done is written to, so the branch and the checklist
+enforce the same thing from two directions.
+
 ## Repository layout
 
 ```text
@@ -119,6 +143,7 @@ Docker Compose · OpenAI tool calling (phase 09)
 | Security decisions | [docs/06-security.md](docs/06-security.md) |
 | How it's tested | [docs/08-testing-strategy.md](docs/08-testing-strategy.md) |
 | What to build, in what order | [docs/09-phase-plan.md](docs/09-phase-plan.md) |
+| What happened while building it | [docs/sessions/](docs/sessions/) |
 | Why a decision was made | [docs/adr/](docs/adr/) |
 | What comes after the MVP | [docs/future/future-features.md](docs/future/future-features.md) |
 
@@ -146,6 +171,10 @@ while any of them survives.
 cd backend  && ./gradlew build     # unit + integration, real Postgres and Mailpit in Testcontainers
 cd frontend && pnpm lint && pnpm typecheck && pnpm build
 ```
+
+**Run `pnpm build` only when `pnpm dev` is stopped.** Both write `frontend/.next`, and a production
+build performed underneath a running dev server leaves it serving 404s for every chunk — the page
+renders unstyled and recovers only after you stop the server, delete `.next` and start it again.
 
 Integration tests run against **real PostgreSQL 16**, never H2: the schema depends on `btree_gist`
 exclusion constraints, partial unique indexes, `citext` and `tstzrange`, and H2 supports none of them.

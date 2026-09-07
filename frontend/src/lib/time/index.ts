@@ -44,6 +44,40 @@ export function formatTime(instant: IsoInstant | Date, timezone: Timezone): stri
   return format(instant, timezone, { hour: '2-digit', minute: '2-digit', hour12: false });
 }
 
+const MONTHS = [
+  'January',
+  'February',
+  'March',
+  'April',
+  'May',
+  'June',
+  'July',
+  'August',
+  'September',
+  'October',
+  'November',
+  'December',
+];
+
+/**
+ * `2026-12-24` → `24 December 2026`.
+ *
+ * The one helper here that takes no timezone, and deliberately: an `IsoDate` has already been
+ * resolved into the business's zone by whoever produced it, so there is nothing left to interpret.
+ * Asking for a zone would invite the caller to supply one and imply a conversion that must not
+ * happen twice.
+ *
+ * Built from the string's own parts rather than through a formatter. `new Date('2026-12-24')`
+ * parses as UTC midnight, which renders as the 23rd for any business west of Greenwich — the exact
+ * off-by-one-day this module exists to prevent.
+ */
+export function formatIsoDate(date: IsoDate): string {
+  const [year, month, day] = date.split('-');
+  const name = MONTHS[Number(month) - 1];
+  if (!year || !day || !name) return date;
+  return `${Number(day)} ${name} ${year}`;
+}
+
 /** `8 September 2026` */
 export function formatDate(instant: IsoInstant | Date, timezone: Timezone): string {
   return format(instant, timezone, { day: 'numeric', month: 'long', year: 'numeric' });

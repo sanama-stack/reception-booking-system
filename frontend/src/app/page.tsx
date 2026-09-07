@@ -1,8 +1,10 @@
-import { Card } from '@/components/ui/card';
+import { Card } from '@/components/ui';
+import { LandingCta } from './landing-cta';
 
 /**
- * Placeholder landing page. The marketing surface arrives with the dashboard in later phases;
- * this exists so `make up` has something honest to show at the single origin.
+ * Placeholder landing page. The marketing surface arrives in a later phase; this exists so
+ * `make up` has something honest to show at the single origin, and so there is a way into the
+ * product from it.
  */
 export default function LandingPage() {
   return (
@@ -18,14 +20,13 @@ export default function LandingPage() {
         </p>
       </div>
 
+      <LandingCta />
+
       <Card>
-        <h2 className="text-ink text-sm font-semibold">Phase 01 — Foundation</h2>
+        <h2 className="text-ink text-sm font-semibold">Phase 02 — Authentication and tenancy</h2>
         <p className="text-ink-muted mt-2 text-sm leading-relaxed">
-          The full topology is running behind a single origin. Everything below is served from
-          <code className="bg-surface-muted mx-1 rounded px-1.5 py-0.5 text-xs">
-            localhost:8080
-          </code>
-          — which is what lets authentication use httpOnly cookies with no CORS anywhere.
+          Everything is served from one origin, which is what lets authentication use httpOnly
+          cookies with no CORS anywhere — and no token handling in this application at all.
         </p>
         <ul className="text-ink-muted mt-4 space-y-1.5 text-sm">
           <li>
@@ -41,8 +42,8 @@ export default function LandingPage() {
             — API description
           </li>
           <li>
-            <a className="text-brand hover:underline" href="http://localhost:8025">
-              localhost:8025
+            <a className="text-brand hover:underline" href="http://localhost:9083">
+              localhost:9083
             </a>{' '}
             — Mailpit
           </li>

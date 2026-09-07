@@ -47,6 +47,7 @@ shop *and* an auto repair shop so this is provable rather than asserted.
 | [08-testing-strategy.md](./08-testing-strategy.md) | What is tested, at which level, and how the AI is tested |
 | [09-phase-plan.md](./09-phase-plan.md) | 11 phases, dependency graph, sequencing rationale |
 | [phases/](./phases/) | One implementation checklist per phase |
+| [sessions/](./sessions/) | What happened while building — one handoff per session |
 | [adr/](./adr/) | Six decisions that were genuine trade-offs |
 | [future/future-features.md](./future/future-features.md) | V1.1 / V1.2 / V2 roadmap |
 | [../CONTEXT.md](../CONTEXT.md) | Domain glossary — the vocabulary all code should use |
