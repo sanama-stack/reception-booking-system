@@ -1,4 +1,4 @@
-export { Button, type ButtonProps } from './button';
+export { Button, ButtonLink, type ButtonProps } from './button';
 export { Card, CardHeader } from './card';
 export { ConfirmDialog } from './confirm-dialog';
 export { EmptyState } from './empty-state';

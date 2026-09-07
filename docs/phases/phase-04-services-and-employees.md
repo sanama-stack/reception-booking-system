@@ -111,8 +111,8 @@ sentence at the point of the decision.
 - [x] Employees are assignable to a subset of services
 - [x] Time off is recordable
 - [x] The database itself rejects cross-tenant assignments
-- [ ] The onboarding checklist reaches "your page is ready" state
-- [ ] All tests above pass
+- [x] The onboarding checklist reaches "your page is ready" state
+- [x] All tests above pass
 
 ## Checklist
 
@@ -137,14 +137,14 @@ sentence at the point of the decision.
 - [x] Error codes: `SERVICE_IN_USE`
 
 ### Frontend
-- [ ] `/services` list with empty state
-- [ ] Service create/edit form with long-duration warning
-- [ ] Employee multi-select on the service form
-- [ ] `/employees` list with empty state
-- [ ] Employee detail with assignments, schedule editor, time off
-- [ ] Weekly schedule editor component (shared shape with business hours)
-- [ ] Deactivation confirmation showing affected appointments
-- [ ] Empty, loading and error states throughout
+- [x] `/services` list with empty state
+- [x] Service create/edit form with long-duration warning
+- [x] Employee multi-select on the service form
+- [x] `/employees` list with empty state
+- [x] Employee detail with assignments, schedule editor, time off
+- [x] Weekly schedule editor component (shared shape with business hours)
+- [x] Deactivation confirmation showing affected appointments
+- [x] Empty, loading and error states throughout
 
 ### Testing
 - [x] All unit tests above
@@ -156,17 +156,20 @@ sentence at the point of the decision.
 
 ## Notes from the build
 
-*Written as the backend half only, so the API contract could be reviewed before screens were built
-on it — the same split phase 03 used. The Frontend checklist above is deliberately unticked; the
-two Definition-of-Done boxes left open are covered below.*
+*Built in two sittings: the backend first, so the API contract could be reviewed before screens
+were built on it — the same split phase 03 used — and the five screens second. Everything below the
+horizontal rule under "The frontend half" was written in the second sitting.*
 
-### `publicPageReady` reaches `true`, but nobody has watched it happen
+### `publicPageReady` reaches `true`, and has now been watched
 
 `OnboardingProgressionTest` walks the checklist from a freshly registered business to
 `publicPageReady: true` one configuration step at a time, and back out again three ways. The
-dashboard checklist phase 03 built needs no change to display it — it already reads these flags. So
-the state is reachable and proven at the API; what has not happened is a person seeing it in a
-browser, which is why the box is left unticked.
+dashboard checklist phase 03 built needs no change to display it — it already reads these flags.
+
+The frontend sitting watched it happen: a business configured through the five new screens reached
+"Everything is configured. Your booking page is ready to take appointments.", and deactivating its
+only service took it back to "3 of 5 done" without a line of checklist code changing. That is the
+payoff of the backend sitting publishing the final response shape up front.
 
 ### The stub was deleted, not rewired
 
@@ -287,3 +290,79 @@ three files.
    `schedule[2].startsAt`. The index-mapping trap from the phase 03 handoff §5.1 applies unchanged.
 6. **Time Off is the closures form.** Inclusive local dates in, both representations plus the zone
    back out.
+
+
+---
+
+## The frontend half
+
+*The five screens, written in a second sitting against the contract above.*
+
+### The seven-day editor is now one component, not two
+
+`components/week-editor.tsx` holds the control; `HoursEditor` and `ScheduleSection` are wrappers
+supplying the words, the key shape (`hours[2].opensAt` against `schedule[2].startsAt`) and the
+write. The alternative — copying the editor and renaming three fields — would have copied the
+index-mapping trap with it, and the copy is exactly the kind of code that gets fixed in one place.
+
+The mapping was re-verified in both guises: two overlapping intervals on Tuesday put the server's
+message on *Tuesday interval 2* on the hours screen and on *Tuesday shift 2* on the schedule
+screen, with `aria-invalid` on that input and nothing on Monday's.
+
+### One assignment control, because there is one table
+
+`employee_services` has a single writer on the server so that two writers can never disagree about
+what a valid pair is. `components/assignment-picker.tsx` is the same idea on this side: the service
+form's "who provides it" and the employee page's "what they provide" are one component, so the two
+screens cannot drift into meaning different things by a tick.
+
+### The employee page stacks, where Settings tabs
+
+Four concerns on one page rather than four sub-routes. Settings is five screens an owner visits one
+at a time, months apart; this is four steps an owner works through in one sitting the first time
+they add someone, and three of them are the difference between a person who can be booked and one
+who cannot. Tabs would hide exactly the steps the onboarding checklist is pushing them towards.
+
+Each section loads and saves independently, so one failing does not take the others with it.
+
+### The long-duration warning measures the duration alone
+
+Not duration plus buffers. The buffers also occupy the calendar, but whether padding may spill past
+closing time is phase 05's decision and has not been taken — warning on the total would be
+asserting an answer this screen does not have. It compares against the longest single *stretch* the
+business is open, not a day's total: two intervals with a lunch break between them cannot hold an
+appointment that spans both.
+
+### A create cannot carry its assignments
+
+`POST /services` then `PUT /services/{id}/employees`, because the second call needs an id the first
+one produces. If the second fails the service still exists, so the owner is told exactly that and
+sent to the detail screen, rather than being left on a form for something that has already been
+created.
+
+### A third tone
+
+`--color-warning` is new. A service longer than the opening hours saves fine and cannot be booked —
+`danger` would say it was refused, and `ink-muted` would let it pass unread.
+
+### Verified in a browser
+
+Against the real backend, in a throwaway second tenant that was afterwards deleted row by row with
+the owner's own business confirmed untouched: both empty states; a create refused with `422` putting
+"Use a multiple of 5 minutes" and "Use at most two decimal places" on their own fields and nothing
+in the banner; the long-duration warning naming 10 hr against an 8 hr Monday; `25` typed and stored
+and re-read as `25.00 USD`; the phone `555 12 34 56` refused with the message that names Settings
+rather than the field, and `+995 555 12 34 56` normalised to `+995555123456`; the assignment saving
+in both directions; the schedule overlap landing on the right row; time off round-tripping
+24–26 December as inclusive dates over a half-open `2026-12-27T00:00Z`; deactivation confirming,
+reporting and reversing; a delete returning `204`; and the checklist reaching ready and falling back
+out again.
+
+### Not covered
+
+- **`409 SERVICE_IN_USE` was not exercised**, and cannot be until appointments exist. The screen
+  renders the server's message verbatim, which is the part that matters, but nothing has produced
+  one.
+- **`affectedFutureAppointments` was only ever `0`.** The dialog promises nothing is cancelled and
+  the result reports the count when it is non-zero; phase 06 is the first time it can be.
+- **Still no frontend test runner**, by design. Everything above was verified by hand.

@@ -12,11 +12,11 @@ import {
 } from '@/components/ui';
 import { ApiError } from '@/lib/api/client';
 import { useSession } from '@/lib/auth';
+import { changedFields } from '@/lib/forms/changed-fields';
 import {
   availableCurrencies,
   availableTimezones,
   businessApi,
-  changedFields,
   timezoneLabel,
   type BusinessPatch,
   type BusinessProfile,

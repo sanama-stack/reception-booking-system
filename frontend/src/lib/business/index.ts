@@ -1,6 +1,5 @@
 export { businessApi } from './api';
 export { DAYS, dayLabel } from './days';
-export { changedFields } from './patch';
 export { availableCurrencies, availableTimezones, timezoneLabel } from './registries';
 export type {
   BusinessPatch,

@@ -8,19 +8,17 @@ interface Step {
   key: keyof Onboarding;
   title: string;
   description: string;
-  /** Where the owner goes to do it, or `null` while the screen does not exist yet. */
-  href: string | null;
-  /** Shown in place of the link, so an unbuilt screen is named rather than silently missing. */
-  arrives?: string;
+  /** Where the owner goes to do it. */
+  href: string;
 }
 
 /**
  * The five things that decide whether anyone can book, in the order they have to happen.
  *
- * Three of them are answered by `CatalogReadiness`, whose phase-03 implementation truthfully
- * answers "nothing configured" — services and employees arrive in phase 04. They are listed and
- * shown as outstanding rather than hidden: an owner who cannot see the remaining steps cannot tell
- * whether they have finished, and hiding them would also mean rebuilding this list later.
+ * Every one of them is derived server-side from real configuration on every read, so a step ticks
+ * itself the moment the thing it describes becomes true — including from another tab, and
+ * including the last one, which is the conjunction that actually decides whether the booking page
+ * can take an appointment.
  */
 const STEPS: Step[] = [
   {
@@ -33,29 +31,25 @@ const STEPS: Step[] = [
     key: 'hasActiveService',
     title: 'Add a service',
     description: 'What customers book — a haircut, a consultation — with a length and a price.',
-    href: null,
-    arrives: 'Arrives with services',
+    href: '/services',
   },
   {
     key: 'hasActiveEmployee',
     title: 'Add someone who provides it',
     description: 'The people appointments are booked with.',
-    href: null,
-    arrives: 'Arrives with staff',
+    href: '/employees',
   },
   {
     key: 'hasEmployeeSchedule',
     title: 'Give them a working week',
     description: 'When each person works, which can differ from when the business is open.',
-    href: null,
-    arrives: 'Arrives with staff',
+    href: '/employees',
   },
   {
     key: 'hasBookableService',
     title: 'Connect a service to someone who can do it',
     description: 'A service nobody is assigned to cannot be booked, however well configured it is.',
-    href: null,
-    arrives: 'Arrives with services',
+    href: '/services',
   },
 ];
 
@@ -115,13 +109,9 @@ export function OnboardingChecklist({ state }: { state: Onboarding }) {
               </div>
 
               <div className="shrink-0 self-center text-sm">
-                {step.href ? (
-                  <Link href={step.href} className="text-brand hover:underline">
-                    {complete ? 'Change' : 'Set up'}
-                  </Link>
-                ) : (
-                  <span className="text-ink-muted/70">{step.arrives}</span>
-                )}
+                <Link href={step.href} className="text-brand hover:underline">
+                  {complete ? 'Change' : 'Set up'}
+                </Link>
               </div>
             </li>
           );

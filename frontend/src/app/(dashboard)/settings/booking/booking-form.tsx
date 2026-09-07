@@ -3,12 +3,8 @@
 import { useState } from 'react';
 import { Button, Card, CardHeader, Input, Select, Textarea, useToast } from '@/components/ui';
 import { ApiError } from '@/lib/api/client';
-import {
-  businessApi,
-  changedFields,
-  type BusinessPatch,
-  type BusinessProfile,
-} from '@/lib/business';
+import { changedFields } from '@/lib/forms/changed-fields';
+import { businessApi, type BusinessPatch, type BusinessProfile } from '@/lib/business';
 
 /** The grid the availability engine offers start times on. A choice, not a range. */
 const SLOT_INTERVALS = [5, 10, 15, 20, 30, 60];

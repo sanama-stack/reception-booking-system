@@ -15,8 +15,8 @@ import { useSession } from '@/lib/auth';
 const NAVIGATION = [
   { href: '/dashboard', label: 'Home', available: true },
   { href: '/settings/profile', label: 'Settings', available: true },
-  { href: '/services', label: 'Services', available: false },
-  { href: '/employees', label: 'Employees', available: false },
+  { href: '/services', label: 'Services', available: true },
+  { href: '/employees', label: 'Employees', available: true },
   { href: '/appointments', label: 'Appointments', available: false },
   { href: '/customers', label: 'Customers', available: false },
   { href: '/analytics', label: 'Analytics', available: false },
