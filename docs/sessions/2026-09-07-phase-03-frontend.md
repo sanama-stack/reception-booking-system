@@ -17,7 +17,7 @@ project owner. Every checklist box in `docs/phases/phase-03-business-setup.md` i
 |---|---|
 | Repository | https://github.com/sanama-stack/reception-booking-system — **public** |
 | Default branch | `main` — the tested branch |
-| Working branch | **`dev`** — **13 commits ahead of `main`**, and **still not pushed** |
+| Working branch | **`dev`** — **14 commits ahead of `main`**, and **still not pushed** |
 | Backend tests | 234, untouched — this session changed no backend code |
 | Frontend | Type-checks, lints, formats; `next build` passes with **all eleven routes static** |
 | CI | **Still has not seen any of phase 03.** Unchanged and still the highest-value next action |
@@ -25,8 +25,12 @@ project owner. Every checklist box in `docs/phases/phase-03-business-setup.md` i
 ### The commits
 
 ```text
-<this session>  Phase 03 — the settings screens and the onboarding checklist
+54c4236  Phase 03 — the settings screens and the onboarding checklist
+         Commit CLAUDE.md, and correct a claim three handoffs repeated
 ```
+
+The second commit carries this document, so it cannot name its own hash — every amendment would
+invalidate it. `git log --oneline main..dev` is the authority.
 
 **Nothing is pushed.** This was true at the end of the previous session and is still true. `dev` now
 carries the whole of phase 03, backend and frontend, and CI has seen none of it.
@@ -251,8 +255,10 @@ Everything in §8 of the phase-03 backend handoff still stands. Added or changed
   04 and 06 should do.** The dashboard checklist now *displays* those three flags, so phase 04
   turning them true is visible immediately with no frontend change — which is the payoff the backend
   session bought by publishing the final shape up front.
-- **`CLAUDE.md` and `docs/agents/` are still untracked**, for the third session running. Still the
-  owner's call.
+- **`CLAUDE.md` is now committed.** Flagged as "the owner's call" by the previous three handoffs;
+  the owner made it this session. Note that those handoffs also said `docs/agents/` was untracked —
+  **it was not**, and had been tracked all along. A claim repeated across three documents was still
+  wrong; `git ls-files` settled it in one command.
 - **Branch protection is still not enabled.** Offered three times now.
 - **The dev server was left wedged** — see §5.6. `rm -rf frontend/.next` and restart it. The
   committed source is healthy; a clean production build of it passes with all eleven routes
