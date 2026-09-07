@@ -1,0 +1,16 @@
+# Testcontainers supplies the datasource and the mail host; nothing is hard-coded here.
+spring:
+  jpa:
+    hibernate:
+      ddl-auto: validate
+
+app:
+  security:
+    cookies:
+      secure: false
+
+logging:
+  level:
+    root: WARN
+    dev.reception: INFO
+    org.testcontainers: WARN

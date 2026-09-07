@@ -1,0 +1,33 @@
+# Single origin for the whole system.
+#
+# Everything the browser talks to is served from http://localhost:8080. This is what lets
+# authentication use httpOnly cookies with no CORS configuration anywhere in the system
+# (see docs/06-security.md §2, §13). `handle /api/*` does not strip the prefix, which is
+# why the backend runs with server.servlet.context-path: /api.
+
+{
+	admin off
+	auto_https off
+}
+
+:8080 {
+	handle /api/* {
+		reverse_proxy {$BACKEND_UPSTREAM:backend:8081}
+	}
+
+	handle {
+		reverse_proxy {$FRONTEND_UPSTREAM:frontend:3000}
+	}
+
+	header {
+		X-Content-Type-Options nosniff
+		Referrer-Policy strict-origin-when-cross-origin
+		X-Frame-Options DENY
+		-Server
+	}
+
+	log {
+		output stdout
+		format json
+	}
+}

@@ -1,0 +1,38 @@
+# Environment
+.env
+.env.local
+.env.*.local
+
+# Java / Gradle
+backend/build/
+backend/.gradle/
+backend/out/
+*.class
+*.jar
+# The Gradle wrapper jar MUST be committed — without it `./gradlew` cannot bootstrap on a clean
+# clone and CI fails on checkout. The leading **/ is load-bearing: a path without it is anchored
+# to this file's directory and would not match backend/gradle/wrapper/.
+!**/gradle/wrapper/gradle-wrapper.jar
+
+# Node / Next.js
+node_modules/
+frontend/.next/
+frontend/out/
+frontend/next-env.d.ts
+frontend/.pnpm-store/
+frontend/tsconfig.tsbuildinfo
+frontend/playwright-report/
+frontend/test-results/
+
+# IDE
+.idea/
+*.iml
+.vscode/
+
+# OS
+.DS_Store
+
+# Logs
+*.log
+npm-debug.log*
+pnpm-debug.log*

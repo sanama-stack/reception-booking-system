@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Two output formats, one redaction rule.
+
+  - `local` profile (your machine): Spring Boot's familiar colourised console, plus the request id.
+  - every other profile (containers, prod): structured JSON with a request id and business_id,
+    which is what docs/06-security.md §10 asks for.
+
+  Redaction applies to BOTH. In JSON it is the encoder's masking decorator; in the console it is
+  the %m and %wEx conversion rules below, bound to the same PiiValueMasker. Making the console
+  pretty must not make it the one place a secret can escape, so the rules are registered against
+  every message and throwable conversion word — a pattern written later is covered without anyone
+  remembering to think about it.
+-->
+<configuration>
+  <!-- Gives CONSOLE_LOG_PATTERN, %clr colours and the rest of Spring Boot's console defaults. -->
+  <include resource="org/springframework/boot/logging/logback/defaults.xml"/>
+
+  <conversionRule conversionWord="m" class="dev.reception.common.logging.PiiMessageConverter"/>
+  <conversionRule conversionWord="msg" class="dev.reception.common.logging.PiiMessageConverter"/>
+  <conversionRule conversionWord="message" class="dev.reception.common.logging.PiiMessageConverter"/>
+  <conversionRule conversionWord="wEx" class="dev.reception.common.logging.PiiThrowableConverter"/>
+
+  <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
+    <encoder>
+      <pattern>${CONSOLE_LOG_PATTERN}</pattern>
+      <charset>${CONSOLE_LOG_CHARSET}</charset>
+    </encoder>
+  </appender>
+
+  <springProfile name="local | test">
+    <root level="INFO">
+      <appender-ref ref="CONSOLE"/>
+    </root>
+  </springProfile>
+
+  <springProfile name="!local &amp; !test">
+    <!-- Included inside the profile: an appender defined but never referenced makes Logback warn
+         at startup, and a startup warning nobody needs is how people learn to ignore them. -->
+    <include resource="logback-json.xml"/>
+    <root level="INFO">
+      <appender-ref ref="JSON"/>
+    </root>
+  </springProfile>
+</configuration>

@@ -1,0 +1,161 @@
+# Phase 08 — Public Booking (Classic Flow)
+
+## Goal
+
+A stranger with a link books an appointment without an account, receives a confirmation email, and can
+manage that appointment from the link inside it — all through endpoints the Receptionist will later call.
+
+## Scope
+
+**In:** public read endpoints, public booking endpoint, appointment lookup, manage-token endpoints, public
+cancel/reschedule, the `/book/{slug}` page with the Classic Flow, the `/manage/{token}` page, public rate
+limiting.
+
+**Out:** the Receptionist (phase 09). The chat panel's *space* is laid out here; the chat itself is not.
+
+## Dependencies
+
+Phase 07 — the confirmation email and Manage Link must already work.
+
+## Why the Classic Flow comes before the AI
+
+It proves the entire public API surface is correct **before** a nondeterministic layer sits on top. Built in
+the other order, an AI misbehaviour and an API bug are indistinguishable. It is also the permanent fallback
+for every AI failure mode in [05-ai-architecture.md](../05-ai-architecture.md) §8 — which is only credible
+if it is genuinely complete.
+
+## Technical work
+
+### The public module
+
+Public controllers live in their own module (`publicapi`), so "what is reachable without authentication" is
+a directory you can read rather than a property inferred from annotations.
+
+### Response minimisation
+
+Public DTOs are written by hand, never mapped from entities. Absent by construction: employee email and
+phone, internal settings, cost caps, other customers, and any id not needed to complete a booking. A test
+asserts public responses contain no field outside an allow-list — mapping an entity by accident is the
+easiest way to leak, so it is tested rather than trusted.
+
+### Tenant resolution from the slug
+
+`TenantContext` is populated from the slug for public requests. Same seam, different source. An unknown
+slug is `404` before any other work happens.
+
+### Authority for cancel and reschedule
+
+Two accepted proofs, converging on the same authorisation concept:
+1. A valid **Manage Link** token for that appointment
+2. A successful **lookup** with Confirmation Code **and** phone number
+
+`POST /public/appointments/lookup` is a `POST` because a phone number must never enter a URL, a log line or
+a referrer header. It is the most aggressively rate-limited endpoint in the system (5/hour/IP): it is what
+an attacker would brute-force.
+
+The customer cancellation window applies here; the dashboard path remains exempt.
+
+### The 409 experience
+
+A slot can be taken between rendering the grid and submitting. The page must refresh availability, explain
+plainly, and keep the customer's entered details. A silent failure or a raw error is a defect.
+
+## Database work
+
+None. Existing tables and services are reused, which is itself the demonstration that the public surface
+adds no privileged path.
+
+## Backend work
+
+- `PublicBusinessController` — profile, services, employees
+- `PublicAvailabilityController` — the phase 05 engine, unchanged
+- `PublicBookingController` — create with `source = CLASSIC`
+- `PublicAppointmentController` — lookup, manage-token resolve, cancel, reschedule
+- Public DTOs, hand-written
+- Slug-based tenant resolution filter
+- `RateLimitFilter` (Bucket4j) with the per-endpoint limits from [06-security.md](../06-security.md) §5
+- `429` responses carrying `Retry-After`
+
+## Frontend work
+
+- `/book/[slug]` — server-rendered: business name, description, address, hours, services with duration and
+  price; a two-column layout reserving the chat panel for phase 09
+- Classic Flow: service → *Any available* or a named employee → date → slot grid → name/phone/email →
+  confirm
+- Confirmation screen showing the Confirmation Code prominently, with a note that an email is on its way
+- `/manage/[token]` — appointment summary with cancel and reschedule
+- Cancellation-window refusal rendered as the business's policy text, not a raw error
+- Unknown slug → a designed `404`
+- A business with no bookable service → an explanatory page, not an empty grid
+- **Mobile first**: fully usable at 360 px; the slot grid must be thumb-friendly
+
+## Testing
+
+### Integration
+- [ ] Public profile, services and employees return only allow-listed fields
+- [ ] Public availability matches the internal endpoint exactly
+- [ ] Booking succeeds with `source = CLASSIC` and enqueues the confirmation email
+- [ ] Booking a taken slot → `409 SLOT_UNAVAILABLE`
+- [ ] Inactive service, inactive employee and unassigned employee are each rejected with their own code
+- [ ] Lookup with correct code **and** phone succeeds
+- [ ] Correct code, wrong phone → `INVALID_CONFIRMATION_CODE`
+- [ ] Phone only → schema rejection
+- [ ] Manage token resolves the right appointment; a tampered or expired token → `401`
+- [ ] A manage token for appointment A cannot act on appointment B
+- [ ] Customer cancel inside the window → `422 CANCELLATION_WINDOW_CLOSED`
+- [ ] Customer cancel outside the window succeeds and sends the email
+- [ ] Public reschedule validates availability and updates in place
+- [ ] Rate limits fire and return `429` with `Retry-After`
+- [ ] Lookup limit is 5/hour/IP
+- [ ] An unknown slug → `404` everywhere
+- [ ] **No public endpoint returns another business's data**
+
+### Frontend
+- [ ] Classic Flow completes end to end
+- [ ] `409` refreshes the grid and preserves entered details
+- [ ] "Any available" shows a specific employee before the slot is chosen
+- [ ] The page is usable at 360 px
+
+## Definition of Done
+
+- [ ] `/book/{slug}` is publicly reachable and shows business, services, prices and durations
+- [ ] A stranger books end to end with no account
+- [ ] The confirmation email arrives with a working Manage Link
+- [ ] The Manage Link page cancels and reschedules
+- [ ] Lookup requires code **and** phone
+- [ ] Every public endpoint is rate limited
+- [ ] No internal or cross-tenant field appears in any public response
+- [ ] All tests above pass
+
+## Checklist
+
+### Backend
+- [ ] `publicapi` module with slug-based tenant resolution
+- [ ] `PublicBusinessController`
+- [ ] `PublicAvailabilityController`
+- [ ] `PublicBookingController` (`source = CLASSIC`)
+- [ ] `PublicAppointmentController` — lookup, manage, cancel, reschedule
+- [ ] Hand-written public DTOs
+- [ ] Allow-list test for public response fields
+- [ ] `RateLimitFilter` with per-endpoint buckets
+- [ ] `429` + `Retry-After`
+- [ ] Error codes: `INVALID_CONFIRMATION_CODE`, `MANAGE_TOKEN_INVALID`
+
+### Frontend
+- [ ] `/book/[slug]` server-rendered page with the chat column reserved
+- [ ] Service selector
+- [ ] Employee selector with "Any available"
+- [ ] Date picker and slot grid
+- [ ] Customer details form
+- [ ] Confirmation screen with the code
+- [ ] `/manage/[token]` page with cancel and reschedule
+- [ ] Policy-aware refusal messaging
+- [ ] Designed `404` and "not accepting bookings" pages
+- [ ] Mobile layout verified at 360 px
+- [ ] Empty, loading and error states throughout
+
+### Testing
+- [ ] All integration tests above
+- [ ] Public field allow-list test
+- [ ] Rate-limit tests
+- [ ] Mobile-viewport check

@@ -1,0 +1,33 @@
+# Development on your machine, against the infrastructure `make up` provides.
+#
+# The ports and credentials come from the repository's .env — the same file docker-compose.yml
+# reads — so there is one place to change a port and it does not matter how the application was
+# started: `./gradlew bootRun`, the VS Code launch configuration, the Spring Boot Dashboard, or
+# the Run button above main(). Each of those uses a different working directory and only some of
+# them inject environment variables, which is why the import is here rather than in a launcher.
+#
+# Both paths are optional: the file is absent in CI and inside the container, where these values
+# arrive as real environment variables instead.
+spring:
+  config:
+    import:
+      - optional:file:./.env[.properties]
+      - optional:file:../.env[.properties]
+
+  jpa:
+    properties:
+      hibernate:
+        format_sql: true
+
+app:
+  security:
+    cookies:
+      secure: false
+
+logging:
+  # Spring Boot's console pattern reserves a slot for a correlation id; the request-id filter
+  # fills it, so a console line can be matched to a response's X-Request-Id header.
+  pattern:
+    correlation: "[%X{requestId:-}] "
+  level:
+    dev.reception: DEBUG

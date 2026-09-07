@@ -1,0 +1,29 @@
+@import 'tailwindcss';
+
+@theme {
+  --color-surface: oklch(100% 0 0);
+  --color-surface-muted: oklch(97.5% 0.005 260);
+  --color-border: oklch(91% 0.008 260);
+  --color-ink: oklch(22% 0.02 260);
+  --color-ink-muted: oklch(52% 0.015 260);
+  --color-brand: oklch(52% 0.16 262);
+  --color-brand-contrast: oklch(99% 0 0);
+  --color-danger: oklch(55% 0.19 26);
+  --color-success: oklch(58% 0.13 155);
+}
+
+@layer base {
+  html {
+    -webkit-text-size-adjust: 100%;
+  }
+
+  body {
+    background-color: var(--color-surface-muted);
+    color: var(--color-ink);
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--color-brand);
+    outline-offset: 2px;
+  }
+}

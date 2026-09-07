@@ -1,0 +1,19 @@
+# No seed data, secure cookies, external SMTP. The application refuses to start while any
+# secret still holds its local default (docs/06-security.md §9).
+spring:
+  flyway:
+    clean-disabled: true
+  jpa:
+    properties:
+      hibernate:
+        format_sql: false
+
+app:
+  security:
+    cookies:
+      secure: true
+
+logging:
+  level:
+    root: INFO
+    dev.reception: INFO

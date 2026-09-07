@@ -1,0 +1,6 @@
+# pnpm 11 reads settings from here rather than from package.json.
+# These packages ship native binaries and need their install scripts to run.
+allowBuilds:
+  '@tailwindcss/oxide': true
+  sharp: true
+  unrs-resolver: true

@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  The JSON appender, kept free of Spring-only tags so it can be loaded by a plain Logback
+  configurator. That is what lets JsonLoggingConfigurationTest exercise this file directly:
+  the appender is otherwise inactive under the test profile, and a broken encoder configuration
+  would surface as a container that refuses to start rather than as a red test.
+-->
+<included>
+  <appender name="JSON" class="ch.qos.logback.core.ConsoleAppender">
+    <encoder class="net.logstash.logback.encoder.LogstashEncoder">
+      <includeMdcKeyName>requestId</includeMdcKeyName>
+      <!-- business_id joins the MDC in phase 02, where the tenant is resolved. -->
+      <includeMdcKeyName>businessId</includeMdcKeyName>
+      <customFields>{"application":"reception"}</customFields>
+      <fieldNames>
+        <version>[ignore]</version>
+        <levelValue>[ignore]</levelValue>
+      </fieldNames>
+
+      <!-- Appender-level redaction (docs/06-security.md §10). The rules live in Java: a regex
+           here is mangled by the configurator's escape handling, and a security control
+           deserves a unit test. -->
+      <jsonGeneratorDecorator class="net.logstash.logback.mask.MaskingJsonGeneratorDecorator">
+        <valueMasker class="dev.reception.common.logging.PiiValueMasker"/>
+      </jsonGeneratorDecorator>
+    </encoder>
+  </appender>
+</included>
