@@ -36,6 +36,10 @@ dependencies {
 
     implementation("org.springdoc:springdoc-openapi-starter-webmvc-ui:2.8.9")
 
+    // In-memory rate limiting. No Redis: one instance in MVP, and the externalisation path is
+    // documented as the first scale-out task (docs/06-security.md §5, docs/02-product-architecture.md §8).
+    implementation("com.bucket4j:bucket4j_jdk17-core:8.14.0")
+
     // Structured JSON logging (docs/06-security.md §10).
     implementation("net.logstash.logback:logstash-logback-encoder:8.1")
 

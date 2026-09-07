@@ -1,12 +1,9 @@
 package dev.reception.common.error;
 
-import dev.reception.common.logging.RequestIdFilter;
 import jakarta.servlet.http.HttpServletRequest;
-import java.net.URI;
 import java.util.List;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.slf4j.MDC;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.HttpStatusCode;
@@ -135,20 +132,9 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
     }
 
     private ProblemDetail problem(ErrorCode code, String detail, List<FieldError> fieldErrors, String instance) {
-        ProblemDetail problem = ProblemDetail.forStatus(code.status());
-        problem.setType(URI.create(code.typeUri()));
-        problem.setTitle(code.title());
-        problem.setDetail(detail);
-        if (instance != null) {
-            problem.setInstance(URI.create(instance));
-        }
-        problem.setProperty("code", code.name());
-        problem.setProperty("errors", fieldErrors);
-        String requestId = MDC.get(RequestIdFilter.MDC_KEY);
-        if (requestId != null) {
-            problem.setProperty("requestId", requestId);
-        }
-        return problem;
+        // Shared with the security handlers, which run before the dispatcher and so can never
+        // reach this advice (ProblemDetails).
+        return ProblemDetails.of(code, detail, fieldErrors, instance);
     }
 
     private ResponseEntity<ProblemDetail> respond(ProblemDetail problem) {

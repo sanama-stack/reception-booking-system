@@ -14,6 +14,33 @@ public enum ErrorCode {
     /** Request shape or field rules violated. */
     VALIDATION_FAILED(HttpStatus.UNPROCESSABLE_ENTITY, "Validation failed"),
 
+    /** Registration on an address that already has an account. */
+    EMAIL_TAKEN(HttpStatus.CONFLICT, "Email already registered"),
+
+    /** The derived or requested slug is in use. */
+    SLUG_TAKEN(HttpStatus.CONFLICT, "Slug already taken"),
+
+    /**
+     * Login failed. Deliberately does not distinguish "no such user" from "wrong password" — one
+     * message for both is what keeps the endpoint from confirming which addresses have accounts.
+     */
+    INVALID_CREDENTIALS(HttpStatus.UNAUTHORIZED, "Invalid credentials"),
+
+    /**
+     * No credential was presented, or the one presented is not a token this server issued. The
+     * client should send the user to sign in rather than attempt a refresh.
+     */
+    UNAUTHENTICATED(HttpStatus.UNAUTHORIZED, "Not authenticated"),
+
+    /** The access token expired; the client should refresh and retry once. */
+    TOKEN_EXPIRED(HttpStatus.UNAUTHORIZED, "Token expired"),
+
+    /**
+     * A refresh token was presented twice. The value was captured, so the whole token family is
+     * revoked and every session descended from that login ends (docs/06-security.md §2).
+     */
+    TOKEN_REUSED(HttpStatus.UNAUTHORIZED, "Token reused"),
+
     /**
      * Does not exist <em>or</em> belongs to another tenant — indistinguishable by design
      * (docs/06-security.md §3).

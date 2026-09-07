@@ -1,39 +1,151 @@
 package dev.reception.common.config;
 
+import dev.reception.auth.CookieBearerTokenResolver;
+import dev.reception.auth.JwtService;
+import dev.reception.auth.ProblemAccessDeniedHandler;
+import dev.reception.auth.ProblemAuthenticationEntryPoint;
+import dev.reception.tenancy.TenantContextFilter;
+import java.nio.charset.StandardCharsets;
+import javax.crypto.spec.SecretKeySpec;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.http.HttpMethod;
+import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.http.SessionCreationPolicy;
+import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
+import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.security.oauth2.jose.jws.MacAlgorithm;
+import org.springframework.security.oauth2.jwt.JwtDecoder;
+import org.springframework.security.oauth2.jwt.JwtEncoder;
+import org.springframework.security.oauth2.jwt.NimbusJwtDecoder;
+import org.springframework.security.oauth2.jwt.NimbusJwtEncoder;
+import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationConverter;
+import org.springframework.security.oauth2.server.resource.authentication.JwtGrantedAuthoritiesConverter;
+import org.springframework.security.oauth2.server.resource.web.authentication.BearerTokenAuthenticationFilter;
 import org.springframework.security.web.SecurityFilterChain;
 
+import com.nimbusds.jose.jwk.source.ImmutableSecret;
+
 /**
- * Placeholder security configuration.
+ * The authenticated surface.
  *
- * <p>TODO(phase-02): replace {@code permitAll} with the real rules — resource-server JWT
- * validation over the {@code access_token} cookie, method security for role checks, and the
- * tenant-resolution filter. This is an explicit placeholder rather than an accidental hole:
- * phase 01 ships no authenticated endpoint, so there is nothing yet to protect.
+ * <p>Configured as an OAuth2 <strong>resource server</strong> even though we are also the issuer
+ * (ADR-0001). The token arrives in a cookie rather than a header — {@link CookieBearerTokenResolver}
+ * is the whole of that adaptation — so introducing an external identity provider later replaces the
+ * issuer and changes no controller.
  *
- * <p>CSRF is disabled deliberately and stays disabled: the cookie-authenticated surface is
- * defended by {@code SameSite=Lax}, the single origin, and a required JSON content type
- * (docs/06-security.md §13). No CORS configuration exists anywhere — the single origin makes the
- * safest configuration the absent one.
+ * <p>CSRF stays disabled and that is a decision, not an omission: the cookie-authenticated surface
+ * is defended by {@code SameSite=Lax}, the single origin, and a required JSON content type, which
+ * together block the form-post shape CSRF tokens exist to stop (docs/06-security.md §13). No CORS
+ * configuration exists anywhere — with one origin, the safest configuration is the absent one.
  */
 @Configuration
 @EnableWebSecurity
+@EnableMethodSecurity
 public class SecurityConfig {
 
+    /**
+     * Cost 12 (docs/06-security.md §2). Deliberately slow: this is the one hash in the system whose
+     * input a human chose, and therefore the one an attacker can guess at.
+     */
+    private static final int BCRYPT_COST = 12;
+
+    private final String jwtSecret;
+
+    public SecurityConfig(@Value("${app.security.jwt-secret}") String jwtSecret) {
+        this.jwtSecret = jwtSecret;
+    }
+
     @Bean
-    public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
+    public SecurityFilterChain securityFilterChain(
+            HttpSecurity http,
+            CookieBearerTokenResolver bearerTokenResolver,
+            ProblemAuthenticationEntryPoint authenticationEntryPoint,
+            ProblemAccessDeniedHandler accessDeniedHandler,
+            JwtDecoder jwtDecoder)
+            throws Exception {
         return http.csrf(csrf -> csrf.disable())
                 .cors(cors -> cors.disable())
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .httpBasic(basic -> basic.disable())
                 .formLogin(form -> form.disable())
-                // Security headers are set once, at the edge, by Caddy (infra/caddy/Caddyfile).
+                .logout(logout -> logout.disable())
+                // Set once at the edge by Caddy; this is the defence-in-depth copy of the one that
+                // matters most if the application is ever reached directly.
                 .headers(headers -> headers.frameOptions(frame -> frame.deny()))
-                .authorizeHttpRequests(auth -> auth.anyRequest().permitAll())
+                .authorizeHttpRequests(auth -> auth
+                        // The public surface is declared explicitly and exhaustively, so "what is
+                        // reachable without authentication" is a list you can read rather than a
+                        // property inferred from annotations.
+                        .requestMatchers(
+                                "/auth/register",
+                                "/auth/login",
+                                "/auth/refresh",
+                                "/auth/logout",
+                                "/health",
+                                "/docs/**",
+                                "/openapi/**",
+                                "/swagger-ui/**")
+                        .permitAll()
+                        // Preflight never reaches here on a single origin, but a rule that depends
+                        // on that is a rule that breaks silently if it ever stops being true.
+                        .requestMatchers(HttpMethod.OPTIONS, "/**")
+                        .permitAll()
+                        .anyRequest()
+                        .authenticated())
+                .oauth2ResourceServer(oauth2 -> oauth2
+                        .bearerTokenResolver(bearerTokenResolver)
+                        .authenticationEntryPoint(authenticationEntryPoint)
+                        .accessDeniedHandler(accessDeniedHandler)
+                        .jwt(jwt -> jwt.decoder(jwtDecoder).jwtAuthenticationConverter(jwtAuthenticationConverter())))
+                .exceptionHandling(exceptions -> exceptions
+                        .authenticationEntryPoint(authenticationEntryPoint)
+                        .accessDeniedHandler(accessDeniedHandler))
+                // After authentication, so there is a principal to derive the tenant from.
+                .addFilterAfter(new TenantContextFilter(), BearerTokenAuthenticationFilter.class)
                 .build();
+    }
+
+    @Bean
+    public PasswordEncoder passwordEncoder() {
+        return new BCryptPasswordEncoder(BCRYPT_COST);
+    }
+
+    @Bean
+    public JwtEncoder jwtEncoder() {
+        return new NimbusJwtEncoder(new ImmutableSecret<>(secretKey()));
+    }
+
+    @Bean
+    public JwtDecoder jwtDecoder() {
+        // Pinned to HS256. Without this the decoder accepts any MAC algorithm the header names,
+        // and algorithm confusion is the classic way a JWT verifier is talked out of verifying.
+        return NimbusJwtDecoder.withSecretKey(secretKey())
+                .macAlgorithm(MacAlgorithm.HS256)
+                .build();
+    }
+
+    /**
+     * Maps the token's {@code role} claim to the {@code ROLE_} authority
+     * {@code @PreAuthorize("hasRole('OWNER')")} expects. Nothing else in the token becomes an
+     * authority, so a future claim cannot accidentally grant one.
+     */
+    private JwtAuthenticationConverter jwtAuthenticationConverter() {
+        JwtGrantedAuthoritiesConverter authorities = new JwtGrantedAuthoritiesConverter();
+        authorities.setAuthoritiesClaimName(JwtService.CLAIM_ROLE);
+        authorities.setAuthorityPrefix("ROLE_");
+
+        JwtAuthenticationConverter converter = new JwtAuthenticationConverter();
+        converter.setJwtGrantedAuthoritiesConverter(authorities);
+        return converter;
+    }
+
+    private SecretKeySpec secretKey() {
+        // The JCA name, not the JWS one: this is a javax.crypto key, and Nimbus reads the
+        // algorithm off it.
+        return new SecretKeySpec(jwtSecret.getBytes(StandardCharsets.UTF_8), "HmacSHA256");
     }
 }

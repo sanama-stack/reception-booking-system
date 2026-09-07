@@ -66,6 +66,12 @@ server:
   port: ${SERVER_PORT:9081}
   servlet:
     context-path: /api
+  forward-headers-strategy: framework
+  # Caddy is the only thing that talks to this application, and it sets X-Forwarded-For. Without
+  # this, every request would appear to come from Caddy and the per-IP rate limits would collapse
+  # into one global bucket shared by every visitor — a limit that locks out real users while
+  # stopping nobody. The trust is safe precisely because the proxy is the only ingress; exposing
+  # the backend's own port to anything but a developer's machine would invalidate it.
   error:
     # Every error body comes from GlobalExceptionHandler; the servlet container writes none.
     whitelabel:
@@ -91,6 +97,10 @@ management:
 
 app:
   public-url: ${APP_PUBLIC_URL:http://localhost:9080}
+  rate-limit:
+    # The per-endpoint limits themselves are code, in RateLimitProperties, because they are policy
+    # rather than configuration (docs/06-security.md §5).
+    enabled: ${RATE_LIMIT_ENABLED:true}
   mail:
     from: ${MAIL_FROM:no-reply@reception.local}
   security:
