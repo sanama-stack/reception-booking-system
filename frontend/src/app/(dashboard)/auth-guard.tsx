@@ -2,8 +2,8 @@
 
 import { useEffect } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
-import { ErrorState, Spinner } from '@/components/ui';
-import { useSession } from '@/lib/auth';
+import { ErrorState } from '@/components/ui';
+import { SessionPending, useSession } from '@/lib/auth';
 
 /**
  * Keeps signed-out visitors out of the dashboard.
@@ -11,7 +11,7 @@ import { useSession } from '@/lib/auth';
  * This is a redirect, not a security control. The session lives in an httpOnly cookie the server
  * validates on every request, so what actually protects a business's data is that the API refuses
  * — this only spares the user a screen full of failed requests. A guard that were the only check
- * would be no check at all.
+ * would be no check at all. GuestGuard, in the (auth) group, is its mirror.
  */
 export function AuthGuard({ children }: { children: React.ReactNode }) {
   const { status, error } = useSession();
@@ -26,12 +26,7 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
   }, [status, router, pathname]);
 
   if (status === 'loading') {
-    return (
-      <div className="flex min-h-dvh items-center justify-center" aria-busy="true">
-        <Spinner className="text-ink-muted size-6" />
-        <span className="sr-only">Loading your session</span>
-      </div>
-    );
+    return <SessionPending />;
   }
 
   if (status === 'anonymous') {

@@ -4,18 +4,14 @@ import { useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Button, Card, Input } from '@/components/ui';
 import { ApiError, api } from '@/lib/api/client';
-import { useSession, type Session } from '@/lib/auth';
+import { safeNextPath, useSession, type Session } from '@/lib/auth';
 
 export function LoginForm() {
   const router = useRouter();
   const { adopt } = useSession();
-  // Set by the dashboard guard when it turned an unauthenticated visitor away. Only same-site
-  // paths are honoured: an absolute URL here would make the login page an open redirect.
-  const requestedNext = useSearchParams().get('next');
-  const next =
-    requestedNext?.startsWith('/') && !requestedNext.startsWith('//')
-      ? requestedNext
-      : '/dashboard';
+  // Set by the dashboard guard when it turned an unauthenticated visitor away. Sanitised by the
+  // same function GuestGuard uses, so the two can never disagree about where `next` may point.
+  const next = safeNextPath(useSearchParams().get('next'));
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<ApiError | null>(null);
 

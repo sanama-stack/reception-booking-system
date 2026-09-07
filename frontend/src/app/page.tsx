@@ -1,5 +1,5 @@
-import Link from 'next/link';
-import { Button, Card } from '@/components/ui';
+import { Card } from '@/components/ui';
+import { LandingCta } from './landing-cta';
 
 /**
  * Placeholder landing page. The marketing surface arrives in a later phase; this exists so
@@ -20,14 +20,7 @@ export default function LandingPage() {
         </p>
       </div>
 
-      <div className="flex flex-wrap gap-3">
-        <Link href="/register">
-          <Button>Create your business</Button>
-        </Link>
-        <Link href="/login">
-          <Button variant="secondary">Sign in</Button>
-        </Link>
-      </div>
+      <LandingCta />
 
       <Card>
         <h2 className="text-ink text-sm font-semibold">Phase 02 — Authentication and tenancy</h2>

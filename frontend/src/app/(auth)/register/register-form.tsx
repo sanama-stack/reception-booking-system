@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Button, Card, Input } from '@/components/ui';
 import { ApiError, api } from '@/lib/api/client';
-import { useSession, type Session } from '@/lib/auth';
+import { DEFAULT_SIGNED_IN_PATH, useSession, type Session } from '@/lib/auth';
 
 /** Mirrors the server rule, so the common mistake is caught before a round trip. */
 const MINIMUM_PASSWORD_LENGTH = 10;
@@ -29,7 +29,7 @@ export function RegisterForm() {
         businessName: String(form.get('businessName') ?? ''),
       });
       adopt(session);
-      router.replace('/dashboard');
+      router.replace(DEFAULT_SIGNED_IN_PATH);
     } catch (cause) {
       setError(cause instanceof ApiError ? cause : null);
       setSubmitting(false);
