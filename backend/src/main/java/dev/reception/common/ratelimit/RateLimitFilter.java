@@ -82,6 +82,18 @@ public class RateLimitFilter extends OncePerRequestFilter {
                 request.getRequestURI());
     }
 
+    /**
+     * Forgets every bucket.
+     *
+     * <p>Package-private, and only the rate-limit tests call it: buckets outlive a single test but
+     * not the process, so a suite that exercises a limit would otherwise leave the next test
+     * starting from an exhausted budget. Deliberately not public — nothing in the application has
+     * any business clearing a limit at runtime.
+     */
+    void reset() {
+        buckets.clear();
+    }
+
     private RateLimitPolicy policyFor(HttpServletRequest request) {
         // The servlet path excludes the /api context path, which is what the policy patterns are
         // written against — the same paths the security matchers use.

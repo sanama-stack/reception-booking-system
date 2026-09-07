@@ -4,8 +4,6 @@ import dev.reception.common.persistence.BaseEntity;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.Table;
-import org.hibernate.annotations.JdbcTypeCode;
-import org.hibernate.type.SqlTypes;
 import java.time.Instant;
 import java.util.Objects;
 import java.util.UUID;
@@ -25,12 +23,13 @@ public class User extends BaseEntity {
      * Stored in a {@code citext} column, so uniqueness and lookup are case-insensitive at the
      * storage layer rather than depending on every call site remembering to lowercase.
      *
-     * <p>The JDBC type is declared explicitly because the driver reports {@code citext} as
-     * {@code Types#OTHER}. Hibernate maps a {@code String} to {@code VARCHAR} by default, and
-     * {@code ddl-auto: validate} refuses to start on the mismatch — correctly, since the whole
-     * point of validation is that the entity and the migration cannot silently disagree.
+     * <p>The column definition is spelled out because the driver reports {@code citext} as
+     * {@code Types#OTHER}, which does not match the {@code VARCHAR} Hibernate maps a
+     * {@code String} to — and {@code ddl-auto: validate} refuses to start on the mismatch, which
+     * is exactly what it is for. Naming the type here satisfies the validator while leaving the
+     * value bound as an ordinary string; declaring the JDBC type as {@code OTHER} instead would
+     * satisfy the validator and then fail every insert.
      */
-    @JdbcTypeCode(SqlTypes.OTHER)
     @Column(nullable = false, columnDefinition = "citext")
     private String email;
 

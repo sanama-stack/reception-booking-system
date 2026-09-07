@@ -14,8 +14,6 @@ import java.util.Base64;
 import java.util.HexFormat;
 import java.util.Optional;
 import java.util.UUID;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -38,17 +36,19 @@ public class RefreshTokenService {
     /** docs/01-prd.md FR-1. */
     public static final Duration REFRESH_TOKEN_TTL = Duration.ofDays(30);
 
-    private static final Logger log = LoggerFactory.getLogger(RefreshTokenService.class);
     private static final int TOKEN_BYTES = 32;
     private static final int MAX_USER_AGENT_LENGTH = 400;
 
     private final RefreshTokenRepository tokens;
+    private final RefreshTokenFamilyRevoker familyRevoker;
     private final IdGenerator ids;
     private final Clock clock;
     private final SecureRandom random = new SecureRandom();
 
-    public RefreshTokenService(RefreshTokenRepository tokens, IdGenerator ids, Clock clock) {
+    public RefreshTokenService(
+            RefreshTokenRepository tokens, RefreshTokenFamilyRevoker familyRevoker, IdGenerator ids, Clock clock) {
         this.tokens = tokens;
+        this.familyRevoker = familyRevoker;
         this.ids = ids;
         this.clock = clock;
     }
@@ -77,12 +77,9 @@ public class RefreshTokenService {
 
         if (existing.isRevoked()) {
             // Replay. The token is single-use, so a second presentation means the value leaked.
-            int revoked = tokens.revokeFamily(existing.familyId(), now);
-            log.warn(
-                    "Refresh token replay detected for user {}; revoked {} tokens in family {}",
-                    existing.userId(),
-                    revoked,
-                    existing.familyId());
+            // The revocation commits in its own transaction, because the exception below would
+            // otherwise roll it back and leave the stolen token live.
+            familyRevoker.revokeFamily(existing.familyId(), existing.userId());
             throw new ApiException(
                     ErrorCode.TOKEN_REUSED,
                     "This session was ended for security reasons. Please sign in again.");
