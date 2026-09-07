@@ -4,8 +4,9 @@
 > applications run from the IDE against it, `localhost:9080` serves the frontend and `/api/health`
 > the backend from one origin (`make up-all` does the same with everything in containers),
 > Flyway applies `V1` once and is a no-op on the second boot, and the backend suite (26 tests) plus
-> the frontend lint/typecheck/format/build all pass. The one item not verified is the CI workflow
-> itself: it is written and its commands pass locally, but there is no remote to run it against yet.
+> the frontend lint/typecheck/format/build all pass. CI is green on its first run: backend,
+> frontend and the compose smoke test, the last of which boots all five containers on a clean
+> runner and asserts both applications answer on the single origin.
 
 ## Goal
 
@@ -120,9 +121,7 @@ environment comes from an environment variable with a local default.
 - [x] `make up` starts five containers from a clean clone with no manual steps
 - [x] `http://localhost:9080/` serves the frontend and `/api/health` the backend, same origin
 - [x] Flyway applies `V1` on first boot; a second boot is a no-op
-- [ ] CI runs backend build, frontend lint/typecheck/build, and passes — *workflow written and
-      both jobs verified locally by running the exact commands; unproven until the first push, as
-      there is no remote yet*
+- [x] CI runs backend build, frontend lint/typecheck/build, and passes
 - [x] `.env.example` lists every variable the compose file reads
 - [x] `README.md` documents prerequisites and the one command
 - [x] No secret is committed
@@ -209,6 +208,17 @@ Four things worth carrying forward, each of which cost time here and would cost 
   `about:blank` body. `handleNoResourceFoundException` is overridden and
   `spring.web.resources.add-mappings` is `false`, so the claim that one advice writes every error
   body is actually true.
+
+### The .gitignore that would have broken every clone
+
+Publishing surfaced a defect nothing local could have caught: `*.jar` silently excluded
+`backend/gradle/wrapper/gradle-wrapper.jar`, and the `!gradle/wrapper/gradle-wrapper.jar` exception
+written to save it never fired, because a pattern without a leading `**/` is anchored to the
+directory holding the `.gitignore` rather than matching at any depth. On the machine that wrote it
+everything worked; on any clone `./gradlew` would have failed at once and CI would have died at
+checkout. The lesson is that an ignore rule is only proven by a clone, so the fix was verified by
+cloning the commit to a temporary directory and running `./gradlew --version` and `compileJava`
+there rather than by re-reading the pattern.
 
 ### Deviation: the applications run from the IDE, not from compose
 
