@@ -50,6 +50,12 @@ public enum ErrorCode {
     /** Authenticated, but the role is insufficient. */
     FORBIDDEN(HttpStatus.FORBIDDEN, "Forbidden"),
 
+    /**
+     * A hard delete was refused because Appointments reference the row. Deactivation is the
+     * supported path and the message says so (docs/03-data-model.md §1).
+     */
+    SERVICE_IN_USE(HttpStatus.CONFLICT, "Service is in use"),
+
     /** A rate limit was exceeded; the response carries {@code Retry-After}. */
     RATE_LIMITED(HttpStatus.TOO_MANY_REQUESTS, "Too many requests"),
 

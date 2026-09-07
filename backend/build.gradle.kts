@@ -43,6 +43,13 @@ dependencies {
     // Structured JSON logging (docs/06-security.md §10).
     implementation("net.logstash.logback:logstash-logback-encoder:8.1")
 
+    // E.164 phone normalisation using the business's country (docs/06-security.md §9). A
+    // hand-written table of calling codes is the same mistake as a hand-written list of timezones —
+    // and it could only reformat a number, never tell a real one from a typo. Load-bearing from
+    // phase 06, where Customer identity is keyed on (business_id, normalised phone): a normalisation
+    // that disagrees with itself splits one person into two customers.
+    implementation("com.googlecode.libphonenumber:libphonenumber:9.0.7")
+
     runtimeOnly("org.postgresql:postgresql")
 
     testImplementation("org.springframework.boot:spring-boot-starter-test")
