@@ -105,11 +105,11 @@ whether anyone can book. `publicPageReady` is the conjunction.
 
 ## Definition of Done
 
-- [ ] An owner configures every business field, including timezone
-- [ ] Hours are editable per day and a closed day is unambiguous
-- [ ] Closures and FAQs are manageable
-- [ ] All booking settings are editable and range-validated
-- [ ] The onboarding checklist reflects real state and links to the next step
+- [x] An owner configures every business field, including timezone
+- [x] Hours are editable per day and a closed day is unambiguous
+- [x] Closures and FAQs are manageable
+- [x] All booking settings are editable and range-validated
+- [x] The onboarding checklist reflects real state and links to the next step
 - [x] Isolation probes added for all new endpoints
 
 ## Checklist
@@ -133,13 +133,13 @@ whether anyone can book. `publicPageReady` is the conjunction.
 - [x] Error codes: `SLUG_TAKEN`
 
 ### Frontend
-- [ ] `/settings/profile` with timezone confirmation dialog
-- [ ] `/settings/hours` seven-day editor with copy-to-all
-- [ ] `/settings/closures`
-- [ ] `/settings/booking` with explanatory copy
-- [ ] `/settings/faqs` with reordering
-- [ ] Onboarding checklist on the dashboard home
-- [ ] Empty, loading and error states on every screen
+- [x] `/settings/profile` with timezone confirmation dialog
+- [x] `/settings/hours` seven-day editor with copy-to-all
+- [x] `/settings/closures`
+- [x] `/settings/booking` with explanatory copy
+- [x] `/settings/faqs` with reordering
+- [x] Onboarding checklist on the dashboard home
+- [x] Empty, loading and error states on every screen
 
 ### Testing
 - [x] All unit tests above
@@ -150,8 +150,9 @@ whether anyone can book. `publicPageReady` is the conjunction.
 
 ## Notes from the build
 
-*The backend half. The settings screens and the dashboard checklist are not built yet, and their
-checklist boxes above are unticked accordingly.*
+*Written in two sessions: the backend first, so the API contract could be reviewed before screens
+were built on it, and the five settings screens plus the dashboard checklist afterwards. Everything
+below the divider marked **The frontend half** belongs to the second.*
 
 ### Two dependencies on phases that do not exist yet
 
@@ -244,3 +245,71 @@ failure.
   by entity type, not by the order they were requested in, and
   `UNIQUE (business_id, day_of_week, opens_at)` does not care that the row it collides with is about
   to be deleted. `a_replace_can_reuse_the_times_it_is_replacing` is the case that fails without it.
+
+---
+
+## Notes from the build — the frontend half
+
+### The whole week is submitted, so a message has to be mapped back to a row
+
+`BusinessHoursService.validateWeek` names each failure by its index in the submitted array —
+`hours[2].opensAt`. That is not a position in the editor: a business closed on Monday and Tuesday
+submits Wednesday as index 0, so the editor cannot read the index as a day. `HoursEditor` keeps the
+`day:interval → payload index` map it built at submit time and looks messages up through it, which
+is what puts "these hours overlap another interval on the same day" on the row that caused it. Any
+edit clears both the map and the messages, because an added interval shifts every index after it.
+
+Verified in a browser: two overlapping intervals on Tuesday produced a `422` whose message landed on
+*Tuesday interval 2*, with `aria-invalid` on that input and nothing on Monday's.
+
+### The client validates one rule and only one
+
+Overlap, ordering and day-of-week ranges are the server's, stated once and reported per row. The
+editor checks only for an **empty** time — the one failure the server cannot report usefully,
+because `""` is not a `LocalTime` and the body would fail to parse into a message about JSON rather
+than about a field.
+
+### A day is closed by having no intervals, in the UI as on the wire
+
+There is no closed flag in the editor state either. "Mark closed" empties the day's interval list
+and "Open this day" adds one back at 09:00–17:00. Rendering follows from the same fact, so the UI
+cannot show a day as open that the payload would send as closed.
+
+### Times render from the dates, never from the instants
+
+A closure's `endsAt` is the start of the day *after* the last closed day. Formatting it would tell
+the owner they are closed a day longer than they said, so `ClosuresScreen` renders `startDate` and
+`endDate` — which is why the response carries both representations.
+
+`formatIsoDate` was added to `lib/time` for this and is the only helper there that takes no
+timezone: an `IsoDate` has already been resolved into the business's zone, and asking for one again
+would invite a second conversion. It formats from the string's own parts, because
+`new Date('2026-12-24')` parses as UTC midnight and renders as the 23rd for any business west of
+Greenwich.
+
+### The timezone dialog, and what else a save has to do
+
+`PATCH /business` returns the stored profile, and four of its fields — name, slug, timezone,
+currency — are also in the session hydrated from `/auth/me`. Saving any of them calls
+`useSession().reload()`, or the sidebar and the booking URL keep describing a business that no
+longer exists in that shape. The phase-03 backend handoff flagged this for the slug; it is true of
+all four.
+
+The confirmation dialog fires only when `timezone` is actually in the patch, which is why the form
+diffs against the loaded profile rather than sending every field. Sending everything would also
+re-check an unchanged slug for uniqueness.
+
+### `aiAdditionalInfo` is on the Receptionist screen; the other two AI fields are not
+
+The phase goal includes "the knowledge the Receptionist will later use", and the free-text notes are
+that, so they sit with the FAQs. `aiEnabled` and `aiDailyCostCapCents` decide whether the
+Receptionist runs at all and what it may cost per day — operational rather than editorial, and they
+belong with the Receptionist screens in phase 09. They are patchable today and have no UI, which is
+a deliberate gap rather than an oversight.
+
+### Reordering renumbers rather than swaps
+
+`sortOrder` is guaranteed ordered, not contiguous or distinct — a create with an explicit position,
+or a delete, leaves gaps and ties, and swapping two equal values does nothing at all. Moving a
+question renumbers the visible order and patches only the rows that actually move, which is correct
+from any starting state and repairs the numbering as it goes.

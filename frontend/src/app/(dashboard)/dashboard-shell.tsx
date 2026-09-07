@@ -14,13 +14,24 @@ import { useSession } from '@/lib/auth';
  */
 const NAVIGATION = [
   { href: '/dashboard', label: 'Home', available: true },
-  { href: '/settings/profile', label: 'Settings', available: false },
+  { href: '/settings/profile', label: 'Settings', available: true },
   { href: '/services', label: 'Services', available: false },
   { href: '/employees', label: 'Employees', available: false },
   { href: '/appointments', label: 'Appointments', available: false },
   { href: '/customers', label: 'Customers', available: false },
   { href: '/analytics', label: 'Analytics', available: false },
 ];
+
+/**
+ * The first path segment — the section a page belongs to.
+ *
+ * Settings is five pages behind one sidebar entry, so an exact match would leave the sidebar
+ * showing nothing selected on four of them. Comparing sections rather than paths is what keeps a
+ * link highlighted while the sub-navigation moves within it.
+ */
+function section(path: string): string {
+  return path.split('/')[1] ?? '';
+}
 
 export function DashboardShell({ children }: { children: React.ReactNode }) {
   const { session, signOut } = useSession();
@@ -41,7 +52,7 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
 
         <nav className="flex gap-1 overflow-x-auto px-4 pb-3 lg:flex-col lg:overflow-visible lg:pb-6">
           {NAVIGATION.map((item) => {
-            const active = pathname === item.href;
+            const active = section(pathname) === section(item.href);
             if (!item.available) {
               return (
                 <span

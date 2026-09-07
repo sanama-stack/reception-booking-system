@@ -1,18 +1,23 @@
 'use client';
 
-import { Card, CardHeader } from '@/components/ui';
+import Link from 'next/link';
+import { Card, CardHeader, ResourceGate } from '@/components/ui';
+import { useResource } from '@/lib/api/use-resource';
 import { useSession } from '@/lib/auth';
+import type { Onboarding } from '@/lib/business';
+import { OnboardingChecklist } from './onboarding-checklist';
 
 /**
- * The empty dashboard an owner lands on after registering.
+ * Where an owner lands, and what they should do next.
  *
- * The onboarding checklist that belongs here arrives in phase 03, driven by
- * `GET /business/onboarding` — real configuration state, derived rather than stored. Until then
- * this shows what registration actually created, which is more useful than a placeholder and
- * happens to be the fastest way to see that the session and its tenant resolved correctly.
+ * The checklist is read from `/business/onboarding` on every visit rather than held anywhere: it
+ * is derived server-side from real configuration, so it is right the moment after a change is made
+ * somewhere else, including in another tab.
  */
 export default function DashboardHomePage() {
   const { session } = useSession();
+  const onboarding = useResource<Onboarding>('/business/onboarding');
+
   if (!session) return null;
 
   return (
@@ -22,22 +27,27 @@ export default function DashboardHomePage() {
           Welcome, {session.user.fullName.split(' ')[0]}
         </h1>
         <p className="text-ink-muted mt-1 text-sm">
-          {session.business.name} is set up. Next comes configuring your hours, services and staff.
+          {session.business.name} — everything about the business is under{' '}
+          <Link href="/settings/profile" className="text-brand hover:underline">
+            Settings
+          </Link>
+          .
         </p>
       </div>
 
+      <ResourceGate resource={onboarding}>
+        {(state) => <OnboardingChecklist state={state} />}
+      </ResourceGate>
+
       <Card>
-        <CardHeader
-          title="Your business"
-          description="Created when you registered. Everything here becomes editable in the next phase."
-        />
+        <CardHeader title="Your business" description="Change any of this under Settings." />
         <dl className="grid grid-cols-1 gap-4 text-sm sm:grid-cols-2">
           <div>
             <dt className="text-ink-muted">Name</dt>
             <dd className="text-ink mt-0.5 font-medium">{session.business.name}</dd>
           </div>
           <div>
-            <dt className="text-ink-muted">Public booking page</dt>
+            <dt className="text-ink-muted">Booking page address</dt>
             <dd className="text-ink mt-0.5 font-mono text-xs">/book/{session.business.slug}</dd>
           </div>
           <div>
@@ -49,16 +59,6 @@ export default function DashboardHomePage() {
             <dd className="text-ink mt-0.5 font-medium">{session.business.currency}</dd>
           </div>
         </dl>
-      </Card>
-
-      <Card>
-        <CardHeader
-          title="Opening hours"
-          description="Monday to Friday, 09:00–17:00, created with your account. A day with no hours is closed."
-        />
-        <p className="text-ink-muted text-sm">
-          Editing these arrives with the settings screens in phase 03.
-        </p>
       </Card>
     </div>
   );

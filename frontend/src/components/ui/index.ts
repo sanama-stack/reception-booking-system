@@ -1,9 +1,13 @@
 export { Button, type ButtonProps } from './button';
 export { Card, CardHeader } from './card';
+export { ConfirmDialog } from './confirm-dialog';
 export { EmptyState } from './empty-state';
 export { ErrorState } from './error-state';
 export { Input, type InputProps } from './input';
+export { ResourceGate } from './resource-gate';
+export { Select, type SelectProps } from './select';
 export { Spinner } from './spinner';
 export { Table, Td, Th } from './table';
+export { Textarea, type TextareaProps } from './textarea';
 export { ToastProvider, useToast } from './toast';
 export { cn } from './cn';

@@ -13,6 +13,7 @@ was left in. The design documents say what to build; these say what happened whi
 | [2026-09-07](./2026-09-07-phase-02-authentication.md) | Phase 02 — Authentication and Tenancy. Complete, 101 tests, verified in a browser. |
 | [2026-09-07](./2026-09-07-session-aware-public-pages.md) | The landing, login and register screens notice a session. Closes an open redirect phase 02 shipped. |
 | [2026-09-07](./2026-09-07-phase-03-business-setup.md) | Phase 03 — Business Setup, **backend half only**. 234 tests. Not pushed; CI has not seen it. |
+| [2026-09-07](./2026-09-07-phase-03-frontend.md) | Phase 03 — the settings screens and the onboarding checklist. **Phase 03 complete.** Still not pushed. |
 
 **Reading order for a new session:** the newest handoff first, then
 [../09-phase-plan.md](../09-phase-plan.md), then the current phase document.
