@@ -36,6 +36,7 @@ export type ErrorCode =
   | 'RATE_LIMITED'
   | 'AI_UNAVAILABLE'
   | 'AI_LIMIT_REACHED'
+  | 'UNAUTHENTICATED'
   | 'INTERNAL_ERROR'
   | 'NETWORK_ERROR';
 
@@ -82,6 +83,8 @@ export interface RequestOptions {
   signal?: AbortSignal;
   /** Server components fetch through the internal URL; the browser goes through Caddy. */
   baseUrl?: string;
+  /** Set by the retry after a refresh, so a second failure is not retried again. */
+  isRetry?: boolean;
 }
 
 const DEFAULT_BASE_URL =
@@ -127,6 +130,53 @@ async function normaliseError(response: Response): Promise<ApiError> {
   });
 }
 
+/**
+ * Transparent refresh.
+ *
+ * A `401 TOKEN_EXPIRED` means the access cookie aged out mid-session, which is expected every
+ * fifteen minutes and is not something a user should ever see. The client refreshes once and
+ * retries. Any other `401` means the session is genuinely gone, and retrying would be a loop.
+ *
+ * The in-flight promise is shared. A screen that fires five requests on mount would otherwise
+ * send five refreshes — and because every refresh rotates, four of them would present a token
+ * the server had just revoked, which is indistinguishable from a stolen token and would end the
+ * session the refresh was meant to save. Single-flight is a correctness requirement here, not an
+ * optimisation.
+ */
+let refreshInFlight: Promise<boolean> | null = null;
+
+async function refreshSession(baseUrl: string): Promise<boolean> {
+  refreshInFlight ??= (async () => {
+    try {
+      const response = await fetch(`${baseUrl}/auth/refresh`, {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+        body: '{}',
+        cache: 'no-store',
+      });
+      return response.ok;
+    } catch {
+      return false;
+    } finally {
+      // Cleared in a microtask so every caller awaiting this attempt sees the same result before
+      // a new one can start.
+      queueMicrotask(() => {
+        refreshInFlight = null;
+      });
+    }
+  })();
+  return refreshInFlight;
+}
+
+/** Notified when a refresh fails, so the app can send the user to sign in exactly once. */
+type SessionExpiredListener = () => void;
+let onSessionExpired: SessionExpiredListener | null = null;
+
+export function setSessionExpiredHandler(listener: SessionExpiredListener | null): void {
+  onSessionExpired = listener;
+}
+
 async function request<T>(
   method: string,
   path: string,
@@ -159,7 +209,23 @@ async function request<T>(
   }
 
   if (!response.ok) {
-    throw await normaliseError(response);
+    const error = await normaliseError(response);
+
+    // Only the refresh endpoint is excluded, and only because refreshing it would recurse.
+    // `/auth/me` is deliberately *not* excluded: it is the call the auth guard makes on every page
+    // load, so it is the one most likely to meet an expired token.
+    const retryable =
+      error.code === 'TOKEN_EXPIRED' && path !== '/auth/refresh' && options?.isRetry !== true;
+
+    if (retryable) {
+      const baseUrl = options?.baseUrl ?? DEFAULT_BASE_URL;
+      if (await refreshSession(baseUrl)) {
+        return request<T>(method, path, body, { ...options, isRetry: true });
+      }
+      onSessionExpired?.();
+    }
+
+    throw error;
   }
 
   if (response.status === 204 || response.headers.get('Content-Length') === '0') {

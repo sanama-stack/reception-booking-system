@@ -52,6 +52,7 @@ Validation failures add entries to `errors`: `{ "field": "durationMinutes", "mes
 | `EMAIL_TAKEN` | 409 | Registration on an existing address |
 | `SLUG_TAKEN` | 409 | Requested slug is in use |
 | `INVALID_CREDENTIALS` | 401 | Login failed — deliberately does not distinguish cause |
+| `UNAUTHENTICATED` | 401 | No credential presented, or not one this server issued. The client should sign in rather than refresh — and this is also what an *unknown* path returns to an unauthenticated caller, so the endpoint map cannot be enumerated |
 | `TOKEN_EXPIRED` | 401 | Access token expired; client should refresh |
 | `TOKEN_REUSED` | 401 | Refresh replay detected; the token family was revoked |
 | `FORBIDDEN` | 403 | Authenticated but the role is insufficient |

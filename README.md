@@ -8,8 +8,8 @@ Receptionist acts only through validated tools; those tools call the same endpoi
 calls; and the database makes double-booking structurally impossible regardless of what any layer above it
 believes.
 
-> **Build status: phase 01 of 11 complete.** The full runtime topology is up and CI is green on a real
-> test suite. No domain concept exists yet — by design. See
+> **Build status: phase 02 of 11 complete.** The full runtime topology is up, an owner can register
+> and sign in, and the tenancy seam every later query runs through is in place and enforced. See
 > [docs/09-phase-plan.md](docs/09-phase-plan.md) for the build order.
 
 ## Quick start
@@ -39,8 +39,8 @@ your IDE:
 **Always use `localhost:9080`.** Caddy puts both applications on that one origin — `/api/*` to the
 backend, everything else to the frontend. Hitting the backend or the frontend on its own port puts
 them on *different* origins, which is exactly what the single-origin design exists to avoid: it is
-what lets authentication use httpOnly cookies with no CORS configuration anywhere. From phase 02
-onward, cookie auth simply will not work if you bypass Caddy.
+what lets authentication use httpOnly cookies with no CORS configuration anywhere. As of phase 02
+this is no longer theoretical: sign in through any other port and the cookies will not come back.
 
 `make up` copies `.env.example` to `.env` on first run.
 
@@ -171,6 +171,10 @@ while any of them survives.
 cd backend  && ./gradlew build     # unit + integration, real Postgres and Mailpit in Testcontainers
 cd frontend && pnpm lint && pnpm typecheck && pnpm build
 ```
+
+**Run `pnpm build` only when `pnpm dev` is stopped.** Both write `frontend/.next`, and a production
+build performed underneath a running dev server leaves it serving 404s for every chunk — the page
+renders unstyled and recovers only after you stop the server, delete `.next` and start it again.
 
 Integration tests run against **real PostgreSQL 16**, never H2: the schema depends on `btree_gist`
 exclusion constraints, partial unique indexes, `citext` and `tstzrange`, and H2 supports none of them.

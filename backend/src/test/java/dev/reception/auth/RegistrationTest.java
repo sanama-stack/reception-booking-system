@@ -199,6 +199,26 @@ class RegistrationTest extends IntegrationTest {
         assertThat(users.count()).isZero();
     }
 
+    /**
+     * Screens render the server's message verbatim (docs/02-product-architecture.md §7), so the
+     * server has to write for a person. Bean Validation's defaults — "size must be between 10 and
+     * 200" — are written for a developer, and shipping one straight to a customer is the failure
+     * this guards against. Asserting the shape rather than the exact wording keeps the copy free to
+     * change.
+     */
+    @Test
+    void validation_messages_are_written_for_a_person_not_a_developer() {
+        ResponseEntity<String> response = client.post(
+                "/auth/register",
+                Map.of("email", "not-an-email", "password", "short", "fullName", "", "businessName", ""));
+
+        assertThat(response.getBody())
+                .doesNotContain("must be between")
+                .doesNotContain("must not be blank")
+                .doesNotContain("must be a well-formed");
+        assertThat(response.getBody()).contains("Use at least 10 characters.");
+    }
+
     @Test
     void a_malformed_email_is_rejected() {
         ResponseEntity<String> response = client.post(
