@@ -6,6 +6,7 @@ import java.util.Map;
 import java.util.Optional;
 import org.springframework.boot.test.web.client.TestRestTemplate;
 import org.springframework.http.HttpEntity;
+import org.springframework.http.client.JdkClientHttpRequestFactory;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.MediaType;
@@ -25,6 +26,17 @@ public final class AuthTestClient {
     private final List<String> cookies = new ArrayList<>();
 
     public AuthTestClient(TestRestTemplate rest, int port) {
+        // TestRestTemplate defaults to HttpURLConnection, which cannot send PATCH — half of the
+        // phase 03 endpoints are PATCH, and it fails with "Invalid HTTP method", which reads like a
+        // routing bug and is not one.
+        //
+        // The JDK's own client sends PATCH and, crucially, does nothing else. Putting Apache
+        // HttpClient 5 on the classpath fixes PATCH too, and Spring picks it up automatically —
+        // which is the trap: its default retry strategy treats 429 as retryable and honours the
+        // Retry-After we set ourselves, so RateLimitTest, whose whole purpose is to collect 429s,
+        // stops being a test and becomes a sleep. Choose the factory here rather than letting the
+        // classpath choose it.
+        rest.getRestTemplate().setRequestFactory(new JdkClientHttpRequestFactory());
         this.rest = rest;
         this.baseUrl = "http://localhost:" + port + "/api";
     }
@@ -35,6 +47,19 @@ public final class AuthTestClient {
 
     public ResponseEntity<String> get(String path) {
         return exchange(HttpMethod.GET, path, null);
+    }
+
+    public ResponseEntity<String> put(String path, Object body) {
+        return exchange(HttpMethod.PUT, path, body);
+    }
+
+    /** See the constructor for why this works at all. */
+    public ResponseEntity<String> patch(String path, Object body) {
+        return exchange(HttpMethod.PATCH, path, body);
+    }
+
+    public ResponseEntity<String> delete(String path) {
+        return exchange(HttpMethod.DELETE, path, null);
     }
 
     /** Sends a request without the stored cookies, for asserting what an anonymous caller sees. */

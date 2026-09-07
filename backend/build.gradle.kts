@@ -51,6 +51,7 @@ dependencies {
     testImplementation("org.testcontainers:junit-jupiter")
     testImplementation("org.testcontainers:postgresql")
     testImplementation("com.tngtech.archunit:archunit-junit5:1.4.0")
+
 }
 
 dependencyManagement {
@@ -64,7 +65,18 @@ tasks.withType<JavaCompile> {
     options.compilerArgs.addAll(listOf("-parameters", "-Xlint:all", "-Xlint:-processing"))
 }
 
+// Mockito's inline mock maker attaches an agent to its own JVM, which a future JDK will refuse —
+// it already warns on every run. Passing the agent explicitly is the documented fix and means the
+// suite does not start failing on a JDK upgrade.
+val mockitoAgent: Configuration by configurations.creating
+
+dependencies {
+    mockitoAgent("org.mockito:mockito-core") { isTransitive = false }
+}
+
 tasks.withType<Test> {
+    // Resolved at execution time rather than during configuration, which Gradle warns about.
+    jvmArgumentProviders.add(CommandLineArgumentProvider { listOf("-javaagent:" + mockitoAgent.asPath) })
     useJUnitPlatform {
         // Live-model tests cost money and are non-deterministic; they never gate the pipeline
         // (docs/08-testing-strategy.md §7, §10).

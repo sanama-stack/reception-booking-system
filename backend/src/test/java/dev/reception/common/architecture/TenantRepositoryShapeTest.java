@@ -23,8 +23,9 @@ import org.junit.jupiter.api.Test;
  * that will eventually be forgotten, and the endpoint where it is forgotten is the one that leaks
  * another business's data.
  *
- * <p>Marked repositories are those annotated {@code @TenantScoped}. Phase 02 has one; phases 03
- * onward add many, and each arrives already governed.
+ * <p>Marked repositories are those annotated {@code @TenantScoped}. Phase 03 brought the count to
+ * three, which is why these rules no longer allow an empty result: at one repository an empty
+ * result meant "not written yet", and at three it would mean the annotation had been dropped.
  */
 class TenantRepositoryShapeTest {
 
@@ -50,10 +51,10 @@ class TenantRepositoryShapeTest {
                 .areAnnotatedWith("dev.reception.tenancy.TenantScoped")
                 .should(declareOnlyTenantScopedMethods())
                 .because("a repository method that does not take businessId is a cross-tenant read "
-                        + "waiting to be written (docs/02-product-architecture.md §4)")
-                // Phase 02 declares one such repository. The rule is stated now so that phases 03
-                // onward, which add most of them, are governed from their first commit.
-                .allowEmptyShould(true);
+                        + "waiting to be written (docs/02-product-architecture.md §4)");
+        // The empty-should allowance phase 02 needed is gone: phase 03 declares three such
+        // repositories, so an empty result would no longer mean "not written yet" — it would mean
+        // someone removed the annotation, and this rule would then pass by finding nothing to check.
 
         rule.check(PRODUCTION_CLASSES);
     }
@@ -87,8 +88,7 @@ class TenantRepositoryShapeTest {
                 .areDeclaredInClassesThat(annotatedWithTenantScoped())
                 .should()
                 .haveName("findById")
-                .because("the tenant must be part of the lookup, not an afterthought")
-                .allowEmptyShould(true);
+                .because("the tenant must be part of the lookup, not an afterthought");
 
         rule.check(PRODUCTION_CLASSES);
     }
@@ -110,8 +110,7 @@ class TenantRepositoryShapeTest {
                 .areAnnotatedWith("org.springframework.web.bind.annotation.RestController")
                 .should(bindAParameterNamed("business"))
                 .because("business_id is derived from the Membership, the slug or the conversation "
-                        + "record — never from a path, a query parameter, a header or a body")
-                .allowEmptyShould(true);
+                        + "record — never from a path, a query parameter, a header or a body");
 
         rule.check(PRODUCTION_CLASSES);
     }
@@ -124,8 +123,7 @@ class TenantRepositoryShapeTest {
                 .resideInAPackage("dev.reception..web..")
                 .should()
                 .haveName("businessId")
-                .because("a DTO field is a value the caller chooses, and the tenant is never one")
-                .allowEmptyShould(true);
+                .because("a DTO field is a value the caller chooses, and the tenant is never one");
 
         rule.check(PRODUCTION_CLASSES);
     }
