@@ -120,7 +120,26 @@ Both write `frontend/.next`. The production build leaves the dev server returnin
 `text/plain` for every chunk; the page renders with no CSS and the console fills with "Refused to
 apply style". It does not recover on its own. Stop the dev server, `rm -rf .next`, start it again.
 
-### 5.4 Gradle 8.14 cannot run on Java 25
+### 5.4 Browsing the frontend's own port is now a broken app, not a quirk
+
+Opening `localhost:9082` instead of `localhost:9080` means Next.js serves the pages and nothing
+routes `/api/*`, so every call 404s inside React and surfaces as a stack trace that says nothing
+about the cause. From this phase it is worse than an inconvenience: two origins means cookie
+authentication cannot work at all, so even a reachable API would not keep you signed in.
+
+`DevOriginGuard` now catches it — a development-only banner naming the right URL, with the current
+path preserved. It reads both ports from the repository's `.env` through `next.config.ts`, the same
+way the backend reads that file rather than trusting its launcher (§5.5 of the phase 01 handoff), so
+it cannot start naming a port Caddy has stopped using.
+
+It compares the **port**, not the whole origin: reaching Caddy over a LAN address or a hostname alias
+is legitimate, and comparing origins would flag it.
+
+A production build contains none of its copy or logic — verified by building and grepping, not
+assumed. What survives is an empty function, because a client component's module reference is
+registered in the client manifest whether or not the server renders it.
+
+### 5.5 Gradle 8.14 cannot run on Java 25
 
 `./gradlew` from a shell dies with `IllegalArgumentException: 25.0.4.1` out of the embedded Kotlin
 compiler. The system JDK on this machine is 25, so **the shell build does not work out of the box** —
@@ -131,18 +150,18 @@ IntelliJ uses; `/usr/libexec/java_home` does not list it). Export that as `JAVA_
 Gradle from a terminal. **CI is unaffected** — it pins JDK 21. Upgrading the wrapper to Gradle 9.x
 would fix it properly and is worth folding into phase 11.
 
-### 5.5 Spring picks no constructor when a class declares two
+### 5.6 Spring picks no constructor when a class declares two
 
 `NoSuchMethodException: <init>()`. The implicit single-constructor rule does not apply. `@Autowired`
 the one Spring should use. `SlugService` and `IdGenerator` both have a second constructor so a test
 can inject deterministic randomness.
 
-### 5.6 `useSearchParams` needs a `Suspense` boundary
+### 5.7 `useSearchParams` needs a `Suspense` boundary
 
 Or `next build` fails on a statically rendered page. The login form reads `?next=`, so its page
 wraps it.
 
-### 5.7 Integration tests that drive real HTTP cannot rely on rollback
+### 5.8 Integration tests that drive real HTTP cannot rely on rollback
 
 The request runs on the server's own thread and commits. `DatabaseCleaner` truncates every
 application table, discovering them from `information_schema` so a phase that adds a table does not
