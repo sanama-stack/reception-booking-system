@@ -143,6 +143,7 @@ Docker Compose · OpenAI tool calling (phase 09)
 | Security decisions | [docs/06-security.md](docs/06-security.md) |
 | How it's tested | [docs/08-testing-strategy.md](docs/08-testing-strategy.md) |
 | What to build, in what order | [docs/09-phase-plan.md](docs/09-phase-plan.md) |
+| What happened while building it | [docs/sessions/](docs/sessions/) |
 | Why a decision was made | [docs/adr/](docs/adr/) |
 | What comes after the MVP | [docs/future/future-features.md](docs/future/future-features.md) |
 
