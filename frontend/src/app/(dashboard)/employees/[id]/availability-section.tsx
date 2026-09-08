@@ -1,19 +1,11 @@
 'use client';
 
 import { useState } from 'react';
-import {
-  Button,
-  ButtonLink,
-  Card,
-  CardHeader,
-  EmptyState,
-  Input,
-  ResourceGate,
-  Select,
-} from '@/components/ui';
+import { explainEmptyReason } from '@/components/empty-reason';
+import { Button, Card, CardHeader, EmptyState, Input, ResourceGate, Select } from '@/components/ui';
 import { useResource } from '@/lib/api/use-resource';
 import { formatDuration, type ServiceDetail } from '@/lib/catalog';
-import { availabilityPath, type Availability, type EmptyReason } from '@/lib/scheduling';
+import { availabilityPath, type Availability } from '@/lib/scheduling';
 import type { EmployeeDetail } from '@/lib/staff';
 import { formatIsoDate, formatTimeRange, toBusinessDate, type Timezone } from '@/lib/time';
 
@@ -145,7 +137,11 @@ function Slots({
         const total = result.days.reduce((count, day) => count + day.slots.length, 0);
 
         if (total === 0) {
-          const reason = explain(result.emptyReason, service, employeeName);
+          const reason = explainEmptyReason(result.emptyReason, {
+            serviceName: service.name,
+            durationMinutes: service.durationMinutes,
+            employeeName,
+          });
           return (
             <div className="flex flex-col gap-2">
               <EmptyState
@@ -195,66 +191,4 @@ function optionLabel(service: ServiceDetail): string {
   return service.active
     ? `${service.name} · ${duration}`
     : `${service.name} · ${duration} · not offered`;
-}
-
-interface Explanation {
-  title: string;
-  description: string;
-  action?: React.ReactNode;
-}
-
-/**
- * The empty reason, in words, and pointed at the setting that would change it.
- *
- * This is the whole point of `emptyReason` existing: an empty list tells an owner nothing, and the
- * four reasons send them to four different places. The engine decides between them in the order
- * they are declared, so exactly one arrives.
- */
-function explain(
-  reason: EmptyReason | null,
-  service: ServiceDetail,
-  employeeName: string,
-): Explanation {
-  switch (reason) {
-    case 'NO_ELIGIBLE_EMPLOYEE':
-      return {
-        title: 'Nobody can perform this service',
-        description: `${employeeName} would have to be active and assigned to ${service.name} for it to be bookable with them.`,
-      };
-    case 'OUTSIDE_HORIZON':
-      return {
-        title: 'That date is outside your booking window',
-        description:
-          'Bookings close a set time before they start and open a set number of days ahead. Today’s remaining times can fall inside that lead time too.',
-        action: (
-          <ButtonLink href="/settings/booking" variant="secondary" size="sm">
-            Booking settings
-          </ButtonLink>
-        ),
-      };
-    case 'CLOSED':
-      return {
-        title: 'Nothing that day could hold this appointment',
-        description: `Either you are closed, ${employeeName} is not working, or the two only overlap for less than the ${formatDuration(service.durationMinutes)} ${service.name} needs.`,
-        action: (
-          <ButtonLink href="/settings/hours" variant="secondary" size="sm">
-            Opening hours
-          </ButtonLink>
-        ),
-      };
-    case 'FULLY_BOOKED':
-      return {
-        title: 'Every time that would fit is taken',
-        description:
-          'Time off, a closure or an existing appointment covers each one. Removing any of them frees the times it covered.',
-      };
-    default:
-      // The contract says a reason accompanies every empty result. If one is missing, say so
-      // plainly rather than inventing the most likely explanation.
-      return {
-        title: 'No times available',
-        description:
-          'The engine returned no times and gave no reason, which it is meant to do whenever a result is empty.',
-      };
-  }
 }

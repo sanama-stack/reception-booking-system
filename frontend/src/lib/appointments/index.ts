@@ -1,0 +1,20 @@
+export { appointmentApi, appointmentPath, appointmentsPath } from './api';
+export type {
+  ActorType,
+  AppointmentDetail,
+  AppointmentEventType,
+  AppointmentPage,
+  AppointmentQuery,
+  AppointmentSource,
+  AppointmentStatus,
+  AppointmentWithHistory,
+  BookedAppointment,
+  CancelAppointment,
+  CancelledBy,
+  ChangeableStatus,
+  CreateAppointment,
+  CustomerSummary,
+  HistoryEntry,
+  NamedRef,
+  RescheduleAppointment,
+} from './types';
