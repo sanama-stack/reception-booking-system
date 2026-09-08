@@ -7,7 +7,7 @@
 > **§7 is the one to read before anything else touches authentication** — a defect three phases old,
 > found by running this screen for fifteen minutes. It was fixed on a branch of its own: §7.1 is what
 > this session could vouch for at the time, §7.2 is that branch's own account, added later. The fix
-> is still unmerged, so `dev` carries the defect.
+> is on `dev` as of 2026-09-09, unpushed and unreviewed by anyone but its own session.
 
 ---
 
@@ -71,8 +71,8 @@ Both still have to be merged. Two branches off one commit is the state four hand
 about arriving by a different road.
 
 **Update — that branch has since been rebased onto `dev`, and is no longer a sibling.**
-`claude/angry-ardinghelli-001b84` now contains `f1fbf99`, so it is a strict descendant and merges as
-a fast-forward. Everything above describes the topology at the moment this document was written and
+`claude/angry-ardinghelli-001b84` now contains `f1fbf99`, so it is a strict descendant, and it was
+fast-forwarded onto `dev` on 2026-09-09 — there is no second branch left to merge. Everything above describes the topology at the moment this document was written and
 is kept for that reason, but the merge-base reasoning no longer has to be relied on, and the commit
 hash §7.1 names moved with the rebase. §7.2 is that branch's own account of itself.
 
@@ -366,8 +366,8 @@ has no automated coverage either way, because there is still no frontend test ru
 left exactly as written. This subsection is added by the branch's own session and vouches only for
 its own work. It is dated in its own heading because everything else in this document is 2026-09-08
 and §7.1 is right that a handoff's date should not be assumed to be the date of its contents. **The hash §7.1 names moved when the branch was rebased onto `dev`** — address the work
-by branch name, not by that hash. It is the fix commit plus this document's update, and it is still
-unmerged into `dev`.
+by branch name, not by that hash. It is the fix commit plus this document's update, both fast-forwarded
+onto `dev` on 2026-09-09.
 
 **The fix is server-side.** A new `SESSION_REFRESHABLE` code answers "no access token was presented,
 but the caller still holds a refresh cookie", and `lib/api/client.ts` treats it exactly as it treats
@@ -436,20 +436,21 @@ costs nothing.
 
 Everything in §8 of the phase-05-backend handoff still stands unless listed below. Changed or added:
 
-- **`dev` is one commit ahead of `main` and not pushed.** CI has not seen the preview. This is the
-  highest-value next action, and it is now cheap — see §1.
+- **`dev` is six commits ahead of `main` and five ahead of `origin/dev`, and not pushed.** CI has
+  seen none of it — neither the preview nor the §7.2 auth fix. This is the highest-value next
+  action, and it is now cheap — see §1.
 - **The backend restart item is closed.** The running backend has the timezone fix, proven by a
   fresh registration writing `09:00:00`. See §2.
 - **The five stale `business_hours` rows are still shifted.** The owner chose to correct them by
   re-entering the week rather than by SQL, which needs their own session. **Open
   `/settings/hours` and enter Monday to Friday as 09:00–17:00.** Until then the preview against the
   owner's business will answer honestly about hours of 05:00–13:00 and look four hours wrong.
-- **The transparent refresh is broken in a browser, and fixed on a branch that has not landed.**
-  §7 is the defect, §7.2 the fix. `claude/angry-ardinghelli-001b84` is now rebased onto `dev` and
-  fast-forwards, but **`dev` itself still carries the defect** and nothing has reviewed the fix
-  except the session that wrote it. Until it lands it affects every screen, and it will affect
-  anyone verifying phase 06 in a session longer than fifteen minutes — **if a request fails with
-  `UNAUTHENTICATED` mid-session, that is this, not your code.**
+- **The transparent refresh defect is fixed, and the fix is on `dev`.** §7 is the defect, §7.2 the
+  fix; `claude/angry-ardinghelli-001b84` was fast-forwarded onto `dev` on 2026-09-09 and there is no
+  branch left to land. **Nothing has reviewed it except the session that wrote it, and CI has not
+  seen it** — see the push item above. Verifying phase 06 by hand no longer needs a fifteen-minute
+  budget, but the client half of the fix still has no automated coverage, so a session that outlives
+  an access token is the first real exercise of it.
 - **`EmptyAppointmentImpact` is still the last stub standing**, with five methods. Phase 06 deletes
   it. `blockedRangesFor` is the one whose wrong answer is silent.
 - **`aiEnabled` and `aiDailyCostCapCents` still have no UI.** Phase 09 owes them.
