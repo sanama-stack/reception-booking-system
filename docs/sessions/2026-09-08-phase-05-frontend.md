@@ -5,8 +5,9 @@
 > coverage that is not there.
 >
 > **§7 is the one to read before anything else touches authentication** — a defect three phases old,
-> found by running this screen for fifteen minutes. It is being fixed on a branch of its own, which
-> §7.1 describes and this session has neither reviewed nor run.
+> found by running this screen for fifteen minutes. It was fixed on a branch of its own: §7.1 is what
+> this session could vouch for at the time, §7.2 is that branch's own account, added later. The fix
+> is still unmerged, so `dev` carries the defect.
 
 ---
 
@@ -68,6 +69,12 @@ disjoint is a prediction, and this is the answer.
 
 Both still have to be merged. Two branches off one commit is the state four handoffs complained
 about arriving by a different road.
+
+**Update — that branch has since been rebased onto `dev`, and is no longer a sibling.**
+`claude/angry-ardinghelli-001b84` now contains `f1fbf99`, so it is a strict descendant and merges as
+a fast-forward. Everything above describes the topology at the moment this document was written and
+is kept for that reason, but the merge-base reasoning no longer has to be relied on, and the commit
+hash §7.1 names moved with the rebase. §7.2 is that branch's own account of itself.
 
 ---
 
@@ -353,6 +360,76 @@ availability preview instead of surfacing `UNAUTHENTICATED` in its error state. 
 changing for that, and §6 of this document still stands — `lib/api/client.ts` acting on any of it
 has no automated coverage either way, because there is still no frontend test runner.
 
+### 7.2 What that branch turned out to be — added 2026-09-09 by the session that wrote it
+
+**Attribution.** §7.1 is the phase-05 session's honest record of a branch it had not read, and it is
+left exactly as written. This subsection is added by the branch's own session and vouches only for
+its own work. It is dated in its own heading because everything else in this document is 2026-09-08
+and §7.1 is right that a handoff's date should not be assumed to be the date of its contents. **The hash §7.1 names moved when the branch was rebased onto `dev`** — address the work
+by branch name, not by that hash. It is the fix commit plus this document's update, and it is still
+unmerged into `dev`.
+
+**The fix is server-side.** A new `SESSION_REFRESHABLE` code answers "no access token was presented,
+but the caller still holds a refresh cookie", and `lib/api/client.ts` treats it exactly as it treats
+`TOKEN_EXPIRED`. Both halves of that condition are load-bearing: requiring the access cookie to be
+**absent** keeps a forged or tampered token on the `UNAUTHENTICATED` path, where a refresh would
+only hand the same rejection back.
+
+The three candidates §7 handed over were weighed rather than assumed, and two were rejected:
+
+| Rejected | Why |
+|---|---|
+| Lengthen the access cookie past the token, so the browser keeps presenting a dead token | It makes recovery depend on cookie retention — the one thing this suite cannot observe, which is exactly how the defect survived two phases. It would also have made §7's own reproduction shape useless: a test that omits the access cookie passes against it, so there would be no regression test |
+| Refresh on any `401` that is not from `/auth/refresh` | It spends a rotation on every mistyped path, and rotation is the mechanism replay detection is built on |
+
+Reusing `TOKEN_EXPIRED` for an absent token was also rejected, as a smaller lie: nothing expired as
+far as the server saw, and the published codes are worth keeping truthful.
+
+**The mirror bug was subtler than the first read of it.** `onSessionExpired` sat inside the
+`retryable` branch, so a session that was fully gone notified nobody and left the same stuck screen
+from the other side. The first assessment deferred fixing it on the grounds that signing out on any
+`401` would fire on a mistyped path. **That was wrong, and checking changed the fix:** the
+401-for-unknown-paths rule applies only to callers who are *already* unauthenticated, so a signed-in
+caller mistyping a path gets a `404`. That was an assumption, so it is now
+`SessionLifecycleTest.a_signed_in_caller_asking_for_an_unknown_path_is_told_it_does_not_exist` — if
+it ever becomes a `401`, stray requests start signing people out mid-session.
+
+**The real hazard is the one the root layout creates.** `SessionProvider` lives in the root layout so
+the landing page can greet a signed-in owner, which means *every public page load* asks `/auth/me`
+and is answered `401 UNAUTHENTICATED`. `client.ts` cannot tell that visitor from a session that
+lapsed — the cookies are httpOnly, so it cannot see what it is sending. Two consequences, both
+deliberate:
+
+- The handler is registered **only while `status === 'authenticated'`**. The session context is the
+  only place that knows whether it believed it had a session.
+- What triggers a sign-out is an **explicit list of codes**, `UNAUTHENTICATED` and `TOKEN_REUSED` —
+  not `status === 401`. `INVALID_CREDENTIALS` belongs to someone already looking at the sign-in form
+  and would redirect that screen to itself, and phase 08's `MANAGE_TOKEN_INVALID` belongs to a
+  public visitor who never had a session at all.
+
+**Tests: 545, up from 538.** `TransparentRefreshTest` is six cases built on a new
+`AuthTestClient.expireCookie`, which drops one cookie and keeps the rest — the browser behaviour
+whose absence hid all of this. It was **watched failing on the regression case and passing on the
+other five before the fix went in**, then watched pass after. The other five pin what must not
+change: no cookies at all is still `UNAUTHENTICATED`, a forged token beside a valid refresh cookie
+is still `UNAUTHENTICATED`, a genuinely expired token still says `TOKEN_EXPIRED`, and an unknown
+path is still answered exactly like a known one.
+
+**What is still not covered is unchanged from §6 and from the phase 02 handoff §8:** that
+`lib/api/client.ts` acts on any of it. There is no frontend test runner, so that half remains the
+phase 11 E2E. The server half is now automated; the client half is not, and neither document
+pretends otherwise.
+
+**A trap, if you run the auth suite:** one run of `SessionLifecycleTest` failed **all 17 cases at
+once**, including untouched ones, immediately after a full `./gradlew build`. It was Testcontainers
+— the shared containers had been reaped between runs — and reruns were green. A whole class red at
+once is that, not a real failure; a real one fails the cases you touched.
+
+**It also amends the phase 02 handoff §8**, which §7.1 rightly flags as a departure from how this
+folder works. The amendment is dated in place rather than silent, and it corrects a coverage claim
+that had become false. Whether that is the right convention is the owner's call, and reverting it
+costs nothing.
+
 ---
 
 ## 8. Open items
@@ -367,11 +444,12 @@ Everything in §8 of the phase-05-backend handoff still stands unless listed bel
   re-entering the week rather than by SQL, which needs their own session. **Open
   `/settings/hours` and enter Monday to Friday as 09:00–17:00.** Until then the preview against the
   owner's business will answer honestly about hours of 05:00–13:00 and look four hours wrong.
-- **The transparent refresh is broken in a browser.** See §7. **A fix exists on
-  `claude/angry-ardinghelli-001b84` and is unmerged and unreviewed here**; `dev` still carries the
-  defect. Until that branch lands it affects every screen, and it will affect anyone verifying phase
-  06 in a session longer than fifteen minutes — **if a request fails with `UNAUTHENTICATED`
-  mid-session, that is this, not your code.**
+- **The transparent refresh is broken in a browser, and fixed on a branch that has not landed.**
+  §7 is the defect, §7.2 the fix. `claude/angry-ardinghelli-001b84` is now rebased onto `dev` and
+  fast-forwards, but **`dev` itself still carries the defect** and nothing has reviewed the fix
+  except the session that wrote it. Until it lands it affects every screen, and it will affect
+  anyone verifying phase 06 in a session longer than fifteen minutes — **if a request fails with
+  `UNAUTHENTICATED` mid-session, that is this, not your code.**
 - **`EmptyAppointmentImpact` is still the last stub standing**, with five methods. Phase 06 deletes
   it. `blockedRangesFor` is the one whose wrong answer is silent.
 - **`aiEnabled` and `aiDailyCostCapCents` still have no UI.** Phase 09 owes them.
