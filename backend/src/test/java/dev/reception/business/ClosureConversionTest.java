@@ -53,7 +53,10 @@ class ClosureConversionTest {
         return new ClosureService(
                 closures,
                 businesses,
-                new EmptyAppointmentImpact(),
+                // A mock answering zero. This test is about converting business-local dates into
+                // instants; how many appointments a closure covers is DatabaseAppointmentImpact's
+                // question and is tested where that class is.
+                mock(AppointmentImpact.class),
                 tenant,
                 ids,
                 Clock.fixed(Instant.parse("2026-09-07T10:00:00Z"), ZoneOffset.UTC));

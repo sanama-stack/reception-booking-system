@@ -4,6 +4,8 @@ import jakarta.servlet.http.HttpServletRequest;
 import java.util.List;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.HttpStatusCode;
@@ -34,6 +36,9 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
 
     private static final Logger log = LoggerFactory.getLogger(GlobalExceptionHandler.class);
 
+    /** The exclusion constraint from {@code V5__customers_and_appointments.sql}. */
+    private static final String APPOINTMENT_OVERLAP_CONSTRAINT = "appointments_no_overlap";
+
     @ExceptionHandler(ApiException.class)
     public ResponseEntity<ProblemDetail> handleApiException(ApiException ex, HttpServletRequest request) {
         if (ex.code().status().is5xxServerError()) {
@@ -49,6 +54,58 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
         return respond(problem(
                 ErrorCode.FORBIDDEN,
                 "You do not have permission to perform this action.",
+                List.of(),
+                request.getRequestURI()));
+    }
+
+    /**
+     * A constraint the database refused, mapped by <strong>constraint name</strong>.
+     *
+     * <p>{@code appointments_no_overlap} is the exclusion constraint, and reaching it means a
+     * booking lost a race it could not have been protected from any other way (ADR-0002). It is a
+     * {@code 409} rather than a {@code 500} because nothing went wrong — the world moved between the
+     * Slot being offered and the row being written, and the client's correct response is to re-read
+     * availability.
+     *
+     * <p><strong>Keyed on the name, never on the exception type alone.</strong> Catching
+     * {@code DataIntegrityViolationException} broadly and answering "slot unavailable" would tell a
+     * caller their time was taken when the real cause was a null in a column nobody noticed — and
+     * the defect would then be invisible, because the response looked like an ordinary race. Any
+     * other constraint falls through to a logged 500, which is what an unexpected integrity failure
+     * is.
+     */
+    @ExceptionHandler(DataIntegrityViolationException.class)
+    public ResponseEntity<ProblemDetail> handleDataIntegrityViolation(
+            DataIntegrityViolationException ex, HttpServletRequest request) {
+        if (namesConstraint(ex, APPOINTMENT_OVERLAP_CONSTRAINT)) {
+            log.debug("Booking lost the exclusion-constraint race");
+            return respond(problem(
+                    ErrorCode.SLOT_UNAVAILABLE,
+                    "That time was booked while you were deciding. Choose another.",
+                    List.of(),
+                    request.getRequestURI()));
+        }
+        log.error("Unmapped data integrity violation", ex);
+        return respond(problem(
+                ErrorCode.INTERNAL_ERROR,
+                "Something went wrong. Quote the request id if you contact support.",
+                List.of(),
+                request.getRequestURI()));
+    }
+
+    /**
+     * Two writers changed the same row and this one lost its {@code @Version} check.
+     *
+     * <p>Handled here as well as flushed early inside the services, because the failure can also be
+     * raised at commit — after the service method has returned and there is nobody left to catch it.
+     */
+    @ExceptionHandler(OptimisticLockingFailureException.class)
+    public ResponseEntity<ProblemDetail> handleOptimisticLocking(
+            OptimisticLockingFailureException ex, HttpServletRequest request) {
+        log.debug("Optimistic lock lost", ex);
+        return respond(problem(
+                ErrorCode.VERSION_CONFLICT,
+                "Someone else changed this appointment while you were editing it. Reload and try again.",
                 List.of(),
                 request.getRequestURI()));
     }
@@ -143,6 +200,26 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
 
     private ResponseEntity<Object> asObject(ProblemDetail problem) {
         return ResponseEntity.status(HttpStatus.valueOf(problem.getStatus())).body(problem);
+    }
+
+    /**
+     * Whether this violation is the named constraint.
+     *
+     * <p>The name reaches us through the driver's message rather than through a typed field:
+     * Spring's {@code DataIntegrityViolationException} does not carry one, and Hibernate's
+     * {@code ConstraintViolationException} only sometimes parses it out. Searching the whole cause
+     * chain's messages is the reliable version, and it is why the constraint name is a constant
+     * here — renaming it in the migration without changing this constant would silently turn every
+     * lost race into a 500.
+     */
+    private static boolean namesConstraint(Throwable error, String constraintName) {
+        for (Throwable cause = error; cause != null; cause = cause.getCause()) {
+            String message = cause.getMessage();
+            if (message != null && message.contains(constraintName)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private String path(WebRequest request) {

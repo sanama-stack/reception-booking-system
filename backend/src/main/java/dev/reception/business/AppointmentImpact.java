@@ -66,11 +66,21 @@ public interface AppointmentImpact {
      *
      * @param from inclusive, {@code to} exclusive — the window availability was asked about, already
      *     widened by the caller to cover Buffers that reach outside it
+     * @param excludingAppointmentId an Appointment to leave out, or {@code null} for all of them.
+     *     This is what makes a reschedule answerable: moving a 10:00 booking to 10:15 overlaps the
+     *     time it currently holds, and counting the appointment against itself would refuse the one
+     *     move it is being asked to make. The database has no such problem — an exclusion constraint
+     *     never compares a row with itself — so without this the pre-check would be stricter than
+     *     the rule it exists to explain
      * @return blocked ranges by Employee id. An Employee with nothing booked may be absent or map to
      *     an empty list; callers must treat the two the same
      */
     Map<UUID, List<BlockedRange>> blockedRangesFor(
-            UUID businessId, Collection<UUID> employeeIds, Instant from, Instant to);
+            UUID businessId,
+            Collection<UUID> employeeIds,
+            Instant from,
+            Instant to,
+            UUID excludingAppointmentId);
 
     /**
      * One Appointment's buffer-inclusive occupancy — {@code blocked_from} to {@code blocked_to}, the

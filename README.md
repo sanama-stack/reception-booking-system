@@ -8,9 +8,10 @@ Receptionist acts only through validated tools; those tools call the same endpoi
 calls; and the database makes double-booking structurally impossible regardless of what any layer above it
 believes.
 
-> **Build status: phase 02 of 11 complete.** The full runtime topology is up, an owner can register
-> and sign in, and the tenancy seam every later query runs through is in place and enforced. See
-> [docs/09-phase-plan.md](docs/09-phase-plan.md) for the build order.
+> **Build status: phase 06 of 11 in progress — backend complete.** An owner can configure a
+> business, and appointments can be booked, moved, cancelled and closed out through the API, with
+> double booking made impossible by the database rather than by a check. The phase 06 dashboard
+> screens are not built yet. See [docs/09-phase-plan.md](docs/09-phase-plan.md) for the build order.
 
 ## Quick start
 

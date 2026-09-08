@@ -19,6 +19,7 @@ import dev.reception.scheduling.domain.BusinessSchedulingConfig;
 import dev.reception.scheduling.domain.EmployeeAvailabilityInput;
 import dev.reception.scheduling.domain.ServiceSpec;
 import dev.reception.scheduling.domain.TimeRange;
+import dev.reception.scheduling.domain.UnbookableReason;
 import dev.reception.scheduling.domain.WeeklyInterval;
 import dev.reception.staff.Employee;
 import dev.reception.staff.EmployeeSchedule;
@@ -29,12 +30,14 @@ import dev.reception.staff.TimeOffService;
 import dev.reception.tenancy.TenantContext;
 import java.time.Clock;
 import java.time.Duration;
+import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneId;
 import java.time.temporal.ChronoUnit;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import org.springframework.transaction.annotation.Transactional;
@@ -110,30 +113,80 @@ public class AvailabilityService {
 
         Business business = businesses.read();
         ZoneId zone = business.timezone();
+        Service service = bookableService(serviceId);
+        ServiceSpec spec = specFor(service);
 
+        AvailabilityResult result = engine.findSlots(
+                new AvailabilityQuery(spec, from, to, employeeId),
+                configFor(business),
+                candidatesFor(service.getId(), employeeId, spec, from, to, zone, null),
+                clock);
+        return new Availability(zone, result);
+    }
+
+    /**
+     * Whether one specific start is bookable by one specific Employee — the check phase 06 runs
+     * before it writes.
+     *
+     * <p>It lives here rather than in the booking service because every input it needs is already
+     * loaded here, by the code the Slot list itself came from. Two copies of "what makes a Slot
+     * bookable" is the arrangement in which a booking is refused seconds after being offered, and
+     * the refusal reads as a race that is not one.
+     *
+     * <p>The eligibility refusals are the same ones {@link #find} produces, from the same code path,
+     * so a Service switched off between seeing a Slot and booking it says {@code SERVICE_INACTIVE}
+     * rather than a bare "unavailable".
+     *
+     * <p><strong>This is not the last line of defence.</strong> The exclusion constraint is
+     * (ADR-0002). This is what turns a lost race into a sentence a person can act on.
+     *
+     * @param excludingAppointmentId the Appointment being moved, or {@code null} when booking a new
+     *     one. See {@code AppointmentImpact.blockedRangesFor}
+     * @return empty when the Slot is bookable
+     */
+    @Transactional(readOnly = true)
+    public Optional<UnbookableReason> reasonNotBookable(
+            UUID serviceId, UUID employeeId, Instant startsAt, UUID excludingAppointmentId) {
+        Business business = businesses.read();
+        ZoneId zone = business.timezone();
+        Service service = bookableService(serviceId);
+        ServiceSpec spec = specFor(service);
+
+        // One date, because a start time is on exactly one of them in the Business's zone — which is
+        // the zone that decides, not the caller's and not the server's.
+        LocalDate date = startsAt.atZone(zone).toLocalDate();
+        List<EmployeeAvailabilityInput> candidates =
+                candidatesFor(service.getId(), employeeId, spec, date, date, zone, excludingAppointmentId);
+        if (candidates.isEmpty()) {
+            // Unreachable when employeeId is given, because candidatesFor has already refused an
+            // inactive or unassigned Employee by name. Kept so a future caller passing null gets a
+            // refusal rather than an IndexOutOfBoundsException.
+            throw new ApiException(
+                    ErrorCode.EMPLOYEE_CANNOT_PERFORM_SERVICE, "Nobody can perform this service at the moment.");
+        }
+        return engine.isSlotBookable(startsAt, spec, configFor(business), candidates.getFirst(), clock);
+    }
+
+    /** The engine's answer together with the zone every instant in it must be read in. */
+    public record Availability(ZoneId timezone, AvailabilityResult result) {}
+
+    private Service bookableService(UUID serviceId) {
         Service service = catalog.read(serviceId);
         if (!service.active()) {
             throw new ApiException(
                     ErrorCode.SERVICE_INACTIVE,
                     "%s is not currently offered, so it has no availability.".formatted(service.name()));
         }
+        return service;
+    }
 
-        ServiceSpec spec = new ServiceSpec(
+    private static ServiceSpec specFor(Service service) {
+        return new ServiceSpec(
                 service.getId(),
                 service.durationMinutes(),
                 service.bufferBeforeMinutes(),
                 service.bufferAfterMinutes());
-
-        AvailabilityResult result = engine.findSlots(
-                new AvailabilityQuery(spec, from, to, employeeId),
-                configFor(business),
-                candidatesFor(service.getId(), employeeId, spec, from, to, zone),
-                clock);
-        return new Availability(zone, result);
     }
-
-    /** The engine's answer together with the zone every instant in it must be read in. */
-    public record Availability(ZoneId timezone, AvailabilityResult result) {}
 
     private void validateRange(LocalDate from, LocalDate to) {
         if (to.isBefore(from)) {
@@ -158,7 +211,13 @@ public class AvailabilityService {
      * which is why an empty list there means {@code NO_ELIGIBLE_EMPLOYEE} and nothing else.
      */
     private List<EmployeeAvailabilityInput> candidatesFor(
-            UUID serviceId, UUID employeeId, ServiceSpec spec, LocalDate from, LocalDate to, ZoneId zone) {
+            UUID serviceId,
+            UUID employeeId,
+            ServiceSpec spec,
+            LocalDate from,
+            LocalDate to,
+            ZoneId zone,
+            UUID excludingAppointmentId) {
 
         Set<UUID> assigned = Set.copyOf(assignments.employeesFor(serviceId));
 
@@ -196,7 +255,8 @@ public class AvailabilityService {
                         .atStartOfDay(zone)
                         .toInstant()
                         .plus(spec.duration())
-                        .plus(Duration.ofMinutes(spec.bufferAfterMinutes())));
+                        .plus(Duration.ofMinutes(spec.bufferAfterMinutes())),
+                excludingAppointmentId);
 
         return eligible.stream()
                 .map(employee -> new EmployeeAvailabilityInput(
