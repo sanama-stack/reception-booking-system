@@ -15,7 +15,7 @@ was left in. The design documents say what to build; these say what happened whi
 | [2026-09-07](./2026-09-07-phase-03-business-setup.md) | Phase 03 — Business Setup, **backend half only**. 234 tests. Not pushed; CI has not seen it. |
 | [2026-09-07](./2026-09-07-phase-03-frontend.md) | Phase 03 — the settings screens and the onboarding checklist. **Phase 03 complete.** Still not pushed. |
 | [2026-09-07](./2026-09-07-phase-04-backend.md) | Phase 04 — Services and Employees, **backend half only**. 416 tests. `dev` pushed; CI green. |
-| [2026-09-08](./2026-09-08-phase-04-frontend.md) | Phase 04 — the services and employees screens. **Phase 04 complete.** `main` merged and protected. |
+| [2026-09-08](./2026-09-08-phase-04-frontend.md) | Phase 04 — the services and employees screens. **Phase 04 complete.** `main` merged and protected, and a two-phase-old timezone defect fixed. |
 
 **Reading order for a new session:** the newest handoff first, then
 [../09-phase-plan.md](../09-phase-plan.md), then the current phase document.
