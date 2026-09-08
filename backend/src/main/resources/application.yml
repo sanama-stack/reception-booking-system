@@ -33,7 +33,17 @@ spring:
       ddl-auto: validate
     properties:
       hibernate:
-        jdbc.time_zone: UTC
+        # `jdbc.time_zone` is deliberately absent, and adding it back is a defect.
+        #
+        # It makes Hibernate bind every temporal value through a Calendar in the named zone. That
+        # is what a `timestamp without time zone` column needs, and this schema has none: every
+        # instant is `timestamptz`, where Postgres carries the zone itself, and the only other
+        # temporal columns are the four `time` ones behind Business Hours and Working Schedules.
+        #
+        # A `LocalTime` has no zone to convert, so the Calendar shifts it by the JVM's offset
+        # instead — 09:00 was stored as 05:00 on a UTC+4 machine. The read applies the same shift
+        # in reverse, so it round-trips and nothing in the application notices; only something
+        # reading the column in SQL does, which the availability engine will.
         format_sql: false
 
   flyway:

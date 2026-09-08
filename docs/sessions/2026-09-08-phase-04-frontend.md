@@ -244,40 +244,59 @@ employees.
 
 ---
 
-## 7. A defect this session found and did not fix
+## 7. A defect this session found, and fixed
 
-**`time` columns are stored four hours off on this machine, and correctly in CI.**
+**`time` columns were stored four hours off on this machine, and correctly in CI.**
 
-`business_hours.opens_at` holds `05:00:00` for a business that opens at 09:00. So does
-`employee_schedules.starts_at`. The API reads both back as `09:00`, so nothing in the application
-notices.
+`business_hours.opens_at` held `05:00:00` for a business that opens at 09:00, and
+`employee_schedules.starts_at` did the same. The API read both back as `09:00`, so nothing in the
+application noticed.
 
-The cause is `spring.jpa.properties.hibernate.jdbc.time_zone: UTC` in `application.yml`. That
-setting is right for `timestamp` columns and meaningless for `time` ones: a `LocalTime` is a
-wall-clock time with no zone, and Hibernate binds it through a UTC `Calendar` anyway — shifting it
-by the JVM's offset. This machine runs `Asia/Tbilisi`, which is UTC+4. The read applies the same
-shift in reverse, which is why it round-trips.
+The cause was `spring.jpa.properties.hibernate.jdbc.time_zone: UTC` in `application.yml`. It makes
+Hibernate bind every temporal value through a `Calendar` in the named zone — which is what a
+`timestamp without time zone` column needs, and **this schema has none**. Every instant is
+`timestamptz`, where Postgres carries the zone itself; the only other temporal columns are the four
+`time` ones. A `LocalTime` has no zone to convert, so the Calendar shifted it by the JVM's offset
+instead. This machine runs `Asia/Tbilisi`, UTC+4. The read applied the same shift in reverse, which
+is why it round-tripped.
 
-**Why no test catches it:** CI runs in UTC, where the shift is zero. The suite is correct and blind
-to this at the same time.
+### What was measured, not assumed
 
-**Why it matters to phase 05:** the availability engine intersects opening hours with working
-schedules. As long as everything goes through Hibernate the two shifts cancel and the engine is
-right. The moment anything reads these columns in SQL — a native query, a view, a report, a
-migration that computes with them — it gets times that are four hours off on a developer's machine
-and correct on the build server. `DatabaseCatalogReadiness` is already a native query; it tests only
-for existence, so it is unaffected today.
+A probe run against a fresh Testcontainers database, with and without the setting:
 
-**It is older than this session** — `business_hours` has stored this way since phase 02 seeded the
-first week at registration — and it is not a frontend bug. It is written down here rather than
-fixed because fixing it is a backend change with a data migration attached: the existing rows are
-shifted, and correcting the binding without correcting them would move every business's opening
-hours by the developer's own offset.
+| | `time` column | `timestamptz` column |
+|---|---|---|
+| As configured | `05:00:00` for an API value of `09:00` | `2026-09-08T07:58:54.332789Z` — exact |
+| Setting removed | `09:00:00` | `2026-09-08T07:59:33.902738Z` — exact |
 
-**Worth an issue before phase 05 starts**, since phase 05 is the first phase that will want to
-reason about these columns.
+Removing it fixes the wall-clock columns and does not disturb the instants, because there is no
+plain `timestamp` column for it to have been protecting. The full suite is green without it.
 
----
+### The fix, in two parts
+
+**The setting is gone**, and a comment stands where it was saying why adding it back is a defect.
+That is the part a future "best practices" pass would otherwise undo.
+
+**The test JVM now runs in `Pacific/Kiritimati`** — UTC+14, the largest offset there is, and on
+tomorrow's date for ten hours of every UTC day. This is the part that matters more than the fix.
+A suite that runs in UTC cannot see a timezone bug, because in UTC every conversion to and from UTC
+is the identity: 416 green tests said nothing about this for two phases, and would have said
+nothing about the next one either. Kiritimati has no daylight saving, so the suite is hostile
+without becoming a different environment in March and October.
+
+All 416 tests pass under both changes. One `HealthEndpointTest` flake was seen once at UTC+14 and
+passed on re-run; it is SMTP container readiness, not zone.
+
+### What was deliberately *not* done
+
+**No Flyway migration corrects the existing rows.** There cannot be a correct one: the shift depends
+on the offset of the machine that wrote each row, so a migration that repairs this database would
+corrupt one written in UTC. The affected data is five rows in one developer's database — CI's is
+ephemeral and there is no production — which is why this was worth fixing now rather than later.
+
+**The five local rows were left as they are.** Until they are corrected, the owner's own business
+reads 05:00–13:00 in the UI. One scoped `UPDATE` fixes it, or re-entering the week under
+`/settings/hours` does.
 
 ## 8. Open items
 
@@ -289,7 +308,11 @@ Everything in §7 of the phase-04 backend handoff still stands unless listed bel
   is what four handoffs prescribed, so `git log main..dev` still lists every commit that went into
   it. That is cosmetic; if it is annoying, `git checkout dev && git reset --hard origin/main` after
   the merge makes the two identical, and nothing depends on it either way.
-- **The `time`-column shift, §7.** The most valuable thing to settle before phase 05.
+- **The `time`-column shift is fixed, §7 — but the five rows written before the fix are not.**
+  The owner's opening hours read 05:00–13:00 until they are corrected by hand. Nothing else in the
+  database is affected: every other temporal column is `timestamptz`.
+- **The backend must be restarted for the fix to take effect.** It was running with the old
+  configuration when this session ended.
 - **`EmptyAppointmentImpact` is still the last stub standing.** Phase 06 deletes it. Do not change
   its return values.
 - **`aiEnabled` and `aiDailyCostCapCents` still have no UI.** Phase 09 owes them.
@@ -306,8 +329,8 @@ Everything in §7 of the phase-04 backend handoff still stands unless listed bel
 Read `docs/phases/phase-05-availability.md` in full, and §4 of the phase-04 backend handoff before
 it — the engine's inputs are all decided there. Three things this session leaves you:
 
-1. **Settle §7 first, or decide deliberately not to.** The engine is the first thing that might
-   want to read a `time` column outside Hibernate.
+1. **§7 is settled**, so the engine can read a `time` column in SQL and get the wall-clock the
+   owner typed. Correct the five stale rows before trusting anything computed from them.
 2. **`hasBookableService` is the flag to trust.** An active service, with an active assigned
    employee, who has a schedule. If the engine ever disagrees with it, one of the two is wrong —
    and the dashboard now shows that flag to the owner on every visit, so a disagreement is visible.
