@@ -5,16 +5,18 @@ import { useParams } from 'next/navigation';
 import { ActiveToggle } from '@/components/active-toggle';
 import { ResourceGate } from '@/components/ui';
 import { useResource } from '@/lib/api/use-resource';
+import { useSession } from '@/lib/auth';
 import type { ServiceList } from '@/lib/catalog';
 import { employeeApi, type EmployeeDetail, type TimeOffList, type WeekSchedule } from '@/lib/staff';
 import { EmployeeForm } from '../employee-form';
+import { AvailabilitySection } from './availability-section';
 import { ScheduleSection } from './schedule-section';
 import { ServicesSection } from './services-section';
 import { TimeOffSection } from './time-off-section';
 
 /**
- * One person, four concerns: who they are, what they provide, when they work, and when they are
- * away.
+ * One person, four concerns — who they are, what they provide, when they work, and when they are
+ * away — and, underneath them, what those four add up to.
  *
  * Stacked rather than behind sub-navigation the way Settings is. Settings is five screens an owner
  * visits one at a time, months apart; this is four steps an owner works through in one sitting the
@@ -22,15 +24,22 @@ import { TimeOffSection } from './time-off-section';
  * be booked and one who cannot. Tabs would hide exactly the steps the onboarding checklist is
  * pushing them towards.
  *
+ * The availability preview is last because it reads all four. It is the only section here that
+ * answers rather than asks, and putting it under the editors is what makes their effect visible in
+ * the same sitting they are edited in.
+ *
  * Each section loads and saves independently, so a failure in one does not take the others with
  * it, and none of them waits on the rest to appear.
  */
 export default function EmployeeDetailPage() {
   const { id } = useParams<{ id: string }>();
+  const { session } = useSession();
   const employee = useResource<EmployeeDetail>(`/employees/${id}`);
   const services = useResource<ServiceList>('/services');
   const schedule = useResource<WeekSchedule>(`/employees/${id}/schedule`);
   const timeOff = useResource<TimeOffList>(`/employees/${id}/time-off`);
+
+  if (!session) return null;
 
   return (
     <div className="mx-auto flex max-w-3xl flex-col gap-6">
@@ -99,6 +108,18 @@ export default function EmployeeDetailPage() {
                   name={detail.fullName}
                   list={list}
                   onChanged={timeOff.reload}
+                />
+              )}
+            </ResourceGate>
+
+            {/* The same catalogue the assignments section reads — one request, gated twice,
+                because each section is responsible for its own appearance. */}
+            <ResourceGate resource={services}>
+              {(catalogue) => (
+                <AvailabilitySection
+                  employee={detail}
+                  services={catalogue.services}
+                  timezone={session.business.timezone}
                 />
               )}
             </ResourceGate>
