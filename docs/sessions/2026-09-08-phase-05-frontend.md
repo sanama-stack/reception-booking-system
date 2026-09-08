@@ -5,7 +5,8 @@
 > coverage that is not there.
 >
 > **§7 is the one to read before anything else touches authentication** — a defect three phases old,
-> found by running this screen for fifteen minutes. It is filed, not fixed.
+> found by running this screen for fifteen minutes. It is being fixed on a branch of its own, which
+> §7.1 describes and this session has neither reviewed nor run.
 
 ---
 
@@ -45,6 +46,28 @@ gh pr create --base main --head dev --fill
 gh pr checks --watch
 gh pr merge          # a merge commit, not a squash — see the previous handoff §5.1
 ```
+
+**There is now a second branch, and it is a sibling rather than a descendant.**
+`claude/angry-ardinghelli-001b84` carries the §7 fix and was cut from `main` (`c2ebfec`) rather than
+from `dev`, so the two share `a038093` as their merge base and neither contains the other.
+
+Nothing overlaps: that branch touches `auth/`, `ErrorCode`, `lib/api/client.ts` and
+`lib/auth/session-context.tsx`; this one touches the availability preview, `lib/scheduling/` and its
+documents. Because the merge base is genuine, §5.1 of the previous handoff — the add/add conflict
+storm a squashed `main` produced — applies to neither.
+
+**Checked rather than assumed**, and the check costs nothing and touches no working tree:
+
+```bash
+git merge-tree --write-tree dev claude/angry-ardinghelli-001b84
+```
+
+It exited `0` with a tree hash and no conflict list, so the two merge cleanly and **merge order does
+not matter**. Run it again before merging if either branch has moved since; a diffstat that looks
+disjoint is a prediction, and this is the answer.
+
+Both still have to be merged. Two branches off one commit is the state four handoffs complained
+about arriving by a different road.
 
 ---
 
@@ -268,7 +291,7 @@ no closures, no FAQs.
 
 ---
 
-## 7. A defect this session found, and did not fix
+## 7. A defect this session found, and handed off
 
 **The transparent refresh never fires in a browser. It has been that way since phase 02.**
 
@@ -299,12 +322,36 @@ without the user noticing"* as not automated. **This is that gap, and it was not
 
 **Not fixed here**, because it is authentication rather than availability and the fix is a real
 decision — lengthening the cookie past the token has security reasoning behind it that the current
-choice was made for. It is filed as its own task with the three candidate approaches and the
-constraint that any client-side fix must keep the single-flight refresh promise, since five
+choice was made for. It was handed to a session of its own, with the three candidate approaches and
+the constraint that any client-side fix must keep the single-flight refresh promise, since five
 concurrent refreshes would rotate and revoke the family.
 
 **The regression test that reproduces it** omits the access cookie while keeping the refresh cookie.
 That shape is what no existing test does.
+
+### 7.1 What the other session has done, and what this one can vouch for
+
+`claude/angry-ardinghelli-001b84`, one commit — `bd97b4a`, *"Make the transparent refresh actually
+fire, and both ways out of a 401"*. **This session did not write it, has not read it beyond its
+commit message and diffstat, and has not run it.** Recorded here so the next reader knows the branch
+exists and what it claims, not as a review.
+
+What it claims: a new `SESSION_REFRESHABLE` code for "no access token, but a refresh cookie is still
+in hand", which the client treats as it treats `TOKEN_EXPIRED`; both halves of that condition
+load-bearing, so a forged token stays on the `UNAUTHENTICATED` path. It reports fixing a mirror bug
+this session did not name — `onSessionExpired` sitting inside the retry branch, so a session that
+was genuinely gone notified nobody and left the same stuck screen from the other side. It adds
+`TransparentRefreshTest` and an `expireCookie` on `AuthTestClient`, which is the browser behaviour
+whose absence let this survive two phases, and reports 545 tests.
+
+It also amends `docs/sessions/2026-09-07-phase-02-authentication.md`. **A previous session's handoff
+was edited rather than superseded**, which is a departure from how this folder has worked — worth
+knowing before trusting a handoff's date as the date of its contents.
+
+**What it means for this screen:** once merged, an expired session refreshes underneath the
+availability preview instead of surfacing `UNAUTHENTICATED` in its error state. Nothing here needs
+changing for that, and §6 of this document still stands — `lib/api/client.ts` acting on any of it
+has no automated coverage either way, because there is still no frontend test runner.
 
 ---
 
@@ -320,9 +367,11 @@ Everything in §8 of the phase-05-backend handoff still stands unless listed bel
   re-entering the week rather than by SQL, which needs their own session. **Open
   `/settings/hours` and enter Monday to Friday as 09:00–17:00.** Until then the preview against the
   owner's business will answer honestly about hours of 05:00–13:00 and look four hours wrong.
-- **The transparent refresh is broken in a browser.** See §7. Filed, not fixed. It affects every
-  screen, and it will affect anyone verifying phase 06 in a session longer than fifteen minutes —
-  **if a request fails with `UNAUTHENTICATED` mid-session, that is this, not your code.**
+- **The transparent refresh is broken in a browser.** See §7. **A fix exists on
+  `claude/angry-ardinghelli-001b84` and is unmerged and unreviewed here**; `dev` still carries the
+  defect. Until that branch lands it affects every screen, and it will affect anyone verifying phase
+  06 in a session longer than fifteen minutes — **if a request fails with `UNAUTHENTICATED`
+  mid-session, that is this, not your code.**
 - **`EmptyAppointmentImpact` is still the last stub standing**, with five methods. Phase 06 deletes
   it. `blockedRangesFor` is the one whose wrong answer is silent.
 - **`aiEnabled` and `aiDailyCostCapCents` still have no UI.** Phase 09 owes them.
@@ -344,5 +393,6 @@ adds two:
    A booking that removes the last slot is the case that proves the engine and the write path agree,
    and `SlotBookabilityTest` is what guarantees they do today.
 
-**Fix §7 before verifying phase 06 by hand**, or budget for a session that signs itself out every
-fifteen minutes.
+**Land §7's branch before verifying phase 06 by hand**, or budget for a session that stops working
+every fifteen minutes. It is one merge, and it is the difference between a long verification session
+and an interrupted one.
