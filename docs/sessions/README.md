@@ -17,6 +17,7 @@ was left in. The design documents say what to build; these say what happened whi
 | [2026-09-07](./2026-09-07-phase-04-backend.md) | Phase 04 — Services and Employees, **backend half only**. 416 tests. `dev` pushed; CI green. |
 | [2026-09-08](./2026-09-08-phase-04-frontend.md) | Phase 04 — the services and employees screens. **Phase 04 complete.** `main` merged and protected, and a two-phase-old timezone defect fixed. |
 | [2026-09-08](./2026-09-08-phase-05-availability-engine.md) | Phase 05 — the availability engine, **backend half only**. 538 tests. Merged to `main` with a merge commit, which ends the squash conflicts. |
+| [2026-09-08](./2026-09-08-phase-05-frontend.md) | Phase 05 — the availability preview. **Phase 05 complete.** Found a phase-02 defect: the transparent refresh never fires in a browser. |
 
 **Reading order for a new session:** the newest handoff first, then
 [../09-phase-plan.md](../09-phase-plan.md), then the current phase document.
