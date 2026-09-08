@@ -93,6 +93,17 @@ public final class AuthTestClient {
         cookies.add(name + "=" + value);
     }
 
+    /**
+     * Drops one cookie and keeps the rest, which is what a browser does when a cookie reaches its
+     * max age. The access cookie's max age is the access token's lifetime, so this is the exact
+     * state of a real session fifteen minutes in — and it is a state no test could reach before,
+     * because this client sends whatever it was given for as long as it holds it and cannot see a
+     * max age at all.
+     */
+    public void expireCookie(String name) {
+        cookies.removeIf(cookie -> cookie.startsWith(name + "="));
+    }
+
     public void forgetCookies() {
         cookies.clear();
     }

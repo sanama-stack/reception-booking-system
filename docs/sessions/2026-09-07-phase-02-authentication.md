@@ -111,8 +111,9 @@ result would mean the annotation had been forgotten.
 
 ### The transparent refresh must stay single-flight
 
-`lib/api/client.ts` retries once on `401 TOKEN_EXPIRED`, after refreshing — and shares the in-flight
-refresh promise between concurrent callers. That sharing is **correctness, not an optimisation**.
+`lib/api/client.ts` retries once on `401 TOKEN_EXPIRED` or `401 SESSION_REFRESHABLE` (see §8 for why
+there are two), after refreshing — and shares the in-flight refresh promise between concurrent
+callers. That sharing is **correctness, not an optimisation**.
 Every refresh rotates, so five requests failing together without it would fire five refreshes, four
 of which present a token the server has just revoked. That is indistinguishable from a stolen token,
 and the family revocation would end the very session the refresh was meant to save.
@@ -256,6 +257,38 @@ Stated so it is not mistaken for coverage that exists.
   browser. What is not automated is "access token expires mid-session, client refreshes and retries
   without the user noticing" — it needs either a shortened TTL or the Playwright run, and the E2E
   flow belongs to phase 11.
+
+  > **2026-09-08 — this gap was hiding a live bug, and is now half closed.** The access cookie's max
+  > age matches the token's, so a real browser *deletes* it at expiry and the server sees no token
+  > rather than an expired one. `ProblemAuthenticationEntryPoint` therefore answered
+  > `UNAUTHENTICATED`, which the client is told never to refresh — an error state every fifteen
+  > minutes, on a session one `POST /auth/refresh` would have restored. `AuthTestClient` sends its
+  > cookies forever and cannot see a max age, which is exactly why the suite stayed green.
+  > The server now answers `SESSION_REFRESHABLE` for "no access token, but a refresh cookie", and
+  > `TransparentRefreshTest` covers it via `AuthTestClient.expireCookie`. **Still not automated:**
+  > that `lib/api/client.ts` actually acts on the code — there is no frontend test runner, so that
+  > half remains the phase 11 E2E.
+  >
+  > The same day, the mirror of that bug: `onSessionExpired` lived *inside* the retry branch, so a
+  > session that was fully gone (`401 UNAUTHENTICATED`, nothing to refresh with) never notified
+  > anyone and left the same stuck error state, reached from the other side. The client now signs
+  > out on `UNAUTHENTICATED` and `TOKEN_REUSED` as well. Two things make that safe, and both are
+  > worth knowing before you touch it:
+  >
+  > - **It is a list of codes, not `status === 401`.** `INVALID_CREDENTIALS` (a failed sign-in) and
+  >   `MANAGE_TOKEN_INVALID` (phase 08's public Manage Link) are 401s belonging to people who never
+  >   had a session. Signing them out would redirect the login screen to itself.
+  > - **A signed-in caller cannot provoke `UNAUTHENTICATED` by mistyping a path.** The
+  >   401-for-unknown-paths rule (§4) applies only to callers who are already unauthenticated;
+  >   everyone else gets a `404`. That was an assumption, so it is now a test —
+  >   `SessionLifecycleTest.a_signed_in_caller_asking_for_an_unknown_path_is_told_it_does_not_exist`.
+  >   If it ever turns into a `401`, stray requests start signing people out mid-session.
+  >
+  > The handler is registered only while `status === 'authenticated'`, because `client.ts` cannot
+  > tell a lapsed session from a visitor who never had one — httpOnly cookies mean it cannot see
+  > what it is sending, and both get `UNAUTHENTICATED`. `SessionProvider` is in the **root layout**
+  > so the landing page can greet a signed-in owner, which means every public page load asks
+  > `/auth/me` and is answered exactly that way.
 - **There is no frontend test runner.** By design: the strategy is type-checking, linting and one
   honest E2E ([08-testing-strategy.md](../08-testing-strategy.md) §11). The auth guard, the session
   context and the origin guard are therefore verified by hand until phase 11.

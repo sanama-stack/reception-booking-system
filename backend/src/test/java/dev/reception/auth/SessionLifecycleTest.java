@@ -90,6 +90,27 @@ class SessionLifecycleTest extends IntegrationTest {
         assertThat(response.getBody()).contains("\"code\":\"UNAUTHENTICATED\"");
     }
 
+    /**
+     * The {@code 401}-for-unknown-paths rule applies only to callers who are not authenticated. A
+     * signed-in caller who asks for a path that does not exist is told so.
+     *
+     * <p>Nothing about enumeration depends on this — someone signed in may freely learn which of
+     * <em>their own</em> endpoints exist. What depends on it is the client: `lib/api/client.ts`
+     * reads {@code 401 UNAUTHENTICATED} as "the session is over" and signs the user out, which is
+     * only safe while a signed-in caller cannot provoke that code by mistyping a path. If this ever
+     * became a {@code 401}, a stray request would sign people out mid-session, and it would look
+     * like the fifteen-minute bug all over again.
+     */
+    @Test
+    void a_signed_in_caller_asking_for_an_unknown_path_is_told_it_does_not_exist() {
+        client.login(EMAIL, PASSWORD);
+
+        ResponseEntity<String> response = client.get("/no-such-endpoint");
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
+        assertThat(response.getBody()).contains("\"code\":\"NOT_FOUND\"");
+    }
+
     @Test
     void me_describes_the_signed_in_owner_and_their_business() {
         client.login(EMAIL, PASSWORD);

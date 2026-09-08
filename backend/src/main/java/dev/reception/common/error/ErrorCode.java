@@ -36,6 +36,19 @@ public enum ErrorCode {
     TOKEN_EXPIRED(HttpStatus.UNAUTHORIZED, "Token expired"),
 
     /**
+     * No access token was presented, but the caller still holds a refresh cookie — so the session
+     * is very likely recoverable and the client should refresh and retry once, exactly as for
+     * {@link #TOKEN_EXPIRED}.
+     *
+     * <p>This is what a browser produces at the fifteen-minute mark, and it is the ordinary case
+     * rather than the exotic one: the access cookie's max age matches the token's lifetime, so the
+     * browser deletes the cookie instead of presenting an expired token. Without a code of its own
+     * that request is indistinguishable from a signed-out visitor, and the client is told never to
+     * refresh those.
+     */
+    SESSION_REFRESHABLE(HttpStatus.UNAUTHORIZED, "Session refreshable"),
+
+    /**
      * A refresh token was presented twice. The value was captured, so the whole token family is
      * revoked and every session descended from that login ends (docs/06-security.md §2).
      */

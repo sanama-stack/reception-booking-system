@@ -52,8 +52,9 @@ Validation failures add entries to `errors`: `{ "field": "durationMinutes", "mes
 | `EMAIL_TAKEN` | 409 | Registration on an existing address |
 | `SLUG_TAKEN` | 409 | Requested slug is in use |
 | `INVALID_CREDENTIALS` | 401 | Login failed — deliberately does not distinguish cause |
-| `UNAUTHENTICATED` | 401 | No credential presented, or not one this server issued. The client should sign in rather than refresh — and this is also what an *unknown* path returns to an unauthenticated caller, so the endpoint map cannot be enumerated |
+| `UNAUTHENTICATED` | 401 | No credential presented and no refresh cookie either, or a credential that is not one this server issued. The client should sign in rather than refresh. An *unknown* path is answered exactly like a known one — which of the three 401 codes below you get depends on the cookies you sent and never on whether the path exists, so the endpoint map cannot be enumerated |
 | `TOKEN_EXPIRED` | 401 | Access token expired; client should refresh |
+| `SESSION_REFRESHABLE` | 401 | No access token presented, but the caller still holds a refresh cookie — client should refresh, exactly as for `TOKEN_EXPIRED`. This, not `TOKEN_EXPIRED`, is what a *browser* meets at the 15-minute mark: the access cookie's max age matches the token's lifetime, so the cookie is deleted rather than presented and rejected |
 | `TOKEN_REUSED` | 401 | Refresh replay detected; the token family was revoked |
 | `FORBIDDEN` | 403 | Authenticated but the role is insufficient |
 | `NOT_FOUND` | 404 | Does not exist **or** belongs to another tenant — indistinguishable by design |

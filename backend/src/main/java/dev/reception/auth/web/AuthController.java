@@ -101,6 +101,15 @@ public class AuthController {
      * <p>The access cookie's lifetime matches the token's, so the browser drops it exactly when the
      * server would stop accepting it. The refresh cookie outlives it, which is what makes a silent
      * refresh possible at all.
+     *
+     * <p><strong>The consequence, which cost a session to find:</strong> because the browser deletes
+     * the cookie at expiry, the server never receives an expired access token from a browser — it
+     * receives none. {@code ProblemAuthenticationEntryPoint} therefore cannot answer
+     * {@code TOKEN_EXPIRED} to the case it was written for, and answers {@code SESSION_REFRESHABLE}
+     * instead. Lengthening this max age so the browser keeps presenting a dead token would restore
+     * {@code TOKEN_EXPIRED} and was rejected: it would make the client's recovery depend on cookie
+     * retention, which nothing in this suite can observe. If you change it, that entry point is what
+     * you are changing.
      */
     private ResponseEntity<AuthResponses.SessionResponse> respond(HttpStatus status, AuthService.Session session) {
         Duration accessMaxAge = Duration.between(clock.instant(), session.accessToken().expiresAt());
