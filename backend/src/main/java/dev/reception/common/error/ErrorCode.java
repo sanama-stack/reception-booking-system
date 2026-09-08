@@ -56,6 +56,24 @@ public enum ErrorCode {
      */
     SERVICE_IN_USE(HttpStatus.CONFLICT, "Service is in use"),
 
+    /**
+     * The Service is not bookable. Availability refuses rather than returning nothing, because "no
+     * slots" and "this is switched off" are different facts and only one of them is fixed in
+     * Settings.
+     */
+    SERVICE_INACTIVE(HttpStatus.UNPROCESSABLE_ENTITY, "Service is not bookable"),
+
+    /** The Employee is not bookable, for the same reason. */
+    EMPLOYEE_INACTIVE(HttpStatus.UNPROCESSABLE_ENTITY, "Employee is not bookable"),
+
+    /**
+     * No assignment exists between the requested Employee and the requested Service. A refusal
+     * rather than an empty list: asking for an Employee who cannot perform the Service is a mistaken
+     * question, and answering "no availability" would send the caller looking for a free time that
+     * does not exist for anyone (docs/01-prd.md FR-5).
+     */
+    EMPLOYEE_CANNOT_PERFORM_SERVICE(HttpStatus.UNPROCESSABLE_ENTITY, "Employee cannot perform this service"),
+
     /** A rate limit was exceeded; the response carries {@code Retry-After}. */
     RATE_LIMITED(HttpStatus.TOO_MANY_REQUESTS, "Too many requests"),
 

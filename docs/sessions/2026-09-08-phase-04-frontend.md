@@ -1,9 +1,12 @@
-# Session handoff — 2026-09-08 — Phase 04 (Services and Employees), frontend half
+# Session handoff — 2026-09-08 — Phase 04 frontend, the merge, and a timezone defect
 
-> **Purpose.** Enough context to continue without re-reading this session. §1 says what is done;
-> §5 is the part that will save you the most time; §6 is the part that will stop you assuming
-> coverage that is not there; **§7 opens a defect that is older than this session and matters to
-> phase 05.** Phase 04 is now complete.
+> **Purpose.** Enough context to continue without re-reading this session. Three pieces of work,
+> in the order they happened: the phase 04 screens (§3–§6), `main` protected and brought up to date
+> (§1), and a defect two phases old found while verifying and then fixed (§7).
+>
+> §5 is the part that will save you the most time. §6 is the part that will stop you assuming
+> coverage that is not there. **§7 is the one to read before phase 05**, and §8 says what it leaves
+> you to do by hand.
 
 ---
 
@@ -18,10 +21,10 @@ boxes the backend sitting left open.
 |---|---|
 | Repository | https://github.com/sanama-stack/reception-booking-system — **public** |
 | Default branch | `main` — **protected as of this session**, see below |
-| Working branch | **`dev`** — pushed |
-| Backend tests | 416, untouched — this session changed no backend code |
+| Working branch | **`dev`** — pushed, and **one commit ahead of `main`** (the §7 fix) |
+| Backend tests | **416, and now green in `Pacific/Kiritimati`** — see §7 |
 | Frontend | Type-checks, lints, formats; `next build` passes with 17 routes |
-| CI | Green on `dev` |
+| CI | Green on `dev` for the phase 04 commits |
 
 ### Two open items that had been open since phase 01 are now closed
 
@@ -40,8 +43,14 @@ The last row is the one to know about: `enforce_admins` is `false`, so the prote
 guardrail rather than a guarantee. It stops an accident, not a decision.
 
 **The pull request was opened and merged.** `main` had been behind since phase 02 and the merge had
-been offered in four handoffs. The commit carrying this document was the last one on `dev` before
-it went.
+been offered in four handoffs. [#1](https://github.com/sanama-stack/reception-booking-system/pull/1)
+carried the whole of phases 03 and 04, went green on all six checks, and was squash-merged.
+
+**`dev` then moved one commit ahead again**, because §7 was found and fixed after the merge. That
+commit has not been merged; opening the second pull request was offered and the session ended
+before it was answered. It is a one-line configuration change and a one-line build change, and CI
+has not run on it — **the suite was run locally instead, twice, and is green**. Push it through a
+pull request like any other; branch protection now requires one.
 
 ---
 
@@ -221,6 +230,12 @@ dynamic segments with no `generateStaticParams`. **The rule is that no route whi
   handoff.
 - **The assignment `404`** — submitting an id that resolves to nothing — was not exercised from the
   UI. It cannot be reached through the picker, which offers only ids it was given.
+- **The §7 fix has no test naming it.** A regression test asserting that a `LocalTime` lands in its
+  column verbatim was offered and deliberately not taken, and neither was a rule forbidding
+  `timestamp without time zone` columns. What guards the fix instead is the hostile test zone: the
+  whole suite now runs at UTC+14, so a reintroduced shift breaks *something*, but it breaks it
+  somewhere that does not say why. **If this ever regresses, read §7 before debugging the failure
+  it produces** — and the two guards above are still the cheap things to add.
 
 ### What *was* verified in a browser
 
@@ -244,52 +259,88 @@ employees.
 
 ---
 
-## 7. A defect this session found and did not fix
+## 7. A defect this session found, and fixed
 
-**`time` columns are stored four hours off on this machine, and correctly in CI.**
+**`time` columns were stored four hours off on this machine, and correctly in CI.**
 
-`business_hours.opens_at` holds `05:00:00` for a business that opens at 09:00. So does
-`employee_schedules.starts_at`. The API reads both back as `09:00`, so nothing in the application
-notices.
+`business_hours.opens_at` held `05:00:00` for a business that opens at 09:00, and
+`employee_schedules.starts_at` did the same. The API read both back as `09:00`, so nothing in the
+application noticed.
 
-The cause is `spring.jpa.properties.hibernate.jdbc.time_zone: UTC` in `application.yml`. That
-setting is right for `timestamp` columns and meaningless for `time` ones: a `LocalTime` is a
-wall-clock time with no zone, and Hibernate binds it through a UTC `Calendar` anyway — shifting it
-by the JVM's offset. This machine runs `Asia/Tbilisi`, which is UTC+4. The read applies the same
-shift in reverse, which is why it round-trips.
+The cause was `spring.jpa.properties.hibernate.jdbc.time_zone: UTC` in `application.yml`. It makes
+Hibernate bind every temporal value through a `Calendar` in the named zone — which is what a
+`timestamp without time zone` column needs, and **this schema has none**. Every instant is
+`timestamptz`, where Postgres carries the zone itself; the only other temporal columns are the four
+`time` ones. A `LocalTime` has no zone to convert, so the Calendar shifted it by the JVM's offset
+instead. This machine runs `Asia/Tbilisi`, UTC+4. The read applied the same shift in reverse, which
+is why it round-tripped.
 
-**Why no test catches it:** CI runs in UTC, where the shift is zero. The suite is correct and blind
-to this at the same time.
+### What was measured, not assumed
 
-**Why it matters to phase 05:** the availability engine intersects opening hours with working
-schedules. As long as everything goes through Hibernate the two shifts cancel and the engine is
-right. The moment anything reads these columns in SQL — a native query, a view, a report, a
-migration that computes with them — it gets times that are four hours off on a developer's machine
-and correct on the build server. `DatabaseCatalogReadiness` is already a native query; it tests only
-for existence, so it is unaffected today.
+A probe run against a fresh Testcontainers database, with and without the setting:
 
-**It is older than this session** — `business_hours` has stored this way since phase 02 seeded the
-first week at registration — and it is not a frontend bug. It is written down here rather than
-fixed because fixing it is a backend change with a data migration attached: the existing rows are
-shifted, and correcting the binding without correcting them would move every business's opening
-hours by the developer's own offset.
+| | `time` column | `timestamptz` column |
+|---|---|---|
+| As configured | `05:00:00` for an API value of `09:00` | `2026-09-08T07:58:54.332789Z` — exact |
+| Setting removed | `09:00:00` | `2026-09-08T07:59:33.902738Z` — exact |
 
-**Worth an issue before phase 05 starts**, since phase 05 is the first phase that will want to
-reason about these columns.
+Removing it fixes the wall-clock columns and does not disturb the instants, because there is no
+plain `timestamp` column for it to have been protecting. The full suite is green without it.
 
----
+### The fix, in two parts
+
+**The setting is gone**, and a comment stands where it was saying why adding it back is a defect.
+That is the part a future "best practices" pass would otherwise undo.
+
+**The test JVM now runs in `Pacific/Kiritimati`** — UTC+14, the largest offset there is, and on
+tomorrow's date for ten hours of every UTC day. This is the part that matters more than the fix.
+A suite that runs in UTC cannot see a timezone bug, because in UTC every conversion to and from UTC
+is the identity: 416 green tests said nothing about this for two phases, and would have said
+nothing about the next one either. Kiritimati has no daylight saving, so the suite is hostile
+without becoming a different environment in March and October.
+
+All 416 tests pass under both changes. One `HealthEndpointTest` flake was seen once at UTC+14 and
+passed on re-run; it is SMTP container readiness, not zone.
+
+### What was deliberately *not* done
+
+**No Flyway migration corrects the existing rows.** There cannot be a correct one: the shift depends
+on the offset of the machine that wrote each row, so a migration that repairs this database would
+corrupt one written in UTC. The affected data is five rows in one developer's database — CI's is
+ephemeral and there is no production — which is why this was worth fixing now rather than later.
+
+**The five local rows were left as they are.** Until they are corrected, the owner's own business
+reads 05:00–13:00 in the UI. One scoped `UPDATE` fixes it, or re-entering the week under
+`/settings/hours` does.
 
 ## 8. Open items
 
 Everything in §7 of the phase-04 backend handoff still stands unless listed below. Changed:
 
-- **`main` is current and protected.** Both of the items that had been open since phase 01 are
-  closed. See §1 for what the protection does and does not enforce.
-- **`dev` and `main` have the same content and different histories.** The merge was a squash, which
-  is what four handoffs prescribed, so `git log main..dev` still lists every commit that went into
-  it. That is cosmetic; if it is annoying, `git checkout dev && git reset --hard origin/main` after
-  the merge makes the two identical, and nothing depends on it either way.
-- **The `time`-column shift, §7.** The most valuable thing to settle before phase 05.
+- **`main` is protected, and one commit behind.** Both of the items open since phase 01 are closed;
+  the §7 fix then landed on `dev` and its pull request was not opened. **This is a much smaller
+  version of the problem four handoffs complained about, and it is worth not letting it grow.**
+- **`dev` and `main` have different histories.** The merge was a squash, which is what four
+  handoffs prescribed, so `git log main..dev` lists every commit that went into it as well as the
+  one that genuinely has not landed. `git log origin/main..origin/dev --oneline` after the second
+  merge is the honest way to ask what is outstanding; `git diff origin/main origin/dev` is better
+  still, because it answers about content rather than history.
+- **The five rows written before the §7 fix are still shifted.** The owner's opening hours read
+  05:00–13:00 until they are corrected by hand:
+
+  ```bash
+  docker compose exec -T postgres psql -U reception -d reception \
+    -c "update business_hours set opens_at = opens_at + interval '4 hours', \
+        closes_at = closes_at + interval '4 hours';"
+  ```
+
+  **The `4 hours` is this machine's own offset**, which is why this is a command run once and not a
+  migration: a database written on a UTC machine has nothing to correct and this statement would
+  corrupt it. Re-entering the week under `/settings/hours` does the same job. Nothing else in the
+  database is affected — every other temporal column is `timestamptz`, and both were checked.
+- **The backend must be restarted before the §7 fix takes effect.** It was running with the old
+  configuration when this session ended, which means the shift was still being applied on read and
+  the hours still *looked* right.
 - **`EmptyAppointmentImpact` is still the last stub standing.** Phase 06 deletes it. Do not change
   its return values.
 - **`aiEnabled` and `aiDailyCostCapCents` still have no UI.** Phase 09 owes them.
@@ -306,8 +357,8 @@ Everything in §7 of the phase-04 backend handoff still stands unless listed bel
 Read `docs/phases/phase-05-availability.md` in full, and §4 of the phase-04 backend handoff before
 it — the engine's inputs are all decided there. Three things this session leaves you:
 
-1. **Settle §7 first, or decide deliberately not to.** The engine is the first thing that might
-   want to read a `time` column outside Hibernate.
+1. **§7 is settled**, so the engine can read a `time` column in SQL and get the wall-clock the
+   owner typed. Correct the five stale rows before trusting anything computed from them.
 2. **`hasBookableService` is the flag to trust.** An active service, with an active assigned
    employee, who has a schedule. If the engine ever disagrees with it, one of the two is wrong —
    and the dashboard now shows that flag to the owner on every visit, so a disagreement is visible.

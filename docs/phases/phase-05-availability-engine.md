@@ -100,73 +100,168 @@ The whole point of the phase. Every case in [08-testing-strategy.md](../08-testi
 required here, not deferred.
 
 ### Unit — `TimeRange`
-- [ ] Union of overlapping, adjacent and disjoint ranges
-- [ ] Intersection incl. empty results
-- [ ] Subtraction producing zero, one and two remainders
-- [ ] Adjacent ranges do **not** overlap (half-open semantics)
+- [x] Union of overlapping, adjacent and disjoint ranges
+- [x] Intersection incl. empty results
+- [x] Subtraction producing zero, one and two remainders
+- [x] Adjacent ranges do **not** overlap (half-open semantics)
 
 ### Unit — engine
-- [ ] Service fits exactly in the remaining time
-- [ ] Service one minute too long → no slot
-- [ ] Working schedule wider than, narrower than, and disjoint from business hours
-- [ ] Existing appointment before, after, abutting (both offered), containing, partially overlapping
-- [ ] Buffer blocks the neighbouring slot
-- [ ] **Trailing buffer past closing does not remove the final slot**
-- [ ] Buffers on both sides
-- [ ] Slot intervals 15 / 30 / 60; duration not a multiple of the interval
-- [ ] Past slots dropped; exactly at `now + lead time` allowed; one minute earlier rejected
-- [ ] At `max_advance_days` allowed; beyond it rejected
-- [ ] Time off: full-day, partial-day, multi-day
-- [ ] Closure removes availability for all employees
-- [ ] Two employees with different schedules; one on time off
-- [ ] Tie-break is deterministic across repeated runs
-- [ ] Every `emptyReason` value produced by its own scenario
-- [ ] **DST spring-forward:** non-existent local times skipped
-- [ ] **DST fall-back:** repeated hour appears once
-- [ ] A zone without DST behaves identically to the base case
-- [ ] No hours, no schedule, inactive service, inactive employee → correct empty reasons
+- [x] Service fits exactly in the remaining time
+- [x] Service one minute too long → no slot
+- [x] Working schedule wider than, narrower than, and disjoint from business hours
+- [x] Existing appointment before, after, abutting (both offered), containing, partially overlapping
+- [x] Buffer blocks the neighbouring slot
+- [x] **Trailing buffer past closing does not remove the final slot**
+- [x] Buffers on both sides
+- [x] Slot intervals 15 / 30 / 60; duration not a multiple of the interval
+- [x] Past slots dropped; exactly at `now + lead time` allowed; one minute earlier rejected
+- [x] At `max_advance_days` allowed; beyond it rejected
+- [x] Time off: full-day, partial-day, multi-day
+- [x] Closure removes availability for all employees
+- [x] Two employees with different schedules; one on time off
+- [x] Tie-break is deterministic across repeated runs
+- [x] Every `emptyReason` value produced by its own scenario
+- [x] **DST spring-forward:** non-existent local times skipped
+- [x] **DST fall-back:** repeated hour appears once
+- [x] A zone without DST behaves identically to the base case
+- [x] No hours, no schedule, inactive service, inactive employee → correct empty reasons
 
 ### Integration
-- [ ] `GET /availability` returns correct slots for a configured business
-- [ ] Range over 31 days → `422`
-- [ ] Another tenant's `serviceId` → `404`
-- [ ] `employeeId` not assigned to the service → `422 EMPLOYEE_CANNOT_PERFORM_SERVICE`
-- [ ] Response times carry the correct offset and the business `timezone`
+- [x] `GET /availability` returns correct slots for a configured business
+- [x] Range over 31 days → `422`
+- [x] Another tenant's `serviceId` → `404`
+- [x] `employeeId` not assigned to the service → `422 EMPLOYEE_CANNOT_PERFORM_SERVICE`
+- [x] Response times carry the correct offset and the business `timezone`
 
 ## Definition of Done
 
-- [ ] The engine is pure, takes an injected `Clock`, and performs no I/O
-- [ ] Every unit case above passes
-- [ ] Both DST transitions are covered by explicit tests
-- [ ] `GET /availability` returns slots each carrying a resolved employee
-- [ ] `emptyReason` is populated whenever the result is empty
-- [ ] No appointment is written anywhere in this phase
+- [x] The engine is pure, takes an injected `Clock`, and performs no I/O
+- [x] Every unit case above passes
+- [x] Both DST transitions are covered by explicit tests
+- [x] `GET /availability` returns slots each carrying a resolved employee
+- [x] `emptyReason` is populated whenever the result is empty
+- [x] No appointment is written anywhere in this phase
 
 ## Checklist
 
 ### Domain
-- [ ] `TimeRange` with half-open semantics and full algebra
-- [ ] `Slot`, `AvailabilityQuery`, `AvailabilityResult`, `EmptyReason`
-- [ ] `SlotGenerator` anchored at local midnight
-- [ ] `AvailabilityEngine.findSlots`
-- [ ] `AvailabilityEngine.isSlotBookable`
-- [ ] Employee tie-break rule
-- [ ] DST handling for both transitions
+- [x] `TimeRange` with half-open semantics and full algebra
+- [x] `Slot`, `AvailabilityQuery`, `AvailabilityResult`, `EmptyReason`
+- [x] `SlotGenerator` anchored at local midnight
+- [x] `AvailabilityEngine.findSlots`
+- [x] `AvailabilityEngine.isSlotBookable`
+- [x] Employee tie-break rule
+- [x] DST handling for both transitions
 
 ### Backend
-- [ ] Repository method for confirmed appointments in a range
-- [ ] Repository methods for schedules, time off, closures over a range
-- [ ] `AvailabilityService` loading and mapping
-- [ ] `AvailabilityController`
-- [ ] Range-length and argument validation
-- [ ] Error codes: `EMPLOYEE_CANNOT_PERFORM_SERVICE`, `SERVICE_INACTIVE`
+- [x] A read for confirmed appointments in a range — a fifth method on `AppointmentImpact`, not a
+      repository, because `appointments` does not exist until phase 06 (see notes)
+- [x] Reads for schedules, time off and closures over the range — the existing per-employee reads,
+      reused rather than duplicated (see notes)
+- [x] `AvailabilityService` loading and mapping
+- [x] `AvailabilityController`
+- [x] Range-length and argument validation
+- [x] Error codes: `EMPLOYEE_CANNOT_PERFORM_SERVICE`, `SERVICE_INACTIVE`
 
 ### Frontend
 - [ ] Availability preview on the employee detail screen
 - [ ] Loading, empty (with reason) and error states
 
 ### Testing
-- [ ] Full `TimeRange` unit suite
-- [ ] Full engine unit suite, including both DST cases
-- [ ] Integration tests for the endpoint
-- [ ] Isolation probes for `/availability`
+- [x] Full `TimeRange` unit suite
+- [x] Full engine unit suite, including both DST cases
+- [x] Integration tests for the endpoint
+- [x] Isolation probes for `/availability`
+
+
+---
+
+## Notes from the build
+
+*Built as the backend half only, at the project owner's choice — the same split phases 03 and 04
+used, so the API contract can be reviewed before the preview screen is built on it. The Frontend
+boxes above are deliberately unticked.*
+
+### The busy-range seam is a fifth question on `AppointmentImpact`, not a new port
+
+The engine needs each Employee's confirmed Appointments as blocked ranges, and `appointments` is a
+phase-06 table. The alternatives were a new `BusyRanges` port beside the existing stub, or a fifth
+method on `AppointmentImpact`.
+
+The fifth method won, for the reason the phase-04 handoff gave for growing that port rather than
+multiplying it: **two stubs are two chances to leave one behind**, and this one would not fail
+loudly. Two competing beans stop the context from starting; a forgotten `EmptyBusyRanges` goes on
+reporting every Employee free forever, and the system offers Slots that are already booked.
+`EmptyAppointmentImpact` remains the single class phase 06 deletes.
+
+The cost is that the port is now named for one of its five uses. That was the owner's call, taken
+against a rename that would have churned phase 03 and 04 code.
+
+### The engine gets one range algebra, over instants only
+
+`open ∩ working` could have been intersected as wall-clock `LocalTime` and converted afterwards. It
+is converted first and intersected as `TimeRange` instead, so there is exactly one algebra in the
+system rather than two that could drift. Business Closures, Time Off and Appointments are already
+stored as instants for the same reason (ADR-0003), and they now all subtract through the same code.
+
+`TimeRange.union` merges **adjacent** ranges even though adjacent ranges do not **overlap**. Both are
+correct and they are not in tension: touching appointments are two bookings, while an owner who
+enters 09:00–12:00 and 12:00–17:00 as two rows is open continuously and a two-hour Service must be
+offered at 11:30. `TimeRangeTest` asserts both halves.
+
+### `WallClock` resolves a local time two different ways, on purpose
+
+`ZonedDateTime.of` shifts a non-existent local time *forward by the length of the gap*, so 02:00 and
+02:30 on a spring-forward day become 03:00 and 03:30 — an interval that has silently **moved**
+rather than shrunk, landing on candidates that are already there. That is the trap `WallClock`
+exists to keep out of the engine.
+
+- A **candidate start** in the gap is dropped; there is no such moment to book.
+- An **interval boundary** in the gap is clamped to the transition instant, so the missing hour
+  disappears from the day instead of displacing the rest of it. A Business open 01:00–09:00 that day
+  is open for seven real hours; one open only 02:00–02:30 is not open at all, and
+  `WeeklyInterval.on` returns nothing.
+
+Both resolve the *repeated* hour to its earlier occurrence, which is the rule ADR-0003 states.
+
+### `CLOSED` is decided against the Service, not against the calendar
+
+The first implementation reported `FULLY_BOOKED` for a two-hour Service in a business open for one
+hour, because there was workable time and no Slot survived. Nothing was booked. The reason is now
+set from whether any candidate *fits* — which is about the Service — so that case reports `CLOSED`.
+
+`OUTSIDE_HORIZON` likewise wins over `CLOSED` whenever the Service would have fitted somewhere in
+the range and every one of those places is out of bounds. Someone asking about last Sunday is told
+the date has passed, not that the shop shuts on Sundays. The precedence is written out in
+`EmptyReason` and each value has its own test.
+
+### `isSlotBookable` keeps hours and schedule separate; `findSlots` intersects them
+
+The two entry points ask the same questions in different shapes. `findSlots` needs only the
+intersection. `isSlotBookable` tests Business Hours and the Working Schedule separately so its
+refusal can say which one was missed — `OUTSIDE_BUSINESS_HOURS` means try another time,
+`OUTSIDE_WORKING_HOURS` means try another person, and phase 06 maps both onto published codes.
+
+`SlotBookabilityTest` closes the loop in both directions: every Slot `findSlots` offers must pass
+`isSlotBookable`, and every grid start it withholds must be refused with a reason. Two entry points
+into one set of rules is exactly where a system starts contradicting itself, and the contradiction
+would otherwise surface in phase 06 as a booking refused seconds after being offered.
+
+### The reads are per Employee, and that is a scale decision worth revisiting
+
+`AvailabilityService` calls the existing `EmployeeScheduleService.read` and `TimeOffService.list`
+once per eligible Employee rather than adding range-scoped bulk repository methods. One tenancy
+rule, no second copy of the `404` behaviour, and no new query shapes to keep in step with the
+`@TenantScoped` rule — at the cost of two queries per Employee.
+
+Appointments are already fetched for every Employee in one call, because that is the read that grows
+with the calendar rather than with the team. **If the public booking page makes this hot in phase
+08, the schedules and Time Off are the two to batch**, and the port is already shaped that way to
+copy.
+
+### `LayeringTest` lost its `allowEmptyShould` for the engine
+
+The rule that the availability engine performs no I/O was declared in phase 01 against an empty
+package. The package is now full, so the flag is gone — from here, an empty result would mean the
+package had been renamed or emptied and the rule was passing by finding nothing to check. Same
+reasoning as the four rules phase 03 tightened. Do not add it back to get a red build green.

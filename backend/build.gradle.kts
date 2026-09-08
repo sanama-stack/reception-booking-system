@@ -84,6 +84,18 @@ dependencies {
 tasks.withType<Test> {
     // Resolved at execution time rather than during configuration, which Gradle warns about.
     jvmArgumentProviders.add(CommandLineArgumentProvider { listOf("-javaagent:" + mockitoAgent.asPath) })
+
+    // The suite runs somewhere deliberately hostile: UTC+14, the largest offset there is, and far
+    // enough east to be on tomorrow's date for ten hours of every UTC day.
+    //
+    // A suite that runs in UTC cannot see a timezone bug, because in UTC every conversion to and
+    // from UTC is the identity. That is not hypothetical here: `hibernate.jdbc.time_zone` shifted
+    // every stored Business Hour by the JVM's offset for two phases, and 416 green tests said
+    // nothing, because the build server had no offset to shift by.
+    //
+    // Kiritimati has no daylight saving, so this is hostile without being a different environment
+    // in March and October.
+    systemProperty("user.timezone", "Pacific/Kiritimati")
     useJUnitPlatform {
         // Live-model tests cost money and are non-deterministic; they never gate the pipeline
         // (docs/08-testing-strategy.md §7, §10).
