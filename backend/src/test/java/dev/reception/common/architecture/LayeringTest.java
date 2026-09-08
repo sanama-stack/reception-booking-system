@@ -26,10 +26,11 @@ class LayeringTest {
                 .should()
                 .dependOnClassesThat()
                 .resideInAnyPackage("javax.sql..", "java.sql..", "jakarta.persistence..", "org.springframework..")
-                .because("the availability engine is a pure function of its inputs and an injected Clock")
-                // The package is empty until phase 05. The rule is declared now so the commit that
-                // fills it is already governed, rather than the rule arriving after the code.
-                .allowEmptyShould(true);
+                .because("the availability engine is a pure function of its inputs and an injected Clock");
+        // allowEmptyShould is gone as of phase 05, which filled the package. It was there so the
+        // rule could be declared before the code it governs; now that the code exists, an empty
+        // result would mean the package had been renamed or emptied and the rule was passing by
+        // finding nothing to check. Do not add it back to get a red build green.
 
         rule.check(PRODUCTION_CLASSES);
     }

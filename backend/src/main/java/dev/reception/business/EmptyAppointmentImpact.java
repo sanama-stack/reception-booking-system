@@ -1,6 +1,9 @@
 package dev.reception.business;
 
 import java.time.Instant;
+import java.util.Collection;
+import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 import org.springframework.stereotype.Service;
 
@@ -37,5 +40,17 @@ public class EmptyAppointmentImpact implements AppointmentImpact {
     @Override
     public boolean everBooked(UUID businessId, UUID serviceId) {
         return false;
+    }
+
+    /**
+     * Nobody is busy, because nothing can be booked yet. The availability engine therefore offers
+     * every Slot the schedules allow — which is the correct answer today and becomes a serious
+     * defect the moment appointments exist, so this method is the reason the TODO above says
+     * <em>delete</em>.
+     */
+    @Override
+    public Map<UUID, List<BlockedRange>> blockedRangesFor(
+            UUID businessId, Collection<UUID> employeeIds, Instant from, Instant to) {
+        return Map.of();
     }
 }

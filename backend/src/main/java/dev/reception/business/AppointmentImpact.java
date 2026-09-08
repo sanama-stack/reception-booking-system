@@ -1,6 +1,9 @@
 package dev.reception.business;
 
 import java.time.Instant;
+import java.util.Collection;
+import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 /**
@@ -46,4 +49,35 @@ public interface AppointmentImpact {
      * it was for, and removing the row would leave that record pointing at nothing.
      */
     boolean everBooked(UUID businessId, UUID serviceId);
+
+    /**
+     * The time each of these Employees is already committed to, for the availability engine.
+     *
+     * <p>Asked for every Employee at once rather than one at a time. Availability is computed for a
+     * whole range across every Employee who can perform a Service, and a query per Employee would
+     * grow with the size of the team on the one endpoint that is called on every page of the public
+     * booking flow.
+     *
+     * <p><strong>This is a fifth question on this port rather than a port of its own.</strong> All
+     * five are answered from {@code appointments}, so phase 06 still has exactly one class to
+     * delete. A second stub would be a second chance to leave one behind — and a forgotten
+     * {@code EmptyBusyRanges} does not fail loudly the way two competing beans do: it goes on
+     * reporting every Employee free forever, and the system offers Slots that are already booked.
+     *
+     * @param from inclusive, {@code to} exclusive — the window availability was asked about, already
+     *     widened by the caller to cover Buffers that reach outside it
+     * @return blocked ranges by Employee id. An Employee with nothing booked may be absent or map to
+     *     an empty list; callers must treat the two the same
+     */
+    Map<UUID, List<BlockedRange>> blockedRangesFor(
+            UUID businessId, Collection<UUID> employeeIds, Instant from, Instant to);
+
+    /**
+     * One Appointment's buffer-inclusive occupancy — {@code blocked_from} to {@code blocked_to}, the
+     * columns the exclusion constraint compares (docs/03-data-model.md §4).
+     *
+     * <p>Not the Appointment's own start and end: what makes an Employee unavailable is the whole
+     * span including Buffers, and the engine must test against the same interval the database will.
+     */
+    record BlockedRange(Instant from, Instant to) {}
 }
