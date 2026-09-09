@@ -9,11 +9,13 @@ import java.time.Clock;
 import java.time.OffsetDateTime;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.Callable;
 import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
+import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -103,10 +105,20 @@ class ConcurrentBookingTest extends IntegrationTest {
         List<HttpStatus> statuses =
                 responses.stream().map(response -> (HttpStatus) response.getStatusCode()).toList();
 
-        assertThat(statuses.stream().filter(HttpStatus.CREATED::equals)).hasSize(1);
-        // Every loser gets the same answer, whether it lost to the pre-check or to the constraint.
-        // A 500 here would mean the violation reached a handler that did not recognise it.
-        assertThat(statuses.stream().filter(HttpStatus.CONFLICT::equals)).hasSize(BOOKERS - 1);
+        // The whole multiset, not two filtered counts. Every loser gets the same answer, whether it
+        // lost to the pre-check or to the constraint — but a filtered `hasSize` prints only the
+        // filtered list, so when this flaked under load the nineteen unaccounted responses were
+        // reported as `Expected size: 19 but was: 0 in: []` and the statuses that did come back
+        // were never captured (issue #7). Asserting the multiset makes the next failure name its
+        // own cause: a 500 would mean the violation reached a handler that did not recognise it, a
+        // 429 that the rate limiter rather than the database decided the contest.
+        Map<HttpStatus, Long> observed =
+                statuses.stream().collect(Collectors.groupingBy(status -> status, Collectors.counting()));
+
+        assertThat(observed)
+                .as("responses that were neither the winner nor an expected loser: %s", unexpected(responses))
+                .containsExactlyInAnyOrderEntriesOf(
+                        Map.of(HttpStatus.CREATED, 1L, HttpStatus.CONFLICT, (long) (BOOKERS - 1)));
         assertThat(responses.stream()
                         .filter(response -> response.getStatusCode() == HttpStatus.CONFLICT)
                         .map(BookingScenario::codeOf))
@@ -117,6 +129,20 @@ class ConcurrentBookingTest extends IntegrationTest {
         // And exactly one audit event: a rolled-back booking must not leave a CREATED behind.
         assertThat(jdbc.queryForObject("select count(*) from appointment_events", Long.class))
                 .isEqualTo(1);
+    }
+
+    /**
+     * Status and body of every response that is neither the winner nor an expected loser, so a
+     * failure of the multiset assertion carries the reason with it instead of leaving it to be
+     * inferred from a count (issue #7). Empty in the passing case, which is why it can be built
+     * eagerly.
+     */
+    private static String unexpected(List<ResponseEntity<String>> responses) {
+        return responses.stream()
+                .filter(response -> response.getStatusCode() != HttpStatus.CREATED
+                        && response.getStatusCode() != HttpStatus.CONFLICT)
+                .map(response -> response.getStatusCode() + " " + response.getBody())
+                .collect(Collectors.joining("; ", "[", "]"));
     }
 
     /** A different customer per thread, so nothing is shared but the slot they are all after. */
