@@ -11,6 +11,7 @@ import dev.reception.catalog.ServiceCatalogService;
 import dev.reception.common.error.ApiException;
 import dev.reception.common.error.ErrorCode;
 import dev.reception.common.error.FieldError;
+import dev.reception.customers.CustomerService;
 import dev.reception.scheduling.application.AvailabilityService;
 import dev.reception.scheduling.application.web.AvailabilityResponses;
 import dev.reception.staff.EmployeeService;
@@ -57,6 +58,7 @@ public class PublicAppointmentController {
     private final ServiceCatalogService catalog;
     private final EmployeeService employees;
     private final BusinessService businesses;
+    private final CustomerService customers;
 
     public PublicAppointmentController(
             PublicAppointmentAuthority authority,
@@ -66,7 +68,8 @@ public class PublicAppointmentController {
             AvailabilityService availability,
             ServiceCatalogService catalog,
             EmployeeService employees,
-            BusinessService businesses) {
+            BusinessService businesses,
+            CustomerService customers) {
         this.authority = authority;
         this.cancellation = cancellation;
         this.reschedule = reschedule;
@@ -75,6 +78,7 @@ public class PublicAppointmentController {
         this.catalog = catalog;
         this.employees = employees;
         this.businesses = businesses;
+        this.customers = customers;
     }
 
     /**
@@ -185,7 +189,18 @@ public class PublicAppointmentController {
         return authority.byLookup(proof.confirmationCode(), proof.phone());
     }
 
-    /** Everything a Manage Link page shows, assembled inside the tenant the proof resolved. */
+    /**
+     * Everything a Manage Link page shows, assembled inside the tenant the proof resolved.
+     *
+     * <p>The Customer is read for <strong>one bit and nothing else</strong>: whether an address is
+     * on record, which is what {@code NotificationEnqueuer} gates every cancellation and reschedule
+     * email on. Without it the page has to guess, and it guessed wrong — a Manage Link arrives by
+     * email, so the address was there when the token was issued, but the Business can clear it from
+     * the dashboard and the token stays valid until the appointment ends. See ADR-0008. Nothing else
+     * off the record reaches {@code ManagedAppointment}, and that is the point: the person reading
+     * it is the Customer, so echoing their details back would only turn a proof into a way to read
+     * them.
+     */
     private PublicResponses.ManagedAppointment render(Appointment appointment) {
         Business business = businesses.read();
         return PublicResponses.ManagedAppointment.of(
@@ -193,7 +208,10 @@ public class PublicAppointmentController {
                 catalog.read(appointment.serviceId()),
                 employees.read(appointment.employeeId()),
                 business,
-                window.isOpenFor(appointment));
+                window.isOpenFor(appointment),
+                // The same predicate the outbox asks, so the screen and the enqueuer cannot drift
+                // (ADR-0007). One definition of "reachable by email", two callers, now three.
+                customers.read(appointment.customerId()).hasEmail());
     }
 
     private static boolean isBlank(String value) {

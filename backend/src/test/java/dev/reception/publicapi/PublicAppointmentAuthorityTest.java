@@ -215,6 +215,69 @@ class PublicAppointmentAuthorityTest extends IntegrationTest {
         assertThat(JsonPath.<Boolean>read(response.getBody(), "$.canCancel")).isFalse();
         assertThat(jdbc.queryForList("select type from notifications", String.class))
                 .contains("CANCELLATION");
+        // The bit the screen reads to decide whether it may promise that email, asserted beside the
+        // row it is about — the two must never disagree (ADR-0008).
+        assertThat(JsonPath.<Boolean>read(response.getBody(), "$.emailOnFile")).isTrue();
+    }
+
+    @Test
+    @DisplayName("a cancel says no email is coming once the business has cleared the address")
+    void a_cancel_reports_no_address_on_file() {
+        Booking booking = book(scenario.at(scenario.monday, 13, 0));
+        // The window this closes. A Manage Link is delivered by email, so the address was there when
+        // the token was issued — but the token is valid until the appointment ends and the Business
+        // can clear the address from the dashboard in the meantime. Blank clears: see
+        // Customer#applyCorrection, reached from PATCH /customers/{id}.
+        clearTheEmailOf(booking);
+        jdbc.update("delete from notifications");
+
+        ResponseEntity<String> response = cancelWith(booking, Map.of("manageToken", tokenFor(booking)));
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(JsonPath.<String>read(response.getBody(), "$.status")).isEqualTo("CANCELLED");
+        // NotificationEnqueuer.appointmentCancelled returns early without an address, so nothing is
+        // enqueued — and before ADR-0008 the page promised a message anyway.
+        assertThat(jdbc.queryForList("select type from notifications", String.class))
+                .isEmpty();
+        assertThat(JsonPath.<Boolean>read(response.getBody(), "$.emailOnFile")).isFalse();
+    }
+
+    @Test
+    @DisplayName("a reschedule reports the same thing, on the same window")
+    void a_reschedule_reports_no_address_on_file() {
+        Booking booking = book(scenario.at(scenario.monday, 13, 0));
+        clearTheEmailOf(booking);
+        jdbc.update("delete from notifications");
+
+        ResponseEntity<String> response = stranger.post(
+                "/public/appointments/" + booking.id() + "/reschedule",
+                Map.of(
+                        "authority", Map.of("manageToken", tokenFor(booking)),
+                        "startsAt", scenario.at(scenario.monday, 15, 0).toString()));
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(jdbc.queryForList("select type from notifications", String.class))
+                .isEmpty();
+        assertThat(JsonPath.<Boolean>read(response.getBody(), "$.emailOnFile")).isFalse();
+    }
+
+    @Test
+    @DisplayName("the bit is whether an address is on file, and never the address itself")
+    void the_manage_page_reports_the_bit_and_not_the_address() {
+        Booking booking = book(scenario.at(scenario.monday, 13, 0));
+
+        String body = stranger
+                .get("/public/appointments/manage?token=" + tokenFor(booking))
+                .getBody();
+
+        // True on a plain read as well, where nothing has been sent: the field is named for the fact
+        // rather than for an outcome precisely because two of the four endpoints returning
+        // ManagedAppointment send no message at all (ADR-0008).
+        assertThat(JsonPath.<Boolean>read(body, "$.emailOnFile")).isTrue();
+        // What was rejected. The address is the Customer's own, and the page is proved by a token —
+        // echoing it back would turn that token into a way to read it, which is the leak
+        // ManagedAppointment refuses for the name and the phone number already.
+        assertThat(body).doesNotContain("ana@example.test");
     }
 
     @Test
@@ -395,6 +458,24 @@ class PublicAppointmentAuthorityTest extends IntegrationTest {
 
     private ResponseEntity<String> lookup(String code, String phone) {
         return stranger.post("/public/appointments/lookup", Map.of("confirmationCode", code, "phone", phone));
+    }
+
+    /**
+     * The Business clearing a Customer's email from the dashboard, which is the only way it happens.
+     *
+     * <p>Through the real {@code PATCH} rather than a {@code jdbc.update}, because the reachability
+     * of this window is the whole point: {@code email} is {@code @Email} without {@code @NotBlank},
+     * so a blank string is a legal request body, and {@code CustomerService.patch} treats it as a
+     * clear. A direct write would prove the response field works while proving nothing about whether
+     * anyone can get into that state.
+     */
+    private void clearTheEmailOf(Booking booking) {
+        UUID customerId = jdbc.queryForObject(
+                "select customer_id from appointments where id = ?", UUID.class, UUID.fromString(booking.id()));
+        assertThat(scenario.owner
+                        .patch("/customers/" + customerId, Map.of("email", ""))
+                        .getStatusCode())
+                .isEqualTo(HttpStatus.OK);
     }
 
     private ResponseEntity<String> cancelWith(Booking booking, Map<String, Object> authority) {

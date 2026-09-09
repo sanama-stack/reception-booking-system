@@ -300,6 +300,15 @@ id in a URL is a claim, the token is the evidence. A Manage Link for appointment
 `404`, not `403`: a distinct code would confirm that B exists. Errors: `MANAGE_TOKEN_INVALID`,
 `INVALID_CONFIRMATION_CODE`, `CANCELLATION_WINDOW_CLOSED`, `SLOT_UNAVAILABLE`, `NOT_FOUND`, `RATE_LIMITED`.
 
+All four endpoints that resolve an appointment — `lookup`, `manage`, `cancel` and `reschedule` — return the
+same shape, which carries **`emailOnFile`**: whether the Customer has an address on record, and never the
+address. After a cancel or a reschedule it is what says a confirmation is coming, because
+`NotificationEnqueuer` gates both of those emails on exactly that; on the two read endpoints nothing has been
+sent and the field is simply a fact, which is why it is named for one. A Manage Link arrives by email, so an
+address existed when the token was issued — but the token is valid until the appointment ends and the
+Business can clear the address from the dashboard in between, so the page cannot infer it (ADR-0008). The
+address itself is never returned, for the reason `confirmationSent` is not either.
+
 **Manage Link token** — HMAC-SHA256 over `appointmentId|expiry` with a server secret, expiring at
 appointment end + 24 h. It is a single-purpose capability token, not an identity: it authorises exactly one
 appointment, grants nothing else, and is excluded from logs.

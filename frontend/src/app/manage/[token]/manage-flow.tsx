@@ -198,7 +198,16 @@ export function ManageFlow({
   );
 }
 
-/** Said once, at the top, because the summary below states the new facts without narrating them. */
+/**
+ * Said once, at the top, because the summary below states the new facts without narrating them.
+ *
+ * **It cannot promise the email unconditionally, and used to.** `NotificationEnqueuer` gates both
+ * the cancellation and the reschedule message on the Customer having an address, and a Manage Link
+ * outliving that address is not hypothetical: the link arrives by email, so an address was there
+ * when the token was issued, but the token is valid until the appointment ends and the Business can
+ * clear the address from its own dashboard in between. `emailOnFile` is the server's answer, and it
+ * is the only thing here that knows (ADR-0008).
+ */
 function OutcomeBanner({
   outcome,
   appointment,
@@ -216,9 +225,26 @@ function OutcomeBanner({
       {outcome === 'cancelled'
         ? `Cancelled. ${appointment.business.name} has been told, and the time is free for somebody else.`
         : 'Moved. The new time is below.'}{' '}
-      {/* "Shortly", never "now": mail is written into the outbox inside the transaction and a
-          poller drains it (ADR-0005), so a minute is the honest promise. */}
-      A confirmation email should reach you within a minute or two.
+      {appointment.emailOnFile ? (
+        <>
+          {/* "Shortly", never "now": mail is written into the outbox inside the transaction and a
+              poller drains it (ADR-0005), so a minute is the honest promise. */}
+          A confirmation email should reach you within a minute or two.
+        </>
+      ) : (
+        <>
+          {/*
+            Nothing was enqueued, so there is no message to wait for and no second copy coming. The
+            route out is the same one the booking page offers in its equivalent state: ask the
+            business, because neither ADR touches stored data and a Customer cannot correct their
+            own record. No claim is made about this link still working — a reschedule to a later
+            date can outlive the token that was minted against the old end time.
+          */}
+          <span className="text-ink">No confirmation email is being sent</span> —{' '}
+          {appointment.business.name} has no email address on file for your number. What is on this
+          page is the record; ask them to add an address if you would like messages in future.
+        </>
+      )}
     </p>
   );
 }

@@ -195,6 +195,15 @@ public final class PublicResponses {
      *     in a state that can be cancelled. Sent so the page can show the business's policy beside a
      *     disabled button rather than letting the Customer press it and be refused; the endpoint
      *     checks it again regardless, because a field in a response is a hint and never a control
+     * @param emailOnFile whether the Customer has an address on record. <strong>One bit, and
+     *     deliberately not the address</strong> — ADR-0007's ruling for the booking response,
+     *     extended to this surface by ADR-0008. Named for the fact rather than for an outcome
+     *     because this record is returned by four endpoints and two of them send nothing: after a
+     *     cancel or a reschedule the page reads it as "a confirmation is on its way", and on a
+     *     {@code GET} or a lookup it is merely true. A Manage Link arrives by email, so the address
+     *     was there when the token was issued — but the Business can clear it from the dashboard
+     *     while the token is still valid, and both {@code NotificationEnqueuer.appointmentCancelled}
+     *     and {@code appointmentRescheduled} return early without one
      */
     public record ManagedAppointment(
             UUID id,
@@ -209,6 +218,7 @@ public final class PublicResponses {
             String note,
             boolean canCancel,
             boolean canReschedule,
+            boolean emailOnFile,
             ManagingBusiness business) {
 
         public static ManagedAppointment of(
@@ -216,7 +226,8 @@ public final class PublicResponses {
                 Service service,
                 Employee employee,
                 Business business,
-                boolean windowOpen) {
+                boolean windowOpen,
+                boolean emailOnFile) {
             ZoneId zone = business.timezone();
             boolean live = appointment.status() == AppointmentStatus.CONFIRMED;
             return new ManagedAppointment(
@@ -232,6 +243,7 @@ public final class PublicResponses {
                     appointment.customerNote(),
                     live && windowOpen,
                     live && windowOpen,
+                    emailOnFile,
                     ManagingBusiness.of(business));
         }
     }

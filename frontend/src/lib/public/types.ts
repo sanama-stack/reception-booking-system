@@ -222,6 +222,20 @@ export interface ManagedAppointment {
    */
   canCancel: boolean;
   canReschedule: boolean;
+  /**
+   * Whether the Customer has an email address on record — **the server's answer, and one bit**.
+   *
+   * The address itself is not sent and must not be asked for: this page is proved by a token, and
+   * echoing a stored address back would turn that token into a way to read it (ADR-0008), which is
+   * the same refusal `ManagedAppointment` already makes for the name and the phone number.
+   *
+   * Read it as "a confirmation email is coming" **only after a cancel or a reschedule**. On a plain
+   * read it says nothing about a message, because none was sent — the field is named for the fact
+   * rather than for an outcome precisely because four endpoints return this shape and two of them
+   * send nothing. `NotificationEnqueuer` gates both write-path emails on the same predicate, so a
+   * screen that promises a message this bit does not support is promising one nobody enqueued.
+   */
+  emailOnFile: boolean;
   business: ManagingBusiness;
 }
 
