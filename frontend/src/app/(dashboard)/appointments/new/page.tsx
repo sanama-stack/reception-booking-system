@@ -240,12 +240,7 @@ function BookingFlow({
    * inconsistency is gone with it.
    */
   const phoneError = fieldErrors.customerPhone;
-  const rendered = new Set([
-    'customerName',
-    'customerPhone',
-    'customerEmail',
-    'customerNote',
-  ]);
+  const rendered = new Set(['customerName', 'customerPhone', 'customerEmail', 'customerNote']);
   const everyMessageShown =
     error !== null &&
     Object.keys(fieldErrors).length > 0 &&
