@@ -226,7 +226,28 @@ function BookingFlow({
   if (!service) return null;
 
   const fieldErrors = error?.fieldErrors ?? {};
-  const rendered = new Set(['customerName', 'customerPhone', 'customerEmail', 'customerNote']);
+
+  /**
+   * The phone error arrives under two different names, and only one of them is this request's.
+   *
+   * Bean Validation reports the request field, `customerPhone`. But a number that parses as a
+   * string and still cannot be read as a phone number is refused deeper down, by `PhoneField`
+   * inside `CustomerService`, which names the field `phone` — the domain's own name for it rather
+   * than this request's. Both land on this one input.
+   *
+   * Accepting only `customerPhone` silently dropped the more useful of the two: the specific
+   * message ("enter it in international form, or set your country in Settings") was replaced by
+   * the generic "One or more fields are invalid." and the input was never marked invalid, so the
+   * one sentence telling the owner how to fix it never reached them.
+   */
+  const phoneError = fieldErrors.customerPhone ?? fieldErrors.phone;
+  const rendered = new Set([
+    'customerName',
+    'customerPhone',
+    'phone',
+    'customerEmail',
+    'customerNote',
+  ]);
   const everyMessageShown =
     error !== null &&
     Object.keys(fieldErrors).length > 0 &&
@@ -332,7 +353,7 @@ function BookingFlow({
               required
               onChange={(event) => setCustomerPhone(event.target.value)}
               hint="A local number works once your country is set under Settings; otherwise start with +."
-              error={fieldErrors.customerPhone}
+              error={phoneError}
             />
           </div>
           <Input

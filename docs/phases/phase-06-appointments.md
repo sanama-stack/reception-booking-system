@@ -144,7 +144,7 @@ two concurrent reschedules of the same appointment.
 - [x] A cancelled appointment frees its slot
 - [x] Every state change writes an audit event
 - [x] Price snapshots are immune to later price changes
-- [ ] Owners can book, cancel, reschedule and set status from the dashboard
+- [x] Owners can book, cancel, reschedule and set status from the dashboard
 - [x] All tests above pass
 
 ## Checklist
@@ -176,14 +176,14 @@ two concurrent reschedules of the same appointment.
       `CANCELLATION_WINDOW_CLOSED`, and the booking rejection codes
 
 ### Frontend
-- [ ] `/appointments` list with filters and pagination
-- [ ] `/appointments/[id]` detail with audit history
-- [ ] New-appointment flow reusing availability
-- [ ] Cancel / reschedule / status actions with confirmations
-- [ ] `/customers` list and search
-- [ ] `/customers/[id]` history
-- [ ] `409` handled with a refreshed slot list, never a silent failure
-- [ ] Empty, loading and error states throughout
+- [x] `/appointments` list with filters and pagination
+- [x] `/appointments/[id]` detail with audit history
+- [x] New-appointment flow reusing availability
+- [x] Cancel / reschedule / status actions with confirmations
+- [x] `/customers` list and search
+- [x] `/customers/[id]` history
+- [x] `409` handled with a refreshed slot list, never a silent failure
+- [x] Empty, loading and error states throughout
 
 ### Testing
 - [x] All unit tests above
@@ -256,3 +256,56 @@ The checklist calls it a unit test. It is an integration one: `BookingEndpointTe
 `blocked_from` and `blocked_to` back out of the row with a service whose two buffers differ, which
 catches a transposition that a unit test of `ServiceSpec.occupancyFor` would also catch **and** the
 case where the right value never reached the column.
+
+---
+
+## Notes from the build — the frontend half
+
+Appended by the session that built the six screens. Two decisions the checklist does not record, and
+one defect the checklist would never have caught.
+
+### The `409` is nine codes, not one
+
+The checklist asks for `SLOT_UNAVAILABLE` to refresh the slot list. It is not the only refusal that
+means the same thing. A service deactivated in another tab, an employee unassigned, or simply enough
+time passing for the chosen start to fall inside the minimum lead time all leave a list of times
+that can no longer be booked — and all of them arrive while the owner is looking at a list computed
+before any of it happened.
+
+`STALE_SLOT_CODES` in `appointments/new/page.tsx` names all nine. They share one treatment: drop the
+selection, bump the key, re-ask. `VERSION_CONFLICT` is deliberately **not** among them, because its
+recovery is different — reload *this appointment*, not availability — and conflating the two would
+retry the wrong thing.
+
+A `VALIDATION_FAILED` is not there either. A mistyped phone number says nothing about availability,
+and clearing a chosen time because a name was too long would be its own defect.
+
+### `explain()` moved out of the availability preview
+
+Phase 05 mapped `EmptyReason` to copy inside `availability-section.tsx`, aimed at one named person.
+The booking flow asks the same question on behalf of a customer and may name nobody, which needs
+different sentences — "nobody who provides Consultation is working" rather than "Dana is not
+working".
+
+Two copies of a switch over a closed enum would be two `default` branches for a fifth reason to land
+in silently, which is the failure the phase-05 handoff predicted for this exact function. It is now
+`components/empty-reason.tsx`, one set of branches, with the copy varying inside each on whether an
+Employee was named.
+
+### The phone error arrives under a field name the request does not have
+
+**Found by running the screen, not by reading it.** Bean Validation reports the request's own field,
+`customerPhone`. But a number that is present and simply cannot be read as a phone number is refused
+deeper down by `PhoneField` inside `CustomerService`, which names the field **`phone`** — the
+domain's name for it rather than this request's.
+
+The booking form rendered only `customerPhone`, so the specific, actionable message — *enter it in
+international form, or set your country in Settings* — was dropped, replaced by the generic *"One or
+more fields are invalid."*, and the input was never marked `aria-invalid`. The one sentence telling
+the owner how to fix it never reached them.
+
+The screen now accepts both names on that input. **The server-side half is left open deliberately**:
+`CustomerService.requiredPhone` hard-codes `"phone"` while its caller's field is `customerPhone`, so
+the response describes a field the request does not contain. Phase 08's public booking will have its
+own field naming and will meet this again — it is worth deciding there, for both, rather than
+patching each client.
