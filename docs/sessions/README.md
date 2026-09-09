@@ -21,6 +21,7 @@ was left in. The design documents say what to build; these say what happened whi
 | [2026-09-09](./2026-09-09-phase-06-backend.md) | Phase 06 — Appointments, **backend half only**. 625 tests, the exclusion constraint proven under twenty threads, and the last stub deleted. Still not pushed. |
 | [2026-09-09](./2026-09-09-phase-06-frontend.md) | Phase 06 — the six Appointments and Customers screens. **Phase 06 complete.** Verified in a browser, where a `409` was raced for real and a field error found to be arriving under a name the request does not have. Merged to `main` as part of pull request #3. |
 | [2026-09-09](./2026-09-09-phase-07-notifications.md) | Phase 07 — Notifications. **Phase 07 complete and merged.** 674 tests. The outbox, the poller and the Manage Link; a documented index corrected because it would have made a required email impossible. First session in five to end with nothing unpushed. |
+| [2026-09-09](./2026-09-09-phase-08-backend.md) | Phase 08 — Public Booking, **backend half only**. 720 tests, no migration at all. Two questions three handoffs had carried were put to the principal and answered: the public booking body, and how a rescheduling customer sees their own slot. |
 
 **Reading order for a new session:** the newest handoff first, then
 [../09-phase-plan.md](../09-phase-plan.md), then the current phase document.

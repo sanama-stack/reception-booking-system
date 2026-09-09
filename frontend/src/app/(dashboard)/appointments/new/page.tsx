@@ -228,23 +228,21 @@ function BookingFlow({
   const fieldErrors = error?.fieldErrors ?? {};
 
   /**
-   * The phone error arrives under two different names, and only one of them is this request's.
+   * One name, since phase 08: `customerPhone`, which is what this request calls the field.
    *
-   * Bean Validation reports the request field, `customerPhone`. But a number that parses as a
-   * string and still cannot be read as a phone number is refused deeper down, by `PhoneField`
-   * inside `CustomerService`, which names the field `phone` — the domain's own name for it rather
-   * than this request's. Both land on this one input.
+   * It used to arrive under two. A number that parses as a string but cannot be read as a phone
+   * number was refused deeper down, by `CustomerService`, which named the field `phone` — the
+   * domain's own word for it rather than this request's — and this component had to try both.
+   * Accepting only `customerPhone` silently dropped the more useful message.
    *
-   * Accepting only `customerPhone` silently dropped the more useful of the two: the specific
-   * message ("enter it in international form, or set your country in Settings") was replaced by
-   * the generic "One or more fields are invalid." and the input was never marked invalid, so the
-   * one sentence telling the owner how to fix it never reached them.
+   * `CustomerFieldNames` moved that decision to the caller, so the server now reports whichever
+   * name the request it is serving actually used. The fallback that compensated for the
+   * inconsistency is gone with it.
    */
-  const phoneError = fieldErrors.customerPhone ?? fieldErrors.phone;
+  const phoneError = fieldErrors.customerPhone;
   const rendered = new Set([
     'customerName',
     'customerPhone',
-    'phone',
     'customerEmail',
     'customerNote',
   ]);

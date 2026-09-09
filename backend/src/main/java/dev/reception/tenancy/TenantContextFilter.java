@@ -20,8 +20,10 @@ import org.springframework.web.filter.OncePerRequestFilter;
  * the isolation guarantee, not a check that could be forgotten
  * (docs/02-product-architecture.md §4).
  *
- * <p>Public requests resolve their tenant from the slug instead, in phase 08. Both populate the same
- * holder, so everything downstream is indifferent to which door the request came through.
+ * <p>Public requests resolve their tenant from the slug instead, in {@link SlugTenantContextFilter},
+ * or from a proven Manage Link in {@link TenantAdoption}. All three populate the same holder, so
+ * everything downstream is indifferent to which door the request came through — and this filter
+ * clears for all three, because it is the outermost of them.
  *
  * <p>Deliberately not a {@code @Component}: any {@code Filter} bean is auto-registered against every
  * request, and this one must run inside the security chain, after authentication. {@code SecurityConfig}
@@ -36,23 +38,22 @@ public class TenantContextFilter extends OncePerRequestFilter {
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain chain)
             throws ServletException, IOException {
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
-        boolean resolved = false;
 
         if (authentication instanceof JwtAuthenticationToken token && token.isAuthenticated()) {
             AuthenticatedUser principal = AuthenticatedUser.from(token);
             TenantContextHolder.set(principal.businessId());
             MDC.put(MDC_KEY, principal.businessId().toString());
-            resolved = true;
         }
 
         try {
             chain.doFilter(request, response);
         } finally {
-            // Always, not only when resolved: a carrier thread that inherits another request's
-            // tenant is the one bug this whole design exists to make impossible.
-            if (resolved) {
-                MDC.remove(MDC_KEY);
-            }
+            // Both unconditionally. "Resolved" is this filter's own view, and since phase 08 it is
+            // not the only one that resolves: SlugTenantContextFilter and TenantAdoption both run
+            // inside this chain, so a request this filter saw as anonymous can still be carrying a
+            // tenant by the time it returns. A carrier thread that inherits another request's tenant
+            // is the one bug this whole design exists to make impossible.
+            MDC.remove(MDC_KEY);
             TenantContextHolder.clear();
         }
     }

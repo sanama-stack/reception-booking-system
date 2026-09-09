@@ -11,6 +11,7 @@ import dev.reception.appointments.CancellationService;
 import dev.reception.appointments.CurrentActor;
 import dev.reception.appointments.RescheduleService;
 import dev.reception.business.BusinessService;
+import dev.reception.customers.CustomerFieldNames;
 import jakarta.validation.Valid;
 import java.time.LocalDate;
 import java.time.ZoneId;
@@ -112,7 +113,10 @@ public class AppointmentController {
                         request.customerName(),
                         request.customerPhone(),
                         request.customerEmail(),
-                        request.customerNote()),
+                        request.customerNote(),
+                        // This request's own names for those three, so a refusal from
+                        // CustomerService comes back as customerPhone rather than phone.
+                        CustomerFieldNames.DASHBOARD_BOOKING),
                 // Set here, never taken from the body. Phase 08 and phase 09 have their own
                 // entry points and set their own.
                 AppointmentSource.DASHBOARD,

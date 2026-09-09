@@ -135,6 +135,27 @@ public enum ErrorCode {
     /** It fits the Business's hours but not this Employee's Working Schedule. */
     OUTSIDE_WORKING_HOURS(HttpStatus.UNPROCESSABLE_ENTITY, "Outside this employee's hours"),
 
+    /**
+     * A Customer's lookup did not prove anything: the Confirmation Code is wrong, the phone number
+     * does not match the appointment that code names, or both.
+     *
+     * <p>One code for every one of those, for the reason {@link #INVALID_CREDENTIALS} gives: a
+     * response that distinguished "no such code" from "right code, wrong number" would turn the
+     * lookup endpoint into an oracle for which codes exist, and eight characters of base32 is a
+     * space worth searching if the answers narrow it (docs/06-security.md §6).
+     */
+    INVALID_CONFIRMATION_CODE(HttpStatus.UNAUTHORIZED, "Invalid confirmation code"),
+
+    /**
+     * A Manage Link token authorises nothing — malformed, tampered, expired, or signed with another
+     * server's secret.
+     *
+     * <p>Indistinguishable by design, exactly as {@code ManageTokenService.verify} returns them.
+     * The token itself is never echoed back in the detail: it is a capability, and an error message
+     * is one of the places a capability leaks.
+     */
+    MANAGE_TOKEN_INVALID(HttpStatus.UNAUTHORIZED, "Manage link is not valid"),
+
     /** A rate limit was exceeded; the response carries {@code Retry-After}. */
     RATE_LIMITED(HttpStatus.TOO_MANY_REQUESTS, "Too many requests"),
 

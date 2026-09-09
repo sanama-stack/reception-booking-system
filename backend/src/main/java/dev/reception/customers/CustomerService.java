@@ -63,16 +63,16 @@ public class CustomerService {
      * customer behind.
      */
     @Transactional
-    public Customer findOrCreate(String rawPhone, String fullName, String email) {
+    public Customer findOrCreate(String rawPhone, String fullName, String email, CustomerFieldNames fields) {
         UUID businessId = tenant.businessId();
-        String phone = requiredPhone(rawPhone);
+        String phone = requiredPhone(rawPhone, fields);
 
         return customers
                 .findByBusinessIdAndPhone(businessId, phone)
                 .orElseGet(() -> customers.save(new Customer(
                         ids.newId(),
                         businessId,
-                        requiredName(fullName),
+                        requiredName(fullName, fields),
                         phone,
                         blankToNull(email),
                         clock.instant())));
@@ -126,13 +126,10 @@ public class CustomerService {
      * <p>Absent leaves, blank clears, a value sets — see {@link Customer#applyCorrection}.
      */
     @Transactional
-    public Customer patch(UUID id, String fullName, String email) {
+    public Customer patch(UUID id, String fullName, String email, CustomerFieldNames fields) {
         Customer customer = read(id);
         if (fullName != null && fullName.isBlank()) {
-            throw new ApiException(
-                    ErrorCode.VALIDATION_FAILED,
-                    "One or more fields are invalid.",
-                    List.of(new FieldError("fullName", "Enter a name.")));
+            throw invalid(fields.fullName(), "Enter a name.");
         }
         customer.applyCorrection(trim(fullName), trim(email), clock.instant());
         return customers.save(customer);
@@ -141,26 +138,31 @@ public class CustomerService {
     /**
      * A phone number is mandatory for a Customer, so blank is a validation failure here rather than
      * the {@code null} {@link PhoneField} returns for an optional field.
+     *
+     * <p>Reported under the caller's name for it, never under this package's. See
+     * {@link CustomerFieldNames} for the defect that taught us the difference.
      */
-    private String requiredPhone(String raw) {
-        String normalised = PhoneField.normalise("phone", raw, businesses.read().country());
-        if (normalised == null) {
-            throw new ApiException(
-                    ErrorCode.VALIDATION_FAILED,
-                    "One or more fields are invalid.",
-                    List.of(new FieldError("phone", "Enter a phone number.")));
+    private String requiredPhone(String raw, CustomerFieldNames fields) {
+        String country = businesses.read().country();
+        if (PhoneField.isAbsent(raw)) {
+            throw invalid(fields.phone(), "Enter a phone number.");
         }
-        return normalised;
+        return PhoneField.parse(raw, country)
+                .orElseThrow(() -> invalid(fields.phone(), PhoneField.unreadableMessage(country)));
     }
 
-    private static String requiredName(String fullName) {
+    private static String requiredName(String fullName, CustomerFieldNames fields) {
         if (fullName == null || fullName.isBlank()) {
-            throw new ApiException(
-                    ErrorCode.VALIDATION_FAILED,
-                    "One or more fields are invalid.",
-                    List.of(new FieldError("customerName", "Enter a name.")));
+            throw invalid(fields.fullName(), "Enter a name.");
         }
         return fullName.trim();
+    }
+
+    private static ApiException invalid(String field, String message) {
+        return new ApiException(
+                ErrorCode.VALIDATION_FAILED,
+                "One or more fields are invalid.",
+                List.of(new FieldError(field, message)));
     }
 
     private static String trim(String value) {

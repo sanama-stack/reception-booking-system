@@ -107,8 +107,28 @@ public class AvailabilityService {
         this.clock = clock;
     }
 
+    /**
+     * The Slots a caller may be offered.
+     *
+     * <p>{@code excludingAppointmentId} is explicit rather than defaulted, matching
+     * {@link #reasonNotBookable}: the two questions must be asked about the same world, and an
+     * overload that quietly meant "count everything" is how they would come to disagree.
+     *
+     * @param excludingAppointmentId the Appointment being moved, or {@code null} when the caller is
+     *     booking a new one.
+     *     <p><strong>A grid drawn without it refuses the move it exists to offer.</strong> A
+     *     rescheduling customer is looking at times they might move to, and the time they currently
+     *     hold — plus its Buffers, which reach further — is blocked by their own booking. Moving a
+     *     10:00 appointment to 10:15 would show no Slot at 10:15, because the appointment overlaps
+     *     itself. The database has no such problem: an exclusion constraint never compares a row
+     *     with itself, so without this the offer would be stricter than the rule it is previewing.
+     *     <p>Callers on the public surface must not take this from the caller. See
+     *     {@code PublicAppointmentController.manageAvailability}, where it is the appointment the
+     *     Manage Link authorises and nothing else
+     */
     @Transactional(readOnly = true)
-    public Availability find(UUID serviceId, LocalDate from, LocalDate to, UUID employeeId) {
+    public Availability find(
+            UUID serviceId, LocalDate from, LocalDate to, UUID employeeId, UUID excludingAppointmentId) {
         validateRange(from, to);
 
         Business business = businesses.read();
@@ -119,7 +139,7 @@ public class AvailabilityService {
         AvailabilityResult result = engine.findSlots(
                 new AvailabilityQuery(spec, from, to, employeeId),
                 configFor(business),
-                candidatesFor(service.getId(), employeeId, spec, from, to, zone, null),
+                candidatesFor(service.getId(), employeeId, spec, from, to, zone, excludingAppointmentId),
                 clock);
         return new Availability(zone, result);
     }

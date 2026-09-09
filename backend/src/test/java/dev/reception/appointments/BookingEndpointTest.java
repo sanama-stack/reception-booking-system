@@ -242,7 +242,12 @@ class BookingEndpointTest extends IntegrationTest {
 
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.UNPROCESSABLE_ENTITY);
         assertThat(BookingScenario.codeOf(response)).isEqualTo("VALIDATION_FAILED");
-        assertThat(JsonPath.<List<String>>read(response.getBody(), "$.errors[*].field")).contains("phone");
+        // customerPhone — the name this request used. Until phase 08 this came back as "phone", the
+        // domain's own word for it, which matched no input on the booking form: the message was
+        // dropped and the owner was told only "One or more fields are invalid". The dashboard
+        // carried a fallback that tried both names; CustomerFieldNames removed the need for it.
+        assertThat(JsonPath.<List<String>>read(response.getBody(), "$.errors[*].field"))
+                .containsExactly("customerPhone");
         assertThat(count("appointments")).isZero();
     }
 

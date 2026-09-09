@@ -35,14 +35,27 @@ public class CancellationWindow {
      * @throws ApiException {@code CANCELLATION_WINDOW_CLOSED} when the window has shut
      */
     public void requireOpenFor(Appointment appointment) {
-        Instant closesAt =
-                appointment.startsAt().minus(Duration.ofHours(businesses.read().cancellationWindowHours()));
-        // Not isAfter: at exactly the boundary the window is shut. A customer who is told they have
-        // until 24 hours before has until then, not through it.
-        if (!clock.instant().isBefore(closesAt)) {
+        if (!isOpenFor(appointment)) {
             throw new ApiException(
                     ErrorCode.CANCELLATION_WINDOW_CLOSED,
                     "This appointment can no longer be changed online. Please contact the business.");
         }
+    }
+
+    /**
+     * The same question, asked rather than enforced.
+     *
+     * <p>The Manage Link page needs to know before the Customer acts, so it can show the business's
+     * own policy text beside a disabled button instead of letting them press it and be refused
+     * (docs/phases/phase-08-public-booking.md). Sharing the arithmetic with {@link #requireOpenFor}
+     * rather than repeating it is the point of this class: a page that said "you can still cancel"
+     * and an endpoint that then would not is worse than either alone.
+     */
+    public boolean isOpenFor(Appointment appointment) {
+        Instant closesAt =
+                appointment.startsAt().minus(Duration.ofHours(businesses.read().cancellationWindowHours()));
+        // Not isAfter: at exactly the boundary the window is shut. A customer who is told they have
+        // until 24 hours before has until then, not through it.
+        return clock.instant().isBefore(closesAt);
     }
 }

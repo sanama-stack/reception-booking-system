@@ -37,13 +37,23 @@ public class AvailabilityController {
      * @param from first calendar date, in the Business timezone; {@code to} is inclusive
      * @param employeeId optional. Omitted asks "anyone who can do this", and every returned Slot
      *     still carries the Employee who would perform it
+     * @param excludeAppointmentId optional, and only meaningful while rescheduling: the Appointment
+     *     being moved, so the time it currently holds is offered back rather than counted against
+     *     itself (phase 08).
+     *     <p>Safe to accept from the caller <em>here</em> and nowhere else. This endpoint is
+     *     authenticated and tenant-scoped, so an id belonging to another Business excludes nothing —
+     *     {@code findByBusinessIdAndEmployeesOverlapping} never had those rows in scope to begin
+     *     with, and the grid comes back identical. The public surface has no such protection, which
+     *     is why it resolves the exclusion from a Manage Link instead of from a parameter
      */
     @GetMapping
     public AvailabilityResponses.Availability find(
             @RequestParam UUID serviceId,
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to,
-            @RequestParam(required = false) UUID employeeId) {
-        return AvailabilityResponses.Availability.of(availability.find(serviceId, from, to, employeeId));
+            @RequestParam(required = false) UUID employeeId,
+            @RequestParam(required = false) UUID excludeAppointmentId) {
+        return AvailabilityResponses.Availability.of(
+                availability.find(serviceId, from, to, employeeId, excludeAppointmentId));
     }
 }

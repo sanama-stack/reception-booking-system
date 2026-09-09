@@ -64,9 +64,21 @@ The public surface is unauthenticated and therefore the most exposed part of the
 | `GET …/availability` | 60 / min / IP | Computation, but read-only |
 | `POST …/appointments` | 10 / hour / IP | Writes; spam bookings |
 | `POST /public/appointments/lookup` | **5 / hour / IP** | Brute-forcing a Confirmation Code |
+| `GET /public/appointments/manage` | 120 / min / IP | Cheap read, and one a customer may refresh |
+| `GET …/manage/availability` | 60 / min / IP | The same computation as availability |
+| `POST /public/appointments/{id}/*` | 20 / hour / IP | Customer cancel and reschedule |
 | `POST …/chat` | 20 / hour / conversation, 60 / hour / IP | Paid calls |
 | `POST /auth/login` | 10 / 15 min / IP | Credential stuffing |
 | `POST /auth/register` | 5 / hour / IP | Account spam |
+
+The three Manage Link rows were added in phase 08, which built the page they serve; the Definition of Done
+requires every public endpoint to be limited, and an unlimited write is an unlimited write. Cancel and
+reschedule are looser than booking because they cannot create anything — each needs a proof that already names
+one existing appointment.
+
+**Order is significant and is tested.** The filter takes the first matching policy, so a wider pattern above a
+narrower one makes the tight limit unreachable and leaves the endpoint it was written for guarded by the loose
+one — silently, with nothing failing. `RateLimitPolicyOrderTest` pins which policy each public path lands on.
 
 Exceeding a limit returns `429` with `Retry-After`. Bucket4j in-memory for MVP; the externalisation path
 (Redis) is documented and is the first change required when running more than one instance.

@@ -17,6 +17,20 @@ limiting.
 
 Phase 07 — the confirmation email and Manage Link must already work.
 
+## Progress
+
+**The backend half is complete** (2026-09-09). Every box a server can tick is ticked; the frontend boxes
+are deliberately untouched, and the Definition of Done stays open until the two pages exist.
+
+Two things were added beyond the plan below, both recorded in
+[the session handoff](../sessions/2026-09-09-phase-08-backend.md):
+
+- **`GET /public/appointments/manage/availability`.** A rescheduling Customer needs a grid that excludes
+  their own appointment, and the public availability endpoint must not take an appointment id from an
+  anonymous caller — the difference between the two answers would say whether that appointment exists.
+- **`GET /availability` gained `excludeAppointmentId`**, which is safe there because the endpoint is
+  authenticated and tenant-scoped.
+
 ## Why the Classic Flow comes before the AI
 
 It proves the entire public API surface is correct **before** a nondeterministic layer sits on top. Built in
@@ -92,23 +106,23 @@ adds no privileged path.
 ## Testing
 
 ### Integration
-- [ ] Public profile, services and employees return only allow-listed fields
-- [ ] Public availability matches the internal endpoint exactly
-- [ ] Booking succeeds with `source = CLASSIC` and enqueues the confirmation email
-- [ ] Booking a taken slot → `409 SLOT_UNAVAILABLE`
-- [ ] Inactive service, inactive employee and unassigned employee are each rejected with their own code
-- [ ] Lookup with correct code **and** phone succeeds
-- [ ] Correct code, wrong phone → `INVALID_CONFIRMATION_CODE`
-- [ ] Phone only → schema rejection
-- [ ] Manage token resolves the right appointment; a tampered or expired token → `401`
-- [ ] A manage token for appointment A cannot act on appointment B
-- [ ] Customer cancel inside the window → `422 CANCELLATION_WINDOW_CLOSED`
-- [ ] Customer cancel outside the window succeeds and sends the email
-- [ ] Public reschedule validates availability and updates in place
-- [ ] Rate limits fire and return `429` with `Retry-After`
-- [ ] Lookup limit is 5/hour/IP
-- [ ] An unknown slug → `404` everywhere
-- [ ] **No public endpoint returns another business's data**
+- [x] Public profile, services and employees return only allow-listed fields
+- [x] Public availability matches the internal endpoint exactly
+- [x] Booking succeeds with `source = CLASSIC` and enqueues the confirmation email
+- [x] Booking a taken slot → `409 SLOT_UNAVAILABLE`
+- [x] Inactive service, inactive employee and unassigned employee are each rejected with their own code
+- [x] Lookup with correct code **and** phone succeeds
+- [x] Correct code, wrong phone → `INVALID_CONFIRMATION_CODE`
+- [x] Phone only → schema rejection
+- [x] Manage token resolves the right appointment; a tampered or expired token → `401`
+- [x] A manage token for appointment A cannot act on appointment B
+- [x] Customer cancel inside the window → `422 CANCELLATION_WINDOW_CLOSED`
+- [x] Customer cancel outside the window succeeds and sends the email
+- [x] Public reschedule validates availability and updates in place
+- [x] Rate limits fire and return `429` with `Retry-After`
+- [x] Lookup limit is 5/hour/IP
+- [x] An unknown slug → `404` everywhere
+- [x] **No public endpoint returns another business's data**
 
 ### Frontend
 - [ ] Classic Flow completes end to end
@@ -122,24 +136,24 @@ adds no privileged path.
 - [ ] A stranger books end to end with no account
 - [ ] The confirmation email arrives with a working Manage Link
 - [ ] The Manage Link page cancels and reschedules
-- [ ] Lookup requires code **and** phone
-- [ ] Every public endpoint is rate limited
-- [ ] No internal or cross-tenant field appears in any public response
+- [x] Lookup requires code **and** phone
+- [x] Every public endpoint is rate limited
+- [x] No internal or cross-tenant field appears in any public response
 - [ ] All tests above pass
 
 ## Checklist
 
 ### Backend
-- [ ] `publicapi` module with slug-based tenant resolution
-- [ ] `PublicBusinessController`
-- [ ] `PublicAvailabilityController`
-- [ ] `PublicBookingController` (`source = CLASSIC`)
-- [ ] `PublicAppointmentController` — lookup, manage, cancel, reschedule
-- [ ] Hand-written public DTOs
-- [ ] Allow-list test for public response fields
-- [ ] `RateLimitFilter` with per-endpoint buckets
-- [ ] `429` + `Retry-After`
-- [ ] Error codes: `INVALID_CONFIRMATION_CODE`, `MANAGE_TOKEN_INVALID`
+- [x] `publicapi` module with slug-based tenant resolution
+- [x] `PublicBusinessController`
+- [x] `PublicAvailabilityController`
+- [x] `PublicBookingController` (`source = CLASSIC`)
+- [x] `PublicAppointmentController` — lookup, manage, cancel, reschedule
+- [x] Hand-written public DTOs
+- [x] Allow-list test for public response fields
+- [x] `RateLimitFilter` with per-endpoint buckets
+- [x] `429` + `Retry-After`
+- [x] Error codes: `INVALID_CONFIRMATION_CODE`, `MANAGE_TOKEN_INVALID`
 
 ### Frontend
 - [ ] `/book/[slug]` server-rendered page with the chat column reserved
@@ -155,7 +169,7 @@ adds no privileged path.
 - [ ] Empty, loading and error states throughout
 
 ### Testing
-- [ ] All integration tests above
-- [ ] Public field allow-list test
-- [ ] Rate-limit tests
+- [x] All integration tests above
+- [x] Public field allow-list test
+- [x] Rate-limit tests
 - [ ] Mobile-viewport check
