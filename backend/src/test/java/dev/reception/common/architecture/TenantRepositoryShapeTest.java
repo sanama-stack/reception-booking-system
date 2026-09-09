@@ -33,9 +33,21 @@ class TenantRepositoryShapeTest {
             .withImportOption(ImportOption.Predefined.DO_NOT_INCLUDE_TESTS)
             .importPackages("dev.reception");
 
-    /** Prefixes that guarantee the generated query is filtered by tenant. */
-    private static final List<String> TENANT_SCOPED_PREFIXES =
-            List.of("findByBusinessId", "existsByBusinessId", "countByBusinessId", "deleteByBusinessId");
+    /**
+     * Prefixes that guarantee the query is filtered by tenant.
+     *
+     * <p>{@code sumByBusinessId} joined the list in phase 09, for the daily cost cap's total. It is
+     * the same guarantee the other four give and not a relaxation: the rule is that a method's name
+     * commits it to naming the tenant, and an aggregate is as capable of committing to that as a
+     * find. What would have been a relaxation is exempting the method, which is why it was renamed
+     * to fit rather than excused.
+     */
+    private static final List<String> TENANT_SCOPED_PREFIXES = List.of(
+            "findByBusinessId",
+            "existsByBusinessId",
+            "countByBusinessId",
+            "sumByBusinessId",
+            "deleteByBusinessId");
 
     /**
      * Inherited from {@code JpaRepository} and therefore not declared here; the rule governs what a

@@ -81,7 +81,16 @@ class PublicFieldAllowListTest extends IntegrationTest {
             // the same bit on the manage surface, named for the fact rather than an outcome because
             // two of the four endpoints returning ManagedAppointment send nothing (ADR-0008).
             "confirmationCode", "service", "status", "note", "canCancel", "canReschedule", "business",
-            "confirmationSent", "emailOnFile");
+            "confirmationSent", "emailOnFile",
+            // PublicChatResponses (phase 09). sessionToken is a capability and is returned exactly
+            // once, by design — the row keeps only its SHA-256. appointmentCreated is the
+            // confirmation card, projected into this package's camelCase rather than passed through
+            // in the tool surface's snake_case, so it adds no vocabulary of its own: id, service,
+            // employee, price, currency, confirmationCode and confirmationSent are all already here.
+            // "employee" is not repeated here: AvailabilityResponses already contributes it above,
+            // and the card deliberately reuses it rather than inventing employeeName.
+            "conversationId", "sessionToken", "reply", "appointmentCreated", "conversationStatus",
+            "messagesRemaining");
 
     /**
      * Keys that would each be a specific, named failure.
@@ -123,6 +132,15 @@ class PublicFieldAllowListTest extends IntegrationTest {
 
     @Autowired
     private ManageTokenService manageTokens;
+
+    @Autowired
+    private dev.reception.ai.support.ScriptedChatModel chatModel;
+
+    // Qualified, because Actuator contributes a second RequestMappingHandlerMapping and the
+    // application's own is the one that knows about controllers.
+    @Autowired
+    @org.springframework.beans.factory.annotation.Qualifier("requestMappingHandlerMapping")
+    private org.springframework.web.servlet.mvc.method.annotation.RequestMappingHandlerMapping handlerMapping;
 
     private BookingScenario scenario;
     private PublicTestClient stranger;
@@ -222,6 +240,45 @@ class PublicFieldAllowListTest extends IntegrationTest {
     // ------------------------------------------------------------------ driving
 
     /** Calls every endpoint in the package, so the assertions above see the whole surface. */
+    /**
+     * <strong>That the sweep is complete.</strong>
+     *
+     * <p>{@link #collectEveryPublicResponse()} drives a hand-written list of endpoints, and until
+     * phase 09 the only thing guarding that list was a pinned count — which catches somebody adding
+     * a response without updating the number, and cannot catch the failure that actually matters: a
+     * new controller nobody swept. Phase 09 added two endpoints and the count noticed neither.
+     *
+     * <p>So the mapped patterns are read out of Spring rather than trusted. A new public endpoint now
+     * fails here, naming itself, and the fix is to add it above and to look at what it returns.
+     */
+    @Test
+    @DisplayName("every mapped public endpoint is one this test actually drives")
+    void every_mapped_public_endpoint_is_swept() {
+        Set<String> mapped = new java.util.TreeSet<>();
+        handlerMapping.getHandlerMethods().keySet().forEach(info -> info.getPathPatternsCondition()
+                .getPatternValues()
+                .stream()
+                .filter(pattern -> pattern.startsWith("/public/"))
+                .forEach(mapped::add));
+
+        assertThat(mapped)
+                .as("A public endpoint that this test does not drive is a public response nobody has "
+                        + "checked. Add it to collectEveryPublicResponse(), then add it here.")
+                .containsExactlyInAnyOrder(
+                        "/public/businesses/{slug}",
+                        "/public/businesses/{slug}/services",
+                        "/public/businesses/{slug}/employees",
+                        "/public/businesses/{slug}/availability",
+                        "/public/businesses/{slug}/appointments",
+                        "/public/businesses/{slug}/chat/session",
+                        "/public/businesses/{slug}/chat",
+                        "/public/appointments/lookup",
+                        "/public/appointments/manage",
+                        "/public/appointments/manage/availability",
+                        "/public/appointments/{id}/reschedule",
+                        "/public/appointments/{id}/cancel");
+    }
+
     private void collectEveryPublicResponse() {
         record Booked(String id, String code) {}
 
@@ -276,10 +333,38 @@ class PublicFieldAllowListTest extends IntegrationTest {
                         Map.of("authority", Map.of("manageToken", token), "reason", "Changed my mind"))
                 .getBody());
 
-        // Eleven bodies, one per mapped public endpoint plus the two variants of the employee
-        // read. Pinned so that adding an endpoint without adding it here fails loudly rather than
-        // leaving the new surface silently unswept by the assertions below.
-        assertThat(responses).doesNotContainNull().hasSize(11);
+        // The Receptionist (phase 09). Scripted to book, so the confirmation card is in the swept
+        // set — it is the one public response assembled from a tool result rather than from an
+        // entity, and therefore the one most able to carry a key nobody chose.
+        chatModel.willCall(
+                        "create_appointment",
+                        """
+                        {"service_id":"%s","employee_id":"%s","starts_at":"%s",\
+                        "customer_name":"Ana Tsereteli","customer_phone":"%s",\
+                        "customer_email":null,"note":null}"""
+                                .formatted(
+                                        scenario.serviceId,
+                                        scenario.employeeId,
+                                        scenario.at(scenario.monday, 15, 0),
+                                        CUSTOMER_PHONE))
+                .willSay("You're booked in.");
+
+        String session = stranger
+                .post("/public/businesses/" + slug + "/chat/session", Map.of())
+                .getBody();
+        responses.add(session);
+        responses.add(stranger
+                .post(
+                        "/public/businesses/" + slug + "/chat",
+                        Map.of(
+                                "sessionToken", (String) JsonPath.read(session, "$.sessionToken"),
+                                "message", "book me monday at three"))
+                .getBody());
+
+        // Thirteen bodies: one per mapped public endpoint, plus the two variants of the employee
+        // read. The count alone cannot notice a new controller — see
+        // every_mapped_public_endpoint_is_swept, which can.
+        assertThat(responses).doesNotContainNull().hasSize(13);
     }
 
     private static void collectKeys(JsonNode node, Set<String> into) {

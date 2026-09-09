@@ -1,5 +1,11 @@
 # Phase 09 — AI Receptionist
 
+> **Backend half complete; the frontend half is not started.** Everything under *Database*, *Backend*
+> and levels 1 and 2 of *Testing* ships and is green — 61 new tests. *Frontend work* and the parts of
+> the Definition of Done that depend on a screen are untouched, and level 3 is written but unrun.
+> The split follows phases 03–06 and 08, each of which shipped its backend and its screens in separate
+> sessions.
+
 ## Goal
 
 A customer books, reschedules, cancels and asks questions in natural language — through a model that
@@ -108,27 +114,31 @@ Flow with an honest message. This works only because phase 08 shipped a genuinel
 Three levels, per [08-testing-strategy.md](../08-testing-strategy.md) §7.
 
 ### Level 1 — tools, no model
-- [ ] Each tool returns correct data for a valid context
-- [ ] A `service_id` from another business → not found
-- [ ] `cancel_appointment` with an unauthorised id → `NOT_AUTHORIZED`
-- [ ] `reschedule_appointment` with an unauthorised id → `NOT_AUTHORIZED`
-- [ ] `lookup_appointment` correct code + wrong phone → not found
-- [ ] `create_appointment` on a taken slot → `SLOT_UNAVAILABLE`
-- [ ] `find_available_slots` matches the engine exactly, employees resolved
-- [ ] **No published schema contains a `business_id` property**
+- [x] Each tool returns correct data for a valid context
+- [x] A `service_id` from another business → not found
+- [x] `cancel_appointment` with an unauthorised id → `NOT_AUTHORIZED`
+- [x] `reschedule_appointment` with an unauthorised id → `NOT_AUTHORIZED`
+- [x] `lookup_appointment` correct code + wrong phone → not found
+- [x] `create_appointment` on a taken slot → `SLOT_UNAVAILABLE`
+- [x] `find_available_slots` matches the engine exactly, employees resolved
+- [x] **No published schema contains a `business_id` property**
 
 ### Level 2 — orchestration, scripted model
-- [ ] Tool call → execution → result → final answer
-- [ ] Six tool calls in one turn → capped at five, graceful hand-off
-- [ ] `SLOT_UNAVAILABLE` reaches the model as a structured result
-- [ ] A text-only response is returned verbatim
-- [ ] Message ceiling → conversation `CLOSED`
-- [ ] Daily cost cap exceeded → no model call is made at all
-- [ ] Provider exception → `503 AI_UNAVAILABLE`, conversation resumable
-- [ ] Everything persisted with the correct `business_id`
-- [ ] `authorizedAppointmentIds` grows only through the two sanctioned paths
+- [x] Tool call → execution → result → final answer
+- [x] Six tool calls in one turn → capped at five, graceful hand-off
+- [x] `SLOT_UNAVAILABLE` reaches the model as a structured result
+- [x] A text-only response is returned verbatim
+- [x] Message ceiling → conversation `CLOSED`
+- [x] Daily cost cap exceeded → no model call is made at all
+- [x] Provider exception → `503 AI_UNAVAILABLE`, conversation resumable
+- [x] Everything persisted with the correct `business_id`
+- [x] `authorizedAppointmentIds` grows only through the two sanctioned paths
 
 ### Level 3 — live model, `@Tag("llm")`, excluded from CI
+
+> **The corpus is written and has never been run.** `LiveReceptionistTest` covers every category below
+> and skips itself without an `OPENAI_API_KEY`, which no environment in this project has. The boxes
+> stay empty because a test that has not executed has verified nothing — see the backend handoff.
 - [ ] Booking, availability, cancel, reschedule, business info, service info categories
 - [ ] Unknown-information prompts produce "I don't know" plus the phone number
 - [ ] Adversarial prompts (bulk cancel, tenant switch, discount, prompt disclosure) produce no unauthorised
@@ -152,41 +162,41 @@ Assertions target tool sequences and database state, never the model's wording.
 ## Checklist
 
 ### Database
-- [ ] `V7__ai.sql`
-- [ ] `ai_conversations` with `authorized_appointment_ids`
-- [ ] `ai_messages`
-- [ ] Both indexes
+- [x] `V7__ai.sql`
+- [x] `ai_conversations` with `authorized_appointment_ids`
+- [x] `ai_messages`
+- [x] Both indexes
 
 ### Backend — port and adapter
-- [ ] `ChatModel` port and message types
-- [ ] `OpenAiChatModel` adapter
-- [ ] ArchUnit rule: the SDK is imported nowhere else
-- [ ] `ScriptedChatModel` test double
+- [x] `ChatModel` port and message types
+- [x] `OpenAiChatModel` adapter
+- [x] ArchUnit rule: the SDK is imported nowhere else
+- [x] `ScriptedChatModel` test double
 
 ### Backend — tools
-- [ ] `ToolRegistry`
-- [ ] `ToolContext`
-- [ ] `get_business_info`
-- [ ] `get_services`
-- [ ] `get_service_details`
-- [ ] `find_available_slots`
-- [ ] `create_appointment`
-- [ ] `lookup_appointment`
-- [ ] `cancel_appointment`
-- [ ] `reschedule_appointment`
-- [ ] Strict JSON schemas for all eight
-- [ ] Authorisation guard on the two write tools
+- [x] `ToolRegistry`
+- [x] `ToolContext`
+- [x] `get_business_info`
+- [x] `get_services`
+- [x] `get_service_details`
+- [x] `find_available_slots`
+- [x] `create_appointment`
+- [x] `lookup_appointment`
+- [x] `cancel_appointment`
+- [x] `reschedule_appointment`
+- [x] Strict JSON schemas for all eight
+- [x] Authorisation guard on the two write tools
 
 ### Backend — orchestration
-- [ ] `SystemPromptBuilder` with token cap
-- [ ] `ConversationService` loop with both ceilings
-- [ ] Session token issue and verification
-- [ ] Message and tool-call persistence
-- [ ] `CostTracker` and the daily cap
-- [ ] `PublicChatController`
-- [ ] `ConversationQueryController`
-- [ ] Chat rate limits
-- [ ] Error codes: `AI_UNAVAILABLE`, `AI_LIMIT_REACHED`
+- [x] `SystemPromptBuilder` with token cap
+- [x] `ConversationService` loop with both ceilings
+- [x] Session token issue and verification
+- [x] Message and tool-call persistence
+- [x] `CostTracker` and the daily cap
+- [x] `PublicChatController`
+- [x] `ConversationQueryController`
+- [x] Chat rate limits
+- [x] Error codes: `AI_UNAVAILABLE`, `AI_LIMIT_REACHED`
 
 ### Frontend
 - [ ] Chat panel with message list and typing indicator
@@ -199,7 +209,7 @@ Assertions target tool sequences and database state, never the model's wording.
 - [ ] `/conversations` list and detail in the dashboard
 
 ### Testing
-- [ ] All level 1 tests
-- [ ] All level 2 tests
-- [ ] Level 3 corpus, tagged and excluded from CI
-- [ ] Schema assertion that no tool takes `business_id`
+- [x] All level 1 tests
+- [x] All level 2 tests
+- [x] Level 3 corpus, tagged and excluded from CI
+- [x] Schema assertion that no tool takes `business_id`

@@ -149,7 +149,7 @@ enforce the same thing from two directions.
 ## Stack
 
 Java 21 · Spring Boot 3.5 · PostgreSQL 16 · Flyway · Next.js 15 · TypeScript · Tailwind 4 · Caddy ·
-Docker Compose · OpenAI tool calling (phase 09)
+Docker Compose · OpenAI tool calling over a hand-written client ([ADR-0009](docs/adr/0009-a-hand-written-rest-client-instead-of-an-sdk.md))
 
 ## Documentation
 

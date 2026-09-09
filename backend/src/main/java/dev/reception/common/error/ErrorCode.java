@@ -160,6 +160,27 @@ public enum ErrorCode {
     RATE_LIMITED(HttpStatus.TOO_MANY_REQUESTS, "Too many requests"),
 
     /**
+     * The Receptionist could not answer: the provider timed out, returned a 5xx, or no API key is
+     * configured at all.
+     *
+     * <p>One code for all of those, because the client's response to every one is identical — show
+     * the Classic Flow. The conversation is not closed and remains resumable, so a customer who
+     * retries after a transient outage carries on where they were
+     * (docs/05-ai-architecture.md §8).
+     */
+    AI_UNAVAILABLE(HttpStatus.SERVICE_UNAVAILABLE, "Receptionist unavailable"),
+
+    /**
+     * A ceiling was reached rather than something going wrong: the conversation's message limit, or
+     * the business's daily cost cap.
+     *
+     * <p>Distinct from {@link #AI_UNAVAILABLE} because it is not transient and retrying will not
+     * help. The client says so and offers the Classic Flow, which can still do everything the
+     * Receptionist could.
+     */
+    AI_LIMIT_REACHED(HttpStatus.CONFLICT, "Receptionist limit reached"),
+
+    /**
      * The fallback. Carries the request id and nothing else — no stack trace, no SQL, no class
      * names (docs/06-security.md §11).
      */

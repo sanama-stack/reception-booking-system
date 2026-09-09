@@ -99,7 +99,16 @@ tasks.withType<Test> {
     useJUnitPlatform {
         // Live-model tests cost money and are non-deterministic; they never gate the pipeline
         // (docs/08-testing-strategy.md §7, §10).
-        excludeTags("llm")
+        //
+        // -PincludeTags=llm runs them and nothing else, which is how the level-3 corpus is exercised
+        // by hand before a release and after any change to the system prompt or a tool description —
+        // the two things a scripted model cannot evaluate, because it reads neither. Without a key
+        // the corpus skips itself rather than failing.
+        if (project.hasProperty("includeTags")) {
+            includeTags(project.property("includeTags") as String)
+        } else {
+            excludeTags("llm")
+        }
     }
     testLogging {
         events("passed", "skipped", "failed")

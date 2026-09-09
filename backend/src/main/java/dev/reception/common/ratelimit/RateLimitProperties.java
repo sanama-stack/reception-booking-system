@@ -53,6 +53,40 @@ public class RateLimitProperties {
                         "/public/businesses/*/appointments",
                         10,
                         Duration.ofHours(1)),
+
+                /*
+                 * The Receptionist. Phase 09, and the two limits the §5 table left for it.
+                 *
+                 * Both are ahead of the general "/public/businesses/**" read below, which their
+                 * paths also match — the ordering rule this javadoc opens with, and the one place
+                 * getting it wrong would be expensive rather than merely wrong: a chat turn shadowed
+                 * by a 120-a-minute read budget is an endpoint that calls a paid API 120 times a
+                 * minute.
+                 *
+                 * A turn is the only request in this application that spends money on every call,
+                 * so it is limited by IP as well as bounded per conversation. Sixty an hour is far
+                 * more than a person books an appointment with and far less than a script needs to
+                 * exhaust a business's daily cap — the cap being the backstop that makes this a
+                 * limit rather than the only defence.
+                 */
+                new RateLimitPolicy(
+                        "public-chat-message",
+                        HttpMethod.POST,
+                        "/public/businesses/*/chat",
+                        60,
+                        Duration.ofHours(1)),
+                /*
+                 * Opening conversations. Tighter than turns, because a session costs a row and a
+                 * fresh authority set: cycling sessions is how you would retry a Confirmation Code
+                 * past the conversation ceiling, and twenty an hour makes that slower than the
+                 * public lookup endpoint's five.
+                 */
+                new RateLimitPolicy(
+                        "public-chat-session",
+                        HttpMethod.POST,
+                        "/public/businesses/*/chat/session",
+                        20,
+                        Duration.ofHours(1)),
                 /*
                  * Customer cancel and reschedule. Not in the §5 table, which predates the Manage
                  * Link page, but the Definition of Done requires every public endpoint to be

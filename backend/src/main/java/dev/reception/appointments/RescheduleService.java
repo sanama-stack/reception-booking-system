@@ -79,7 +79,10 @@ public class RescheduleService {
                     "This appointment is marked %s and cannot be moved."
                             .formatted(appointment.status().name().toLowerCase().replace('_', ' ')));
         }
-        if (actor.type() == ActorType.CUSTOMER) {
+        // The same predicate CancellationService applies, now that there is one. A direct
+        // comparison to CUSTOMER here would have let the Receptionist move an appointment that a
+        // Customer was refused permission to move (Actor#boundByCancellationWindow).
+        if (actor.boundByCancellationWindow()) {
             window.requireOpenFor(appointment);
         }
 
