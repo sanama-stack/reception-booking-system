@@ -104,11 +104,18 @@ export function Confirmation({
               email address, and a booking deliberately does not overwrite what is stored, so there
               is no address to send to. Saying so plainly beats a promise that never arrives.
             */}
-            <span className="text-ink">No confirmation email is being sent.</span> This phone number
-            is already on file with {business.name} without an email address, and booking does not
-            change the details they hold — so the code above is your only copy of it. Write it down
-            before you leave this page, and ask {business.name} to add{' '}
-            <span className="text-ink">{email}</span> if you would like messages in future.
+            {/*
+              `font-medium`, not colour alone. This paragraph is `text-ink-muted`, so `text-ink`
+              would darken the clause here — but the identical sentence on the manage page sits in a
+              `text-ink` banner, where it did nothing at all (issue #8). Emphasis carries its own
+              weight so it cannot depend on what colour the parent happens to be.
+            */}
+            <span className="text-ink font-medium">No confirmation email is being sent.</span> This
+            phone number is already on file with {business.name} without an email address, and
+            booking does not change the details they hold — so the code above is your only copy of
+            it. Write it down before you leave this page, and ask {business.name} to add{' '}
+            <span className="text-ink font-medium">{email}</span> if you would like messages in
+            future.
           </p>
         ) : (
           <p className="text-ink-muted mt-2 text-sm leading-relaxed">

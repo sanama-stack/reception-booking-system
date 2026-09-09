@@ -240,7 +240,13 @@ function OutcomeBanner({
             own record. No claim is made about this link still working — a reschedule to a later
             date can outlive the token that was minted against the old end time.
           */}
-          <span className="text-ink">No confirmation email is being sent</span> —{' '}
+          {/*
+            `font-medium` is what does the work: this banner's own class list is `text-ink`, so the
+            `text-ink` span it used to carry emphasised nothing and the sentence rendered as plain
+            body copy (issue #8). Same idiom as the booking page's equivalent state, and now for the
+            same reason at both — weight, not colour.
+          */}
+          <span className="text-ink font-medium">No confirmation email is being sent</span> —{' '}
           {appointment.business.name} has no email address on file for your number. What is on this
           page is the record; ask them to add an address if you would like messages in future.
         </>
