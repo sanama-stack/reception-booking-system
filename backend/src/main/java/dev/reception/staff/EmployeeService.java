@@ -6,6 +6,7 @@ import dev.reception.common.error.ApiException;
 import dev.reception.common.error.ErrorCode;
 import dev.reception.common.error.FieldError;
 import dev.reception.common.ids.IdGenerator;
+import dev.reception.common.phone.PhoneAudience;
 import dev.reception.common.phone.PhoneField;
 import dev.reception.tenancy.TenantContext;
 import java.time.Clock;
@@ -129,7 +130,9 @@ public class EmployeeService {
      * the two must agree, and agreeing by having one copy is cheaper than agreeing by review.
      */
     private String normalisedPhone(String field, String raw) {
-        return PhoneField.normalise(field, raw, businesses.read().country());
+        // OWNER: an Employee's number is only ever edited from the dashboard, so the reader
+        // is somebody who can act on the advice to set the Business's country.
+        return PhoneField.normalise(field, raw, businesses.read().country(), PhoneAudience.OWNER);
     }
 
     private static String trim(String value) {

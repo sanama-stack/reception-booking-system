@@ -4,6 +4,7 @@ import dev.reception.catalog.Service;
 import dev.reception.catalog.ServiceCatalogService;
 import dev.reception.common.ids.IdGenerator;
 import dev.reception.customers.Customer;
+import dev.reception.customers.CustomerFieldNames;
 import dev.reception.customers.CustomerService;
 import dev.reception.notifications.NotificationEnqueuer;
 import dev.reception.scheduling.application.AvailabilityService;
@@ -77,7 +78,14 @@ public class BookingService {
         this.clock = clock;
     }
 
-    /** What a caller asks for. A record because the alternative is a nine-argument method. */
+    /**
+     * What a caller asks for. A record because the alternative is a nine-argument method.
+     *
+     * <p>{@code customerFields} is not data about the booking — it is what the caller's own request
+     * body called the three customer values, so a validation failure comes back under a name the
+     * client sent and can therefore look up. The web layer is the only thing that knows this, and it
+     * is the layer that builds this record. See {@link CustomerFieldNames}.
+     */
     public record BookingRequest(
             UUID serviceId,
             UUID employeeId,
@@ -85,7 +93,8 @@ public class BookingService {
             String customerName,
             String customerPhone,
             String customerEmail,
-            String customerNote) {}
+            String customerNote,
+            CustomerFieldNames customerFields) {}
 
     @Transactional
     public Appointment book(BookingRequest request, AppointmentSource source, Actor actor) {
@@ -102,8 +111,8 @@ public class BookingService {
             throw BookingRefusal.of(refusal.get(), service.name(), employee.fullName());
         }
 
-        Customer customer =
-                customers.findOrCreate(request.customerPhone(), request.customerName(), request.customerEmail());
+        Customer customer = customers.findOrCreate(
+                request.customerPhone(), request.customerName(), request.customerEmail(), request.customerFields());
 
         ServiceSpec spec = specFor(service);
         TimeRange appointment = TimeRange.of(request.startsAt(), spec.duration());

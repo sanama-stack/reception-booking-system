@@ -4,6 +4,9 @@ import dev.reception.auth.CookieBearerTokenResolver;
 import dev.reception.auth.JwtService;
 import dev.reception.auth.ProblemAccessDeniedHandler;
 import dev.reception.auth.ProblemAuthenticationEntryPoint;
+import dev.reception.business.BusinessRepository;
+import dev.reception.common.error.ProblemJsonWriter;
+import dev.reception.tenancy.SlugTenantContextFilter;
 import dev.reception.tenancy.TenantContextFilter;
 import java.nio.charset.StandardCharsets;
 import javax.crypto.spec.SecretKeySpec;
@@ -65,7 +68,9 @@ public class SecurityConfig {
             CookieBearerTokenResolver bearerTokenResolver,
             ProblemAuthenticationEntryPoint authenticationEntryPoint,
             ProblemAccessDeniedHandler accessDeniedHandler,
-            JwtDecoder jwtDecoder)
+            JwtDecoder jwtDecoder,
+            BusinessRepository businesses,
+            ProblemJsonWriter problems)
             throws Exception {
         return http.csrf(csrf -> csrf.disable())
                 .cors(cors -> cors.disable())
@@ -88,7 +93,12 @@ public class SecurityConfig {
                                 "/health",
                                 "/docs/**",
                                 "/openapi/**",
-                                "/swagger-ui/**")
+                                "/swagger-ui/**",
+                                // The booking page and the Manage Link. One pattern, because the
+                                // whole of what it opens is one package — dev.reception.publicapi —
+                                // and a reader can check that claim by listing a directory rather
+                                // than by trusting this line.
+                                "/public/**")
                         .permitAll()
                         // Preflight never reaches here on a single origin, but a rule that depends
                         // on that is a rule that breaks silently if it ever stops being true.
@@ -106,6 +116,9 @@ public class SecurityConfig {
                         .accessDeniedHandler(accessDeniedHandler))
                 // After authentication, so there is a principal to derive the tenant from.
                 .addFilterAfter(new TenantContextFilter(), BearerTokenAuthenticationFilter.class)
+                // After that one, so it runs inside it: TenantContextFilter's finally is what
+                // clears the holder, and it must wrap every resolution rather than only its own.
+                .addFilterAfter(new SlugTenantContextFilter(businesses, problems), TenantContextFilter.class)
                 .build();
     }
 

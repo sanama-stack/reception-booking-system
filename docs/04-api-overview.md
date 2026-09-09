@@ -152,7 +152,15 @@ Nothing is auto-cancelled.
 
 | Method | Path | Purpose |
 |---|---|---|
-| GET | `/availability?serviceId=&from=&to=&employeeId=` | Same engine the public API and AI tools use |
+| GET | `/availability?serviceId=&from=&to=&employeeId=&excludeAppointmentId=` | Same engine the public API and AI tools use |
+
+`excludeAppointmentId` is optional and only meaningful while rescheduling: it leaves the named Appointment
+out of the occupancy the grid is computed against, so the time it currently holds is offered back instead of
+counted against itself. Accepted from the caller here because the endpoint is authenticated and
+tenant-scoped — another business's id excludes nothing, because those rows were never in scope. **The public
+availability endpoint deliberately does not take it**; a rescheduling Customer uses
+`GET /public/appointments/manage/availability`, where the exclusion is the appointment their Manage Link
+authorises and cannot be anything else.
 
 Response:
 
@@ -239,6 +247,7 @@ no internal settings, no other customers.
 | POST | `/public/businesses/{slug}/appointments` | Book (`source=CLASSIC`) |
 | POST | `/public/appointments/lookup` | `{ confirmationCode, phone }` → appointment |
 | GET | `/public/appointments/manage?token=` | Resolve a Manage Link |
+| GET | `/public/appointments/manage/availability?token=&from=&to=&employeeId=` | Slots to move to, excluding this appointment |
 | POST | `/public/appointments/{id}/cancel` | Requires manage token or verified lookup |
 | POST | `/public/appointments/{id}/reschedule` | Same authority requirement |
 | POST | `/public/businesses/{slug}/chat/session` | Start a conversation |
@@ -260,15 +269,45 @@ no internal settings, no other customers.
   "startsAt": "…", "endsAt": "…", "timezone": "Asia/Tbilisi",
   "service": { "name": "Colour", "durationMinutes": 150 },
   "employee": { "fullName": "Lika" },
-  "price": { "amount": "220.00", "currency": "GEL" } }
+  "price": { "amount": "220.00", "currency": "GEL" },
+  "confirmationSent": true }
 ```
+`confirmationSent` is whether a confirmation was actually enqueued, and **not** the address it went to. A
+Customer is identified by phone number alone and a returning number keeps the email already on file, so the
+`customer.email` in the request is neither necessarily the recipient nor necessarily present — the
+confirmation screen has to be told rather than assume. The resolved recipient is never returned: booking is
+proved by a phone number, and echoing back the address filed against one would make it readable to whoever
+holds it (ADR-0007).
 Errors: `SLOT_UNAVAILABLE`, `SERVICE_INACTIVE`, `EMPLOYEE_INACTIVE`,
 `EMPLOYEE_CANNOT_PERFORM_SERVICE`, `OUTSIDE_BUSINESS_HOURS`, `OUTSIDE_WORKING_HOURS`, `BOOKING_IN_PAST`,
 `BELOW_MIN_LEAD_TIME`, `BEYOND_MAX_ADVANCE`, `VALIDATION_FAILED`, `RATE_LIMITED`.
 
 **POST `/public/appointments/lookup`** — a `POST` because a phone number must never enter a URL, a log line
-or a referrer header. Requires code **and** phone; either alone returns `INVALID_CONFIRMATION_CODE`. Rate
-limited aggressively: this is the endpoint an attacker would brute-force.
+or a referrer header. Requires code **and** phone; presenting one alone is a schema rejection, and a code with
+the wrong number returns `INVALID_CONFIRMATION_CODE`. Rate limited aggressively: this is the endpoint an
+attacker would brute-force.
+
+**POST `/public/appointments/{id}/cancel`** and **`/reschedule`** carry their proof in the body, as either
+shape of an `authority` object:
+
+```json
+{ "authority": { "manageToken": "…" }, "reason": "Changed my mind" }
+{ "authority": { "confirmationCode": "7QK4M2XR", "phone": "+995555123456" }, "startsAt": "…" }
+```
+
+The proof resolves an Appointment on its own and the `{id}` in the path is then **compared** against it — an
+id in a URL is a claim, the token is the evidence. A Manage Link for appointment A presented on B's path is
+`404`, not `403`: a distinct code would confirm that B exists. Errors: `MANAGE_TOKEN_INVALID`,
+`INVALID_CONFIRMATION_CODE`, `CANCELLATION_WINDOW_CLOSED`, `SLOT_UNAVAILABLE`, `NOT_FOUND`, `RATE_LIMITED`.
+
+All four endpoints that resolve an appointment — `lookup`, `manage`, `cancel` and `reschedule` — return the
+same shape, which carries **`emailOnFile`**: whether the Customer has an address on record, and never the
+address. After a cancel or a reschedule it is what says a confirmation is coming, because
+`NotificationEnqueuer` gates both of those emails on exactly that; on the two read endpoints nothing has been
+sent and the field is simply a fact, which is why it is named for one. A Manage Link arrives by email, so an
+address existed when the token was issued — but the token is valid until the appointment ends and the
+Business can clear the address from the dashboard in between, so the page cannot infer it (ADR-0008). The
+address itself is never returned, for the reason `confirmationSent` is not either.
 
 **Manage Link token** — HMAC-SHA256 over `appointmentId|expiry` with a server secret, expiring at
 appointment end + 24 h. It is a single-purpose capability token, not an identity: it authorises exactly one

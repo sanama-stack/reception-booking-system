@@ -17,6 +17,33 @@ limiting.
 
 Phase 07 — the confirmation email and Manage Link must already work.
 
+## Progress
+
+**Phase 08 is complete** (2026-09-09). The backend half, `/book/{slug}` and `/manage/{token}` are
+all built and browser-verified — see [the booking page's
+handoff](../sessions/2026-09-09-phase-08-booking-page.md) and [the Manage Link page's
+handoff](../sessions/2026-09-09-phase-08-manage-page.md).
+
+One box below stays unticked and is **not** an oversight: "Any available" with more than one
+eligible Employee has still never been rendered, because no tenant has two people assigned to one
+Service and the fixture does not exist. It is the only branch of the flow nothing has exercised.
+
+**How the Frontend testing boxes were satisfied, because it is not what the heading implies.** This
+repository has no frontend test harness — `frontend/package.json` carries no `test` script and no
+test dependency, and the whole frontend gate is `lint`, `typecheck`, `format:check`, `build`. The
+boxes under *Testing → Frontend* were therefore ticked by driving a real browser against a live
+stack, and **are not enforced by CI**. A regression in the booking page will not be caught by the
+pipeline. Standing a harness up is phase-11 work and is deliberately not in this phase's scope.
+
+Two things were added beyond the plan below, both recorded in
+[the session handoff](../sessions/2026-09-09-phase-08-backend.md):
+
+- **`GET /public/appointments/manage/availability`.** A rescheduling Customer needs a grid that excludes
+  their own appointment, and the public availability endpoint must not take an appointment id from an
+  anonymous caller — the difference between the two answers would say whether that appointment exists.
+- **`GET /availability` gained `excludeAppointmentId`**, which is safe there because the endpoint is
+  authenticated and tenant-scoped.
+
 ## Why the Classic Flow comes before the AI
 
 It proves the entire public API surface is correct **before** a nondeterministic layer sits on top. Built in
@@ -92,70 +119,72 @@ adds no privileged path.
 ## Testing
 
 ### Integration
-- [ ] Public profile, services and employees return only allow-listed fields
-- [ ] Public availability matches the internal endpoint exactly
-- [ ] Booking succeeds with `source = CLASSIC` and enqueues the confirmation email
-- [ ] Booking a taken slot → `409 SLOT_UNAVAILABLE`
-- [ ] Inactive service, inactive employee and unassigned employee are each rejected with their own code
-- [ ] Lookup with correct code **and** phone succeeds
-- [ ] Correct code, wrong phone → `INVALID_CONFIRMATION_CODE`
-- [ ] Phone only → schema rejection
-- [ ] Manage token resolves the right appointment; a tampered or expired token → `401`
-- [ ] A manage token for appointment A cannot act on appointment B
-- [ ] Customer cancel inside the window → `422 CANCELLATION_WINDOW_CLOSED`
-- [ ] Customer cancel outside the window succeeds and sends the email
-- [ ] Public reschedule validates availability and updates in place
-- [ ] Rate limits fire and return `429` with `Retry-After`
-- [ ] Lookup limit is 5/hour/IP
-- [ ] An unknown slug → `404` everywhere
-- [ ] **No public endpoint returns another business's data**
+- [x] Public profile, services and employees return only allow-listed fields
+- [x] Public availability matches the internal endpoint exactly
+- [x] Booking succeeds with `source = CLASSIC` and enqueues the confirmation email
+- [x] Booking a taken slot → `409 SLOT_UNAVAILABLE`
+- [x] Inactive service, inactive employee and unassigned employee are each rejected with their own code
+- [x] Lookup with correct code **and** phone succeeds
+- [x] Correct code, wrong phone → `INVALID_CONFIRMATION_CODE`
+- [x] Phone only → schema rejection
+- [x] Manage token resolves the right appointment; a tampered or expired token → `401`
+- [x] A manage token for appointment A cannot act on appointment B
+- [x] Customer cancel inside the window → `422 CANCELLATION_WINDOW_CLOSED`
+- [x] Customer cancel outside the window succeeds and sends the email
+- [x] Public reschedule validates availability and updates in place
+- [x] Rate limits fire and return `429` with `Retry-After`
+- [x] Lookup limit is 5/hour/IP
+- [x] An unknown slug → `404` everywhere
+- [x] **No public endpoint returns another business's data**
 
 ### Frontend
-- [ ] Classic Flow completes end to end
-- [ ] `409` refreshes the grid and preserves entered details
-- [ ] "Any available" shows a specific employee before the slot is chosen
-- [ ] The page is usable at 360 px
+- [x] Classic Flow completes end to end
+- [x] `409` refreshes the grid and preserves entered details
+- [ ] "Any available" shows a specific employee before the slot is chosen — **the one branch nothing has
+      exercised.** No tenant has two Employees assigned to one Service, so the fixture does not exist yet
+- [x] The page is usable at 360 px
 
 ## Definition of Done
 
-- [ ] `/book/{slug}` is publicly reachable and shows business, services, prices and durations
-- [ ] A stranger books end to end with no account
-- [ ] The confirmation email arrives with a working Manage Link
-- [ ] The Manage Link page cancels and reschedules
-- [ ] Lookup requires code **and** phone
-- [ ] Every public endpoint is rate limited
-- [ ] No internal or cross-tenant field appears in any public response
-- [ ] All tests above pass
+- [x] `/book/{slug}` is publicly reachable and shows business, services, prices and durations
+- [x] A stranger books end to end with no account
+- [x] The confirmation email arrives with a working Manage Link
+- [x] The Manage Link page cancels and reschedules
+- [x] Lookup requires code **and** phone
+- [x] Every public endpoint is rate limited
+- [x] No internal or cross-tenant field appears in any public response
+- [x] All tests above pass — with the one "Any available" box above named as unexercised rather
+      than passing
 
 ## Checklist
 
 ### Backend
-- [ ] `publicapi` module with slug-based tenant resolution
-- [ ] `PublicBusinessController`
-- [ ] `PublicAvailabilityController`
-- [ ] `PublicBookingController` (`source = CLASSIC`)
-- [ ] `PublicAppointmentController` — lookup, manage, cancel, reschedule
-- [ ] Hand-written public DTOs
-- [ ] Allow-list test for public response fields
-- [ ] `RateLimitFilter` with per-endpoint buckets
-- [ ] `429` + `Retry-After`
-- [ ] Error codes: `INVALID_CONFIRMATION_CODE`, `MANAGE_TOKEN_INVALID`
+- [x] `publicapi` module with slug-based tenant resolution
+- [x] `PublicBusinessController`
+- [x] `PublicAvailabilityController`
+- [x] `PublicBookingController` (`source = CLASSIC`)
+- [x] `PublicAppointmentController` — lookup, manage, cancel, reschedule
+- [x] Hand-written public DTOs
+- [x] Allow-list test for public response fields
+- [x] `RateLimitFilter` with per-endpoint buckets
+- [x] `429` + `Retry-After`
+- [x] Error codes: `INVALID_CONFIRMATION_CODE`, `MANAGE_TOKEN_INVALID`
 
 ### Frontend
-- [ ] `/book/[slug]` server-rendered page with the chat column reserved
-- [ ] Service selector
-- [ ] Employee selector with "Any available"
-- [ ] Date picker and slot grid
-- [ ] Customer details form
-- [ ] Confirmation screen with the code
-- [ ] `/manage/[token]` page with cancel and reschedule
-- [ ] Policy-aware refusal messaging
-- [ ] Designed `404` and "not accepting bookings" pages
-- [ ] Mobile layout verified at 360 px
-- [ ] Empty, loading and error states throughout
+- [x] `/book/[slug]` server-rendered page with the chat column reserved
+- [x] Service selector
+- [x] Employee selector with "Any available" (built; unverified with more than one eligible Employee)
+- [x] Date picker and slot grid
+- [x] Customer details form
+- [x] Confirmation screen with the code
+- [x] `/manage/[token]` page with cancel and reschedule
+- [x] Policy-aware refusal messaging
+- [x] Designed `404` and "not accepting bookings" pages
+- [x] Mobile layout verified at 360 px
+- [x] Empty, loading and error states throughout
 
 ### Testing
-- [ ] All integration tests above
-- [ ] Public field allow-list test
-- [ ] Rate-limit tests
-- [ ] Mobile-viewport check
+- [x] All integration tests above
+- [x] Public field allow-list test
+- [x] Rate-limit tests
+- [x] Mobile-viewport check

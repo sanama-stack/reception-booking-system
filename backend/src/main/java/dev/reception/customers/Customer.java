@@ -91,6 +91,22 @@ public class Customer extends BaseEntity {
         return email;
     }
 
+    /**
+     * Whether this Customer can be reached by email at all.
+     *
+     * <p><strong>One predicate, two callers, on purpose.</strong> {@code NotificationEnqueuer} asks
+     * it to decide whether a message is written, and the public booking response asks it to decide
+     * what the confirmation screen is allowed to promise. Those two answers must never disagree: a
+     * screen that says a confirmation is on its way when no row was enqueued is the defect this
+     * method exists to make impossible to reintroduce (ADR-0007).
+     *
+     * <p>Blank counts as absent. The column is nullable and the {@code PATCH} rule clears with a
+     * blank string, so both shapes reach here and neither is an address.
+     */
+    public boolean hasEmail() {
+        return email != null && !email.isBlank();
+    }
+
     public Instant createdAt() {
         return createdAt;
     }

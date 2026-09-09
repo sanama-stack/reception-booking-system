@@ -16,43 +16,14 @@ import {
   Textarea,
   useToast,
 } from '@/components/ui';
-import { ApiError, type ErrorCode } from '@/lib/api/client';
+import { ApiError } from '@/lib/api/client';
 import { appointmentApi } from '@/lib/appointments';
 import { useResource } from '@/lib/api/use-resource';
 import { useSession } from '@/lib/auth';
 import { formatDuration, type ServiceDetail, type ServiceList } from '@/lib/catalog';
-import { availabilityPath, type AvailableSlot } from '@/lib/scheduling';
+import { availabilityPath, isStaleSlot, type AvailableSlot } from '@/lib/scheduling';
 import type { EmployeeList } from '@/lib/staff';
 import { formatMoney, formatTime, toBusinessDate, type Timezone } from '@/lib/time';
-
-/**
- * Every refusal that means **the slot list on screen is out of date**.
- *
- * `SLOT_UNAVAILABLE` is the one the phase document singles out — the exclusion constraint refused
- * the write because somebody else took the time between this list being drawn and the button being
- * pressed — but it is not the only way the world moves underneath an open screen. A service
- * deactivated in another tab, an employee unassigned, or simply enough time passing for the start
- * to fall inside the minimum lead time all leave a list of times that can no longer be booked.
- *
- * All of them get the same treatment, because the same thing is true of all of them: the answer on
- * screen was computed against a world that has changed, so it is re-asked and the selection is
- * dropped. Silently leaving the old times up — or leaving one selected — would invite the owner to
- * press the same doomed button again.
- *
- * A validation failure is deliberately **not** here. A mistyped phone number says nothing about
- * availability, and clearing a chosen time because a name was too long would be its own defect.
- */
-const STALE_SLOT_CODES: ReadonlySet<ErrorCode> = new Set<ErrorCode>([
-  'SLOT_UNAVAILABLE',
-  'SERVICE_INACTIVE',
-  'EMPLOYEE_INACTIVE',
-  'EMPLOYEE_CANNOT_PERFORM_SERVICE',
-  'OUTSIDE_BUSINESS_HOURS',
-  'OUTSIDE_WORKING_HOURS',
-  'BOOKING_IN_PAST',
-  'BELOW_MIN_LEAD_TIME',
-  'BEYOND_MAX_ADVANCE',
-]);
 
 interface Selection {
   startsAt: string;
@@ -214,7 +185,7 @@ function BookingFlow({
         return;
       }
       setError(cause);
-      if (STALE_SLOT_CODES.has(cause.code)) {
+      if (isStaleSlot(cause.code)) {
         setSelection(null);
         setRefreshes((count) => count + 1);
       }
@@ -228,26 +199,19 @@ function BookingFlow({
   const fieldErrors = error?.fieldErrors ?? {};
 
   /**
-   * The phone error arrives under two different names, and only one of them is this request's.
+   * One name, since phase 08: `customerPhone`, which is what this request calls the field.
    *
-   * Bean Validation reports the request field, `customerPhone`. But a number that parses as a
-   * string and still cannot be read as a phone number is refused deeper down, by `PhoneField`
-   * inside `CustomerService`, which names the field `phone` — the domain's own name for it rather
-   * than this request's. Both land on this one input.
+   * It used to arrive under two. A number that parses as a string but cannot be read as a phone
+   * number was refused deeper down, by `CustomerService`, which named the field `phone` — the
+   * domain's own word for it rather than this request's — and this component had to try both.
+   * Accepting only `customerPhone` silently dropped the more useful message.
    *
-   * Accepting only `customerPhone` silently dropped the more useful of the two: the specific
-   * message ("enter it in international form, or set your country in Settings") was replaced by
-   * the generic "One or more fields are invalid." and the input was never marked invalid, so the
-   * one sentence telling the owner how to fix it never reached them.
+   * `CustomerFieldNames` moved that decision to the caller, so the server now reports whichever
+   * name the request it is serving actually used. The fallback that compensated for the
+   * inconsistency is gone with it.
    */
-  const phoneError = fieldErrors.customerPhone ?? fieldErrors.phone;
-  const rendered = new Set([
-    'customerName',
-    'customerPhone',
-    'phone',
-    'customerEmail',
-    'customerNote',
-  ]);
+  const phoneError = fieldErrors.customerPhone;
+  const rendered = new Set(['customerName', 'customerPhone', 'customerEmail', 'customerNote']);
   const everyMessageShown =
     error !== null &&
     Object.keys(fieldErrors).length > 0 &&
@@ -383,7 +347,7 @@ function BookingFlow({
           className="border-danger/30 bg-danger/5 text-ink rounded-md border px-3 py-2 text-sm"
         >
           {unfielded}
-          {error && STALE_SLOT_CODES.has(error.code) && (
+          {error && isStaleSlot(error.code) && (
             <span className="mt-1 block">
               The times above have been recalculated — choose one of those.
             </span>

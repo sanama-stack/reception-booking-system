@@ -4,6 +4,7 @@ import dev.reception.appointments.AppointmentQueryService;
 import dev.reception.appointments.web.AppointmentResponses;
 import dev.reception.business.BusinessService;
 import dev.reception.customers.Customer;
+import dev.reception.customers.CustomerFieldNames;
 import dev.reception.customers.CustomerService;
 import jakarta.validation.Valid;
 import java.util.List;
@@ -65,7 +66,7 @@ public class CustomerController {
     @PatchMapping("/{id}")
     public CustomerResponses.SingleCustomer patch(
             @PathVariable UUID id, @Valid @RequestBody CustomerRequests.PatchCustomer request) {
-        Customer patched = customers.patch(id, request.fullName(), request.email());
+        Customer patched = customers.patch(id, request.fullName(), request.email(), CustomerFieldNames.CORRECTION);
         return CustomerResponses.SingleCustomer.of(
                 patched, appointments.activityFor(List.of(id)).get(id));
     }

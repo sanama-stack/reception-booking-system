@@ -39,7 +39,9 @@ if one appears later, read it instead of the root glossary alone.
 │   ├── 0003-wall-clock-rules-utc-instants.md
 │   ├── 0004-llm-confined-to-tools.md
 │   ├── 0005-database-outbox-instead-of-queue.md
-│   └── 0006-employee-separated-from-user.md
+│   ├── 0006-employee-separated-from-user.md
+│   ├── 0007-booking-response-says-whether-a-confirmation-was-sent.md
+│   └── 0008-the-manage-page-says-whether-an-address-is-on-file.md
 ├── backend/
 └── frontend/
 ```

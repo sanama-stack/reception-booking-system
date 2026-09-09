@@ -9,6 +9,7 @@ import dev.reception.support.IntegrationTest;
 import java.time.Clock;
 import java.time.DayOfWeek;
 import java.time.LocalDate;
+import java.time.format.DateTimeFormatter;
 import java.time.OffsetDateTime;
 import java.time.ZoneId;
 import java.time.temporal.TemporalAdjusters;
@@ -298,6 +299,85 @@ class AvailabilityEndpointTest extends IntegrationTest {
         assertThat(owner.getAnonymously("/availability?serviceId=%s&from=%s&to=%s".formatted(haircut, monday, monday))
                         .getStatusCode())
                 .isEqualTo(HttpStatus.UNAUTHORIZED);
+    }
+
+    @Test
+    @DisplayName("excludeAppointmentId offers back the time the appointment being moved holds")
+    void the_reschedule_grid_excludes_the_appointment_being_moved() {
+        String startsAt = monday.atTime(10, 0).atZone(TBILISI).toOffsetDateTime().toString();
+        Map<String, Object> booking = new HashMap<>();
+        booking.put("serviceId", haircut);
+        booking.put("employeeId", nino);
+        booking.put("startsAt", startsAt);
+        booking.put("customerName", "Ana Tsereteli");
+        booking.put("customerPhone", "+995555123456");
+        String appointmentId = JsonPath.read(owner.post("/appointments", booking).getBody(), "$.appointment.id");
+
+        String query = "serviceId=%s&from=%s&to=%s".formatted(haircut, monday, monday);
+        String ownTime = monday.atTime(10, 0)
+                .atZone(TBILISI)
+                .toOffsetDateTime()
+                .format(DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ssXXX"));
+
+        // Without it, the appointment blocks its own hour — so an owner moving a 10:00 booking is
+        // shown a grid with 10:00 missing, and cannot move it fifteen minutes later either.
+        assertThat(JsonPath.<List<String>>read(availability(query), "$.days[0].slots[*].startsAt"))
+                .doesNotContain(ownTime);
+        assertThat(JsonPath.<List<String>>read(
+                        availability(query + "&excludeAppointmentId=" + appointmentId),
+                        "$.days[0].slots[*].startsAt"))
+                .contains(ownTime);
+    }
+
+    @Test
+    @DisplayName("another tenant's appointment id excludes nothing")
+    void a_borrowed_exclusion_id_changes_no_answer() {
+        // A real appointment in another tenant, not a random UUID: a random one would pass against
+        // an implementation with no tenant filter at all, which is the implementation this exists
+        // to catch.
+        String borrowed = anAppointmentInAnotherBusiness();
+
+        String query = "serviceId=%s&from=%s&to=%s".formatted(haircut, monday, monday);
+        // The query this parameter feeds is already filtered by businessId, so those rows were
+        // never in scope and the grid comes back identical. That is why the parameter is safe on
+        // this authenticated endpoint and is not offered on the public one, where an anonymous
+        // caller could diff the two answers to learn that an appointment exists.
+        assertThat(availability(query + "&excludeAppointmentId=" + borrowed))
+                .isEqualTo(availability(query));
+    }
+
+    /** A second business with one booked appointment, returned by id. */
+    private String anAppointmentInAnotherBusiness() {
+        AuthTestClient auto = new AuthTestClient(rest, port);
+        auto.register("dato@auto.test", PASSWORD, "Datos Auto");
+        auto.patch("/business", Map.of("timezone", TBILISI.getId()));
+
+        Map<String, Object> service = new HashMap<>();
+        service.put("name", "Oil change");
+        service.put("durationMinutes", 60);
+        service.put("price", "40.00");
+        String autoService = JsonPath.read(auto.post("/services", service).getBody(), "$.id");
+        String autoEmployee =
+                JsonPath.read(auto.post("/employees", Map.of("fullName", "Dato Kapanadze")).getBody(), "$.id");
+        auto.put("/employees/" + autoEmployee + "/services", Map.of("serviceIds", List.of(autoService)));
+        auto.put(
+                "/employees/" + autoEmployee + "/schedule",
+                Map.of(
+                        "schedule",
+                        List.of(1, 2, 3, 4, 5).stream()
+                                .map(day -> Map.<String, Object>of(
+                                        "dayOfWeek", day, "startsAt", "09:00", "endsAt", "17:00"))
+                                .toList()));
+
+        Map<String, Object> booking = new HashMap<>();
+        booking.put("serviceId", autoService);
+        booking.put("employeeId", autoEmployee);
+        booking.put(
+                "startsAt",
+                monday.atTime(10, 0).atZone(TBILISI).toOffsetDateTime().toString());
+        booking.put("customerName", "Giorgi Beridze");
+        booking.put("customerPhone", "+995555777666");
+        return JsonPath.read(auto.post("/appointments", booking).getBody(), "$.appointment.id");
     }
 
     @Test
