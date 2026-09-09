@@ -1,0 +1,8 @@
+<p>Hi {{customerName}},</p>
+<p>Your appointment has been cancelled.</p>
+<table role="presentation" cellpadding="0" cellspacing="0" style="margin:16px 0;font-size:15px;">
+  <tr><td style="padding:2px 16px 2px 0;color:#71717a;">What</td><td>{{serviceName}}</td></tr>
+  <tr><td style="padding:2px 16px 2px 0;color:#71717a;">Was</td><td>{{when}}</td></tr>
+</table>
+{{#cancellationReason}}<p style="margin:16px 0;color:#71717a;">Reason given: {{cancellationReason}}</p>{{/cancellationReason}}
+<p>Nothing further is needed. If you would like to rebook, we would be glad to see you.</p>

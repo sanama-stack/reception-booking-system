@@ -1,0 +1,15 @@
+Hi {{customerName}},
+
+Your appointment is confirmed.
+
+  What:  {{serviceName}}
+  When:  {{when}}
+  With:  {{employeeName}}
+
+Your confirmation code is {{confirmationCode}}.
+
+Change or cancel:
+{{manageUrl}}
+
+{{#businessPhone}}Questions? Call us on {{businessPhone}}.
+{{/businessPhone}}This message was sent by {{businessName}} about your appointment.

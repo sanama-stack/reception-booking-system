@@ -1,0 +1,16 @@
+Hi {{customerName}},
+
+Your appointment has been moved.
+
+  What: {{serviceName}}
+{{#previousWhen}}  Was:  {{previousWhen}}
+{{/previousWhen}}  Now:  {{when}}
+  With: {{employeeName}}
+
+Your confirmation code has not changed. It is still {{confirmationCode}}.
+
+Change or cancel:
+{{manageUrl}}
+
+{{#businessPhone}}Questions? Call us on {{businessPhone}}.
+{{/businessPhone}}This message was sent by {{businessName}} about your appointment.

@@ -8,10 +8,11 @@ Receptionist acts only through validated tools; those tools call the same endpoi
 calls; and the database makes double-booking structurally impossible regardless of what any layer above it
 believes.
 
-> **Build status: phase 06 of 11 complete.** An owner can configure a business and run its
+> **Build status: phase 07 of 11 complete.** An owner can configure a business and run its
 > calendar from the dashboard — booking, moving, cancelling and closing out appointments, and
 > seeing who has booked — with double booking made impossible by the database rather than by a
-> check. Notifications, the public booking page and the AI receptionist are still to come. See
+> check, and every one of those changes now sends the customer a real email. The public booking
+> page and the AI receptionist are still to come. See
 > [docs/09-phase-plan.md](docs/09-phase-plan.md) for the build order.
 
 ## Quick start
@@ -36,7 +37,7 @@ your IDE:
 | Application | http://localhost:9080 |
 | API health | http://localhost:9080/api/health |
 | API docs | http://localhost:9080/api/docs |
-| Mailpit | http://localhost:9083 |
+| Mail — every message the system sends | http://localhost:9083 |
 
 **Always use `localhost:9080`.** Caddy puts both applications on that one origin — `/api/*` to the
 backend, everything else to the frontend. Hitting the backend or the frontend on its own port puts
@@ -70,6 +71,25 @@ make test      # backend build + frontend lint, typecheck, build
 make psql      # psql shell on the running database
 make help      # every target
 ```
+
+### Watching the mail
+
+Nothing is emailed to anyone in development. **Mailpit** at
+**[http://localhost:9083](http://localhost:9083)** accepts every message the application sends and
+shows it in a browser instead — book, move or cancel an appointment in the dashboard and the
+confirmation, reschedule or cancellation lands there within a minute, HTML and plain text side by
+side.
+
+**Within a minute, not instantly.** Mail is not sent by the request that causes it. Booking writes
+the message into a `notifications` outbox row in the same transaction as the appointment — so an
+appointment and its confirmation commit together or not at all — and a poller sends what is due
+every sixty seconds ([ADR-0005](docs/adr/0005-database-outbox-instead-of-queue.md)). Set
+`NOTIFICATIONS_POLLER_ENABLED=false` in `.env` to stop it: rows still queue, nothing is sent, and
+the outbox is visible in `select type, status, scheduled_for from notifications`.
+
+Each message carries the appointment's Confirmation Code and a **Manage Link** — a signed token
+authorising exactly one appointment, good until twenty-four hours after it ends. The page it opens
+arrives in phase 08; until then the link is a token to read, not a page to visit.
 
 ### Running everything in containers
 

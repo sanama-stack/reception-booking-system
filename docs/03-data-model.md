@@ -327,12 +327,25 @@ The outbox.
 | `sent_at`, `created_at` | timestamptz | |
 
 ```sql
-CREATE INDEX ON notifications (status, scheduled_for) WHERE status = 'PENDING';
+CREATE INDEX ON notifications (scheduled_for) WHERE status = 'PENDING';
 CREATE UNIQUE INDEX ON notifications (appointment_id, type)
-  WHERE status IN ('PENDING','SENT');
+  WHERE status IN ('PENDING','SENT')
+    AND type IN ('BOOKING_CONFIRMATION','REMINDER_24H');
 ```
 
-The partial unique index makes duplicate reminders impossible even if enqueue logic runs twice.
+The partial unique index makes duplicate confirmations and reminders impossible even if enqueue logic
+runs twice.
+
+**The type predicate is load-bearing, and was added in phase 07.** Written over every type, the index
+also forbids the second `CANCELLATION` or `RESCHEDULE` row — and a customer who moves an appointment
+twice is owed two emails. Confirmations and reminders are owed once per appointment for its whole
+life; a cancellation and a reschedule are *events*, and an event that happens twice is two facts
+rather than one fact repeated. `V6__notifications.sql` carries the full argument.
+
+The due index drops `status` from its columns because the partial predicate already restricts the
+index to `PENDING` rows; carrying the column as well would store one constant value per entry. It is
+also the only index in this schema not led by `business_id`, deliberately: the poller is the system
+delivering mail for every tenant at once, and there is no per-tenant query against this table.
 
 ### `ai_conversations`
 
