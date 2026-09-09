@@ -20,7 +20,7 @@ Confirmation Code and a phone number; open a Manage Link; and cancel or reschedu
 |---|---|
 | Repository | https://github.com/sanama-stack/reception-booking-system — **public** |
 | Default branch | `main` |
-| Working branch | **`dev`** |
+| Working branch | **`dev`** — pushed, **`524f708`**, all three CI jobs green |
 | Backend tests | **720**, up from 674 — 46 new, all green |
 | Frontend | One deletion only: the workaround in §4.1 is gone. Lint and typecheck clean |
 | Migrations | **None.** Phase 08 adds no table and no column, by design |
@@ -209,7 +209,24 @@ which returns an `Appointment` and is *supposed to*. Inside the package an entit
 what must never be one is the thing that gets serialised. The rule is scoped by
 `areMetaAnnotatedWith(RequestMapping)`, which covers every verb including any added later.
 
-### 5.6 `AvailabilityEndpointTest.availability()` prepends its own `?`
+### 5.6 `pnpm format:check` gates the frontend build, and `lint` plus `typecheck` do not cover it
+
+The frontend job runs Lint, Typecheck, **Format check**, then Build — in that order, each gating the
+next. This session ran the first two locally, changed one line of a `.tsx`, and pushed: Prettier
+refused it, and **the build step was skipped entirely**, so a green-looking local check had verified
+none of it.
+
+The change was formatting-only — deleting `'phone'` from a set made the array short enough that
+Prettier wanted it on one line — but the shape of the failure is the point. `pnpm lint && pnpm
+typecheck` is **not** the frontend gate; `pnpm format:check` is part of it and `pnpm build` sits behind
+it.
+
+`pnpm build` cannot be run while `pnpm dev` is up — both write `frontend/.next` and the dev server is
+left serving 404s for every chunk (README). So the honest local sequence when a dev server is running
+is format:check, lint, typecheck, and let CI do the build; and the thing to remember is that a format
+failure means CI never built at all.
+
+### 5.7 `AvailabilityEndpointTest.availability()` prepends its own `?`
 
 Passing a query string that already starts with one produces `/availability??serviceId=…`, which parses
 into a first parameter named `?serviceId` and returns a validation error. Two of my new tests did this;
@@ -262,7 +279,9 @@ matters.
 
 ## 7. Open items
 
-- **Nothing is unpushed at the time of writing beyond this session's own commit.** Branch from `dev`.
+- **Nothing is unpushed.** `dev` is `524f708` on `origin`, CI green on all three jobs — Backend,
+  Frontend and the compose smoke test. `main` is still `c0e770d`: **phase 08 is half done, so there is
+  no pull request yet.** Branch from `dev`.
 - **`Actor.system()` still has no caller.** The poller sends mail; it does not transition appointments.
   Phase 08 did not close this either — the public paths use `Actor.customer()`. A no-show sweep will be
   its first caller, and nothing has built one. **Two handoffs have now predicted this would close and
