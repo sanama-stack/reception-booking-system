@@ -18,16 +18,23 @@ database outbox, each carrying the Confirmation Code and a Manage Link.
 | | |
 |---|---|
 | Repository | https://github.com/sanama-stack/reception-booking-system — **public** |
-| Default branch | `main` — protected |
-| Working branch | **`dev`** |
+| Default branch | `main` — protected, and **`c0e770d`** |
+| Working branch | **`dev`** — identical to `main`, nothing unpushed |
 | Backend tests | **674**, up from 625 — 49 new, all green |
 | Frontend | Untouched. This phase has no frontend work, by design |
 | Migrations | **`V6__notifications.sql`** — one table, three indexes |
 
-**Phase 06's nine-commit backlog is gone.** It was pushed, reviewed by CI and merged to `main` as
-[pull request #3](https://github.com/sanama-stack/reception-booking-system/pull/3) at the start of
-this session — all six checks green, merged with a merge commit. `dev` was then fast-forwarded, so
-for the first time in four sessions there is no unpushed work carried into a handoff.
+**Merged.** Phase 07 is on `main` as
+[pull request #4](https://github.com/sanama-stack/reception-booking-system/pull/4) — all six checks
+green, a merge commit rather than a squash, `dev` fast-forwarded afterwards.
+`git rev-list --left-right --count dev...origin/main` reports `0 0`.
+
+**Phase 06's nine-commit backlog is also gone.** It went out at the start of this session as
+[pull request #3](https://github.com/sanama-stack/reception-booking-system/pull/3), the item three
+consecutive handoffs had carried as the highest-value next action.
+
+**This is the first handoff in five sessions that carries no unpushed work**, and the state to
+preserve: the value of every §7 item below is that nothing is competing with it.
 
 ---
 
@@ -210,7 +217,8 @@ cancellation.
 
 Everything in §7 of the phase-06 frontend handoff still stands unless listed below.
 
-- **`dev` is pushed and CI has seen it.** No backlog is being carried into the next session.
+- **Nothing is unpushed and nothing is unmerged.** `dev`, `origin/dev` and `origin/main` are all
+  `c0e770d`. Start phase 08 by branching from there, not by clearing a backlog.
 - **The `phone` / `customerPhone` field name mismatch is still open on the server side.** Phase 08's
   to decide, for both clients. Untouched by this phase.
 - **`GET /availability` still cannot exclude an appointment being rescheduled.** Phase 08's to
@@ -228,6 +236,11 @@ Everything in §7 of the phase-06 frontend handoff still stands unless listed be
   screen; the browser check it deserves is opening Mailpit after a dashboard booking.
 - **Gradle 8.14 cannot run on this machine's default JDK.** Unchanged.
 - **`aiEnabled` and `aiDailyCostCapCents` still have no UI.** Phase 09 owes them.
+- **CI's deprecation warnings grew a new one.** Alongside the standing Node 20 notices,
+  `actions/setup-java@v4` is now itself deprecated and "will no longer receive updates". Still
+  warnings, still green — but this is the one that stops being a warning eventually, and phase 11
+  owns the workflow file. Bumping `setup-java`, `checkout`, `setup-node`, `upload-artifact` and
+  `pnpm/action-setup` is one small commit whenever somebody is in there.
 
 ---
 
