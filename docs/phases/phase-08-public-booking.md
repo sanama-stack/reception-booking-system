@@ -19,8 +19,19 @@ Phase 07 — the confirmation email and Manage Link must already work.
 
 ## Progress
 
-**The backend half is complete** (2026-09-09). Every box a server can tick is ticked; the frontend boxes
-are deliberately untouched, and the Definition of Done stays open until the two pages exist.
+**The backend half is complete** (2026-09-09). Every box a server can tick is ticked.
+
+**`/book/{slug}` is complete and browser-verified** (2026-09-09) — see
+[its handoff](../sessions/2026-09-09-phase-08-booking-page.md). **`/manage/{token}` does not exist
+yet**, so the Definition of Done stays open, and the two boxes that belong to that page are the ones
+still unticked below.
+
+**How the Frontend testing boxes were satisfied, because it is not what the heading implies.** This
+repository has no frontend test harness — `frontend/package.json` carries no `test` script and no
+test dependency, and the whole frontend gate is `lint`, `typecheck`, `format:check`, `build`. The
+boxes under *Testing → Frontend* were therefore ticked by driving a real browser against a live
+stack, and **are not enforced by CI**. A regression in the booking page will not be caught by the
+pipeline. Standing a harness up is phase-11 work and is deliberately not in this phase's scope.
 
 Two things were added beyond the plan below, both recorded in
 [the session handoff](../sessions/2026-09-09-phase-08-backend.md):
@@ -125,16 +136,17 @@ adds no privileged path.
 - [x] **No public endpoint returns another business's data**
 
 ### Frontend
-- [ ] Classic Flow completes end to end
-- [ ] `409` refreshes the grid and preserves entered details
-- [ ] "Any available" shows a specific employee before the slot is chosen
-- [ ] The page is usable at 360 px
+- [x] Classic Flow completes end to end
+- [x] `409` refreshes the grid and preserves entered details
+- [ ] "Any available" shows a specific employee before the slot is chosen — **the one branch nothing has
+      exercised.** No tenant has two Employees assigned to one Service, so the fixture does not exist yet
+- [x] The page is usable at 360 px
 
 ## Definition of Done
 
-- [ ] `/book/{slug}` is publicly reachable and shows business, services, prices and durations
-- [ ] A stranger books end to end with no account
-- [ ] The confirmation email arrives with a working Manage Link
+- [x] `/book/{slug}` is publicly reachable and shows business, services, prices and durations
+- [x] A stranger books end to end with no account
+- [x] The confirmation email arrives with a working Manage Link
 - [ ] The Manage Link page cancels and reschedules
 - [x] Lookup requires code **and** phone
 - [x] Every public endpoint is rate limited
@@ -156,20 +168,20 @@ adds no privileged path.
 - [x] Error codes: `INVALID_CONFIRMATION_CODE`, `MANAGE_TOKEN_INVALID`
 
 ### Frontend
-- [ ] `/book/[slug]` server-rendered page with the chat column reserved
-- [ ] Service selector
-- [ ] Employee selector with "Any available"
-- [ ] Date picker and slot grid
-- [ ] Customer details form
-- [ ] Confirmation screen with the code
+- [x] `/book/[slug]` server-rendered page with the chat column reserved
+- [x] Service selector
+- [x] Employee selector with "Any available" (built; unverified with more than one eligible Employee)
+- [x] Date picker and slot grid
+- [x] Customer details form
+- [x] Confirmation screen with the code
 - [ ] `/manage/[token]` page with cancel and reschedule
 - [ ] Policy-aware refusal messaging
-- [ ] Designed `404` and "not accepting bookings" pages
-- [ ] Mobile layout verified at 360 px
-- [ ] Empty, loading and error states throughout
+- [x] Designed `404` and "not accepting bookings" pages
+- [x] Mobile layout verified at 360 px
+- [x] Empty, loading and error states throughout
 
 ### Testing
 - [x] All integration tests above
 - [x] Public field allow-list test
 - [x] Rate-limit tests
-- [ ] Mobile-viewport check
+- [x] Mobile-viewport check
