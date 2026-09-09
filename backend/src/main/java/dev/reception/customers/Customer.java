@@ -60,8 +60,11 @@ public class Customer extends BaseEntity {
      *
      * <p>Booking does <em>not</em> call this. A returning phone number with a different name is
      * usually someone booking for a family member, and overwriting the stored name would lose the
-     * record of who the customer actually is (docs/03-data-model.md §2). The Appointment records the
-     * name it was given; the Customer keeps theirs.
+     * record of who the customer actually is (docs/03-data-model.md §2). The Customer keeps theirs.
+     *
+     * <p>The name supplied at booking is not kept anywhere — {@code appointments} has no name
+     * column — so the family member's name is dropped rather than recorded against the appointment
+     * (issue #5).
      *
      * <p>Absent leaves, blank clears, a value sets — the {@code PATCH} rule stated once per entity.
      */

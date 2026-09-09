@@ -56,8 +56,12 @@ denormalisation to a reader who does not know why.
 ### Customer identity
 
 Find-or-create by `(business_id, normalised phone)`. If the name differs from the stored one, the existing
-record is **not** overwritten — the appointment records the name given. Silently renaming a customer because
-someone booked for a family member is a data-loss bug.
+record is **not** overwritten. Silently renaming a customer because someone booked for a family member is a
+data-loss bug.
+
+The given name is **not** recorded against the appointment either — `appointments` has no name column, so it
+is discarded on a match. The rule protects the stored name and accepts losing the given one; making the
+appointment carry it is a migration and a dashboard decision, tracked as issue #5.
 
 ### Reschedule is an update
 

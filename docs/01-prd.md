@@ -418,8 +418,9 @@ transition further.
   transactional.
 
 **Edge cases.**
-- Same phone number, different name → the existing Customer is reused and the name is **not** overwritten;
-  the appointment records the name given. Renaming a customer is an explicit dashboard action.
+- Same phone number, different name → the existing Customer is reused and the name is **not** overwritten.
+  The name given at booking is **not** recorded either: `appointments` has no name column, so it is
+  discarded. Renaming a customer is an explicit dashboard action.
 - Booking the exact instant the lead time expires → boundary is inclusive of `now + lead_time`.
 - Two concurrent reschedules of the same appointment → optimistic `version` column decides; loser gets `409`.
 - Cancelling an already-cancelled appointment → idempotent `200`, no second email.
