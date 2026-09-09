@@ -1,3 +1,22 @@
+// The Flyway Gradle plugin resolves its own classpath, separate from the application's
+// `dependencies` below — so `flyway-database-postgresql` and the driver declared there never reach
+// it, and `flywayMigrate` fails with "No Flyway database plugin found to handle jdbc:postgresql://".
+// Broken since phase 01 and unnoticed, because Flyway also runs at application startup and the
+// suite migrates through Testcontainers, so nothing anybody ran took this path (issue #9).
+//
+// Both versions are pinned literally: a `buildscript` block gets no dependency management. The
+// Flyway module must match the plugin version in `plugins` below, and the driver matches what
+// `runtimeClasspath` resolves for `org.postgresql:postgresql`.
+buildscript {
+    repositories {
+        mavenCentral()
+    }
+    dependencies {
+        classpath("org.flywaydb:flyway-database-postgresql:11.7.2")
+        classpath("org.postgresql:postgresql:42.7.7")
+    }
+}
+
 plugins {
     java
     id("org.springframework.boot") version "3.5.4"

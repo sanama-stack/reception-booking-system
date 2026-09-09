@@ -69,9 +69,12 @@ test: ## Run backend and frontend test suites
 	cd backend && ./gradlew build
 	cd frontend && pnpm install --frozen-lockfile && pnpm lint && pnpm typecheck && pnpm build
 
+# The Flyway task runs on the host, not in a container, so it reads DB_* from the process
+# environment rather than from compose. Without this it takes build.gradle.kts's defaults and
+# targets port 5432, where nothing in this project listens (issue #9).
 migrate: .env ## Apply Flyway migrations against the running database
 	$(COMPOSE) up -d postgres
-	cd backend && ./gradlew flywayMigrate
+	set -a && . ./.env && set +a && cd backend && ./gradlew flywayMigrate
 
 seed: ## Load demo data (implemented in phase 11)
 	@echo "Seed data ships in phase 11 (docs/phases/phase-11-hardening-and-deployment.md)."
