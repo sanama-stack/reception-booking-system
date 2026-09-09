@@ -148,7 +148,7 @@ public class CustomerService {
             throw invalid(fields.phone(), "Enter a phone number.");
         }
         return PhoneField.parse(raw, country)
-                .orElseThrow(() -> invalid(fields.phone(), PhoneField.unreadableMessage(country)));
+                .orElseThrow(() -> invalid(fields.phone(), PhoneField.unreadableMessage(country, fields.audience())));
     }
 
     private static String requiredName(String fullName, CustomerFieldNames fields) {

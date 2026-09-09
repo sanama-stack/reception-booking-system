@@ -248,6 +248,12 @@ class BookingEndpointTest extends IntegrationTest {
         // carried a fallback that tried both names; CustomerFieldNames removed the need for it.
         assertThat(JsonPath.<List<String>>read(response.getBody(), "$.errors[*].field"))
                 .containsExactly("customerPhone");
+        // The owner half of the same split. Salon Aria has no country set, so this is the branch
+        // that offers the Settings field — and offering it here is correct, because this reader can
+        // reach it. Pinned so that suppressing the advice for Customers cannot quietly suppress it
+        // for the one person able to act on it.
+        assertThat(JsonPath.<String>read(response.getBody(), "$.errors[0].message"))
+                .contains("Settings");
         assertThat(count("appointments")).isZero();
     }
 

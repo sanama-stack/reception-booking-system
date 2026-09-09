@@ -204,6 +204,15 @@ class PublicBookingTest extends IntegrationTest {
         // and the one sentence explaining the fix would never be shown.
         assertThat(JsonPath.<List<String>>read(response.getBody(), "$.errors[*].field"))
                 .containsExactly("customer.phone");
+
+        // And the sentence itself has to be one a Customer can act on. This scenario's Business has
+        // no country — registration leaves it unset — which is the branch that used to answer "set
+        // your country in Settings": a screen the person booking has no account for. Proved here
+        // rather than only in PhoneFieldTest because what can go wrong is this controller handing
+        // over the wrong CustomerFieldNames, which no unit test of the copy would notice.
+        String message = JsonPath.read(response.getBody(), "$.errors[0].message");
+        assertThat(message).doesNotContain("Settings");
+        assertThat(message).contains("+");
     }
 
     // ------------------------------------------------------------ unknown slug
