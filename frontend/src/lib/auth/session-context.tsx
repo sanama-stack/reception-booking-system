@@ -51,16 +51,24 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
     void load();
   }, [load]);
 
-  // A refresh that fails means the session is genuinely over — the client cannot recover it, so
-  // the user is sent to sign in. Registered once, here, so a burst of failing requests produces
-  // one redirect rather than one per request.
+  // A session the client cannot recover — a refresh that failed, or a 401 saying there was nothing
+  // to refresh with — is over, and flipping the status here is what sends the user to sign in:
+  // AuthGuard watches it. Registered in one place, so a burst of failing requests produces one
+  // redirect rather than one per request.
+  //
+  // **Only while there is a session to lose.** `client.ts` cannot tell a lapsed session from a
+  // visitor who never had one — httpOnly cookies mean it cannot see what it is sending, and both
+  // are answered `401 UNAUTHENTICATED`. This provider can, and the distinction is load-bearing
+  // because it sits in the root layout: every public page runs the `/auth/me` above, and a signed
+  // out visitor's landing page would otherwise report a session expiring on every single load.
   useEffect(() => {
+    if (status !== 'authenticated') return;
     setSessionExpiredHandler(() => {
       setSession(null);
       setStatus('anonymous');
     });
     return () => setSessionExpiredHandler(null);
-  }, []);
+  }, [status]);
 
   const adopt = useCallback((next: Session) => {
     setSession(next);

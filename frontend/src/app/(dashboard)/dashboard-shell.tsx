@@ -17,8 +17,8 @@ const NAVIGATION = [
   { href: '/settings/profile', label: 'Settings', available: true },
   { href: '/services', label: 'Services', available: true },
   { href: '/employees', label: 'Employees', available: true },
-  { href: '/appointments', label: 'Appointments', available: false },
-  { href: '/customers', label: 'Customers', available: false },
+  { href: '/appointments', label: 'Appointments', available: true },
+  { href: '/customers', label: 'Customers', available: true },
   { href: '/analytics', label: 'Analytics', available: false },
 ];
 

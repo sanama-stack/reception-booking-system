@@ -15,6 +15,7 @@ export type ErrorCode =
   | 'SLUG_TAKEN'
   | 'INVALID_CREDENTIALS'
   | 'TOKEN_EXPIRED'
+  | 'SESSION_REFRESHABLE'
   | 'TOKEN_REUSED'
   | 'FORBIDDEN'
   | 'NOT_FOUND'
@@ -133,9 +134,17 @@ async function normaliseError(response: Response): Promise<ApiError> {
 /**
  * Transparent refresh.
  *
- * A `401 TOKEN_EXPIRED` means the access cookie aged out mid-session, which is expected every
- * fifteen minutes and is not something a user should ever see. The client refreshes once and
- * retries. Any other `401` means the session is genuinely gone, and retrying would be a loop.
+ * A `401` carrying `TOKEN_EXPIRED` or `SESSION_REFRESHABLE` means the access cookie aged out
+ * mid-session, which is expected every fifteen minutes and is not something a user should ever
+ * see. The client refreshes once and retries. Any other `401` means the session is genuinely
+ * gone, and retrying would be a loop.
+ *
+ * The two codes are one case seen from two sides. The access cookie's max age matches the token's
+ * lifetime, so in a real browser the cookie is *deleted* at expiry rather than presented and
+ * rejected — the server sees no token, not an expired one, and says `SESSION_REFRESHABLE`.
+ * `TOKEN_EXPIRED` is what a client that keeps the dead token past its max age gets. Both are
+ * refreshable; treating only the second one as such is what made a 15-minute error state look
+ * like a server bug (docs/04-api-overview.md §3).
  *
  * The in-flight promise is shared. A screen that fires five requests on mount would otherwise
  * send five refreshes — and because every refresh rotates, four of them would present a token
@@ -169,7 +178,30 @@ async function refreshSession(baseUrl: string): Promise<boolean> {
   return refreshInFlight;
 }
 
-/** Notified when a refresh fails, so the app can send the user to sign in exactly once. */
+/**
+ * The codes that say the session a caller had is over, with nothing left to recover it from.
+ *
+ * Deliberately an explicit list rather than `status === 401`. Two other 401s are emphatically not
+ * this: a failed sign-in (`INVALID_CREDENTIALS`), which happens to someone who has no session and
+ * is already looking at the form, and an expired Manage Link (`MANAGE_TOKEN_INVALID`), which
+ * belongs to a public visitor who never had one. Notifying on either would sign out a bystander,
+ * and on the login screen it would redirect that screen to itself.
+ */
+const SESSION_IS_OVER: ReadonlySet<ErrorCode> = new Set(['UNAUTHENTICATED', 'TOKEN_REUSED']);
+
+/**
+ * Notified when the session is over and this client cannot recover it — either a refresh that
+ * failed, or a `401` saying there was nothing to refresh with in the first place. Registered by
+ * the session context, so a burst of failing requests produces one sign-out rather than one per
+ * request.
+ *
+ * It fires for a caller who never had a session too. `UNAUTHENTICATED` is the same answer whether
+ * a session fully lapsed or never existed, and this module cannot tell the two apart: the cookies
+ * are httpOnly, so it cannot see what it is sending. Only the session context knows whether it
+ * believed it had a session, so that is where the distinction is drawn — and it matters, because
+ * the provider is in the root layout and every public page's `/auth/me` produces this code on
+ * every load (lib/auth/session-context.tsx).
+ */
 type SessionExpiredListener = () => void;
 let onSessionExpired: SessionExpiredListener | null = null;
 
@@ -214,14 +246,24 @@ async function request<T>(
     // Only the refresh endpoint is excluded, and only because refreshing it would recurse.
     // `/auth/me` is deliberately *not* excluded: it is the call the auth guard makes on every page
     // load, so it is the one most likely to meet an expired token.
-    const retryable =
-      error.code === 'TOKEN_EXPIRED' && path !== '/auth/refresh' && options?.isRetry !== true;
+    const refreshable = error.code === 'TOKEN_EXPIRED' || error.code === 'SESSION_REFRESHABLE';
+    const retryable = refreshable && path !== '/auth/refresh' && options?.isRetry !== true;
 
     if (retryable) {
       const baseUrl = options?.baseUrl ?? DEFAULT_BASE_URL;
       if (await refreshSession(baseUrl)) {
         return request<T>(method, path, body, { ...options, isRetry: true });
       }
+      onSessionExpired?.();
+    } else if (SESSION_IS_OVER.has(error.code)) {
+      // The other way a session ends: no access token *and* no refresh cookie, so there is nothing
+      // to attempt and the only recovery is signing in. This used to fall straight to the throw,
+      // which left the screen showing an error state for a session that was already gone — the
+      // same stuck screen the refresh path exists to prevent, reached from the other side.
+      //
+      // Safe to treat as a sign-out because a signed-in caller cannot provoke it by accident: an
+      // unknown path is a `401` only for callers who are already unauthenticated, and a `404` for
+      // everyone else (`SessionLifecycleTest` pins that, since this rule depends on it).
       onSessionExpired?.();
     }
 

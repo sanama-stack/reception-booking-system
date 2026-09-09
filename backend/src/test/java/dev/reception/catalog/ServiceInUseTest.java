@@ -47,7 +47,11 @@ class ServiceInUseTest extends IntegrationTest {
     @Autowired
     private DatabaseCleaner databaseCleaner;
 
-    /** Stands in for phase 06. The real bean is {@code EmptyAppointmentImpact}, which answers zero. */
+    /**
+     * Replaces {@code DatabaseAppointmentImpact} so this test can say "yes, it has been booked"
+     * without writing an appointment. What the real implementation answers is
+     * {@code AppointmentImpactTest}'s question; what the guard does with the answer is this one's.
+     */
     @MockitoBean
     private AppointmentImpact appointments;
 

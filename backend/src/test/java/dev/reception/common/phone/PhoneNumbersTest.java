@@ -1,4 +1,4 @@
-package dev.reception.staff;
+package dev.reception.common.phone;
 
 import static org.assertj.core.api.Assertions.assertThat;
 

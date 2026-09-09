@@ -36,6 +36,19 @@ public enum ErrorCode {
     TOKEN_EXPIRED(HttpStatus.UNAUTHORIZED, "Token expired"),
 
     /**
+     * No access token was presented, but the caller still holds a refresh cookie — so the session
+     * is very likely recoverable and the client should refresh and retry once, exactly as for
+     * {@link #TOKEN_EXPIRED}.
+     *
+     * <p>This is what a browser produces at the fifteen-minute mark, and it is the ordinary case
+     * rather than the exotic one: the access cookie's max age matches the token's lifetime, so the
+     * browser deletes the cookie instead of presenting an expired token. Without a code of its own
+     * that request is indistinguishable from a signed-out visitor, and the client is told never to
+     * refresh those.
+     */
+    SESSION_REFRESHABLE(HttpStatus.UNAUTHORIZED, "Session refreshable"),
+
+    /**
      * A refresh token was presented twice. The value was captured, so the whole token family is
      * revoked and every session descended from that login ends (docs/06-security.md §2).
      */
@@ -73,6 +86,54 @@ public enum ErrorCode {
      * does not exist for anyone (docs/01-prd.md FR-5).
      */
     EMPLOYEE_CANNOT_PERFORM_SERVICE(HttpStatus.UNPROCESSABLE_ENTITY, "Employee cannot perform this service"),
+
+    /**
+     * The exclusion constraint rejected the booking: someone else took the time between the Slot
+     * being offered and this request being written.
+     *
+     * <p>A {@code 409} rather than a {@code 422}, because nothing about the request was wrong — the
+     * world moved. The client's correct response is to re-read availability and offer the customer
+     * what is left, which is what makes the distinction worth keeping (ADR-0002).
+     */
+    SLOT_UNAVAILABLE(HttpStatus.CONFLICT, "Slot unavailable"),
+
+    /**
+     * Two people changed the same Appointment at once and this one lost. Distinct from
+     * {@link #SLOT_UNAVAILABLE}: no time is contested, the record is — retrying after a re-read is
+     * the answer, and the re-read may show the change the other person made was the one wanted.
+     */
+    VERSION_CONFLICT(HttpStatus.CONFLICT, "Appointment was modified"),
+
+    /**
+     * Not a legal move in the Appointment state machine — completing a cancelled appointment, or
+     * moving one out of a terminal state. See {@code AppointmentStatus}.
+     */
+    INVALID_STATUS_TRANSITION(HttpStatus.UNPROCESSABLE_ENTITY, "Not a legal status change"),
+
+    /**
+     * A Customer tried to cancel or reschedule inside the Cancellation Window. <strong>The Business
+     * is never bound by it</strong> (CONTEXT.md), so this code can only be produced for a Customer.
+     */
+    CANCELLATION_WINDOW_CLOSED(HttpStatus.UNPROCESSABLE_ENTITY, "Too late to change this appointment"),
+
+    /** The requested start has already passed. */
+    BOOKING_IN_PAST(HttpStatus.UNPROCESSABLE_ENTITY, "That time has passed"),
+
+    /** Sooner than the Business's minimum lead time allows. */
+    BELOW_MIN_LEAD_TIME(HttpStatus.UNPROCESSABLE_ENTITY, "Too soon to book"),
+
+    /** Further ahead than the Business's booking horizon reaches. */
+    BEYOND_MAX_ADVANCE(HttpStatus.UNPROCESSABLE_ENTITY, "Too far ahead to book"),
+
+    /**
+     * The Service does not fit inside a stretch of the Business's opening hours at that time. Kept
+     * distinct from {@link #OUTSIDE_WORKING_HOURS} because the two send a caller to different
+     * remedies: this one means try another time, that one means try another person.
+     */
+    OUTSIDE_BUSINESS_HOURS(HttpStatus.UNPROCESSABLE_ENTITY, "Outside opening hours"),
+
+    /** It fits the Business's hours but not this Employee's Working Schedule. */
+    OUTSIDE_WORKING_HOURS(HttpStatus.UNPROCESSABLE_ENTITY, "Outside this employee's hours"),
 
     /** A rate limit was exceeded; the response carries {@code Retry-After}. */
     RATE_LIMITED(HttpStatus.TOO_MANY_REQUESTS, "Too many requests"),

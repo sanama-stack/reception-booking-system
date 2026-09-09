@@ -6,6 +6,7 @@ import dev.reception.common.error.ApiException;
 import dev.reception.common.error.ErrorCode;
 import dev.reception.common.error.FieldError;
 import dev.reception.common.ids.IdGenerator;
+import dev.reception.common.phone.PhoneField;
 import dev.reception.tenancy.TenantContext;
 import java.time.Clock;
 import java.util.ArrayList;
@@ -120,32 +121,15 @@ public class EmployeeService {
      * E.164, resolved against the Business's country.
      *
      * <p>Unparseable input is rejected at entry rather than stored as typed (docs/06-security.md
-     * §9). Storing it as typed is the option that looks kinder and is not: phase 06 identifies a
-     * Customer by their normalised number, so a number that was never normalised is one that will
-     * quietly fail to match itself later.
+     * §9). Storing it as typed is the option that looks kinder and is not: a Customer is identified
+     * by their normalised number, so a number that was never normalised is one that will quietly
+     * fail to match itself later.
+     *
+     * <p>The rule and its wording live in {@link PhoneField}, shared with {@code CustomerService} —
+     * the two must agree, and agreeing by having one copy is cheaper than agreeing by review.
      */
     private String normalisedPhone(String field, String raw) {
-        if (raw == null || raw.isBlank()) {
-            return null;
-        }
-        String country = businesses.read().country();
-        return PhoneNumbers.toE164(raw, country)
-                .orElseThrow(() -> new ApiException(
-                        ErrorCode.VALIDATION_FAILED,
-                        "One or more fields are invalid.",
-                        List.of(new FieldError(field, phoneMessage(country)))));
-    }
-
-    /**
-     * A business with no country set cannot have a local number interpreted, and saying so is more
-     * use than "that number is not valid" — the fix is different in each case.
-     */
-    private static String phoneMessage(String country) {
-        return country == null || country.isBlank()
-                ? "Enter the number in international form, starting with +, or set your country in "
-                        + "Settings so local numbers can be understood."
-                : "That does not look like a phone number we can reach. Check it, or enter it in "
-                        + "international form starting with +.";
+        return PhoneField.normalise(field, raw, businesses.read().country());
     }
 
     private static String trim(String value) {

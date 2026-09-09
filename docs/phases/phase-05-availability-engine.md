@@ -164,8 +164,8 @@ required here, not deferred.
 - [x] Error codes: `EMPLOYEE_CANNOT_PERFORM_SERVICE`, `SERVICE_INACTIVE`
 
 ### Frontend
-- [ ] Availability preview on the employee detail screen
-- [ ] Loading, empty (with reason) and error states
+- [x] Availability preview on the employee detail screen
+- [x] Loading, empty (with reason) and error states
 
 ### Testing
 - [x] Full `TimeRange` unit suite
@@ -265,3 +265,81 @@ The rule that the availability engine performs no I/O was declared in phase 01 a
 package. The package is now full, so the flag is gone — from here, an empty result would mean the
 package had been renamed or emptied and the rule was passing by finding nothing to check. Same
 reasoning as the four rules phase 03 tightened. Do not add it back to get a red build green.
+
+---
+
+## Notes from the frontend build
+
+*The half the backend sitting deliberately left. The two Frontend boxes above are now ticked, and
+the whole section was exercised in a browser against the real backend.*
+
+### One date at a time, not a range
+
+The endpoint takes up to 31 days; the preview asks for one. `emptyReason` describes the *whole*
+result rather than each day in it, so over a range it only appears when every day is empty and it
+stops meaning anything precise. A single date is the shape in which a reason means exactly one
+thing — which is the point of a screen built to prove the engine. Phase 08's public page is where a
+range earns its keep, and the component already renders `days` as a list rather than reaching for
+`[0]`, so widening it is not a reshape.
+
+The consequence: nothing on this screen can produce the `422` for a range over 31 days. That case is
+covered by `AvailabilityEndpointTest` and by nothing on this side.
+
+### The result is keyed on its own question
+
+`useResource` keeps the data it last loaded when a later load fails, which is right for a screen
+reloading one resource and wrong here. A previous answer is about another service or another day,
+and leaving it on screen under a changed picker would state something false — and would hide the
+loading and error states behind a stale success. The slot list is therefore a child component keyed
+on the request path, so a new question remounts it and starts from nothing.
+
+This is the first read in the app whose question changes while the screen is open, which is why
+`availabilityPath` is a path builder rather than a call: a different question is a different string,
+and the hook re-runs because the question moved and for no other reason.
+
+### The picker resolves the service rather than storing it
+
+The section reads `employee.serviceIds`, and the four editors above it can change that set while the
+screen is open. Storing the chosen id in state would leave the picker naming a service the employee
+no longer provides, and the server would then refuse a choice the owner never made with
+`EMPLOYEE_CANNOT_PERFORM_SERVICE`. The selection is resolved on every render and falls back to the
+first assigned service, so the failure is not expressible.
+
+Inactive services are offered and **marked** — `Full day audit · 6 hr · not offered` — rather than
+hidden. A service the owner deactivated a moment ago disappearing from the picker is the confusing
+answer; the server's own `SERVICE_INACTIVE` sentence is the clear one.
+
+### `Recalculate` exists because the four editors above change the answer
+
+Saving a working schedule does not change the *question*, so nothing about the path moves and the
+preview would go on showing an answer computed before the save. Rather than couple the section to
+the other four resources, the button bumps a counter that forms part of the key. It is the one
+control here that is not a question.
+
+### The empty reason is rendered twice, on purpose
+
+A sentence written for the owner, pointed at the setting that would change it — `OUTSIDE_HORIZON`
+links to Booking settings, `CLOSED` to Opening hours — and the raw enum underneath in small type.
+The phase document calls this preview developer-facing *and* useful to an owner afterwards; those
+are two readers, and the enum is what the first one needs.
+
+`NO_ELIGIBLE_EMPLOYEE` has copy but is unreachable from this screen, and that is a property of the
+service rather than an oversight: the preview always names an employee, and both ways to earn that
+reason — inactive, or not assigned — are refused earlier by `AvailabilityService` with their own
+messages. Confirmed by deactivating the employee and getting `EMPLOYEE_INACTIVE`.
+
+### What was verified in a browser
+
+In a throwaway second tenant, deleted row by row afterwards, with the owner's own business confirmed
+unchanged: the unassigned empty state; `CLOSED` for an employee with no working schedule; thirteen
+slots on the current day where the minimum lead time cut the first four, and seventeen on a clear
+day; the response's own `days[].date` echoed back; `OUTSIDE_HORIZON` for a past date, for a past
+*Sunday* — the §4.3 precedence, visible — and for a date beyond `max_advance_days`; `CLOSED` for a
+future Sunday and for a six-hour service against a five-hour overlap with nothing booked, which is
+the case the engine's first implementation reported as `FULLY_BOOKED`; `FULLY_BOOKED` from a day of
+time off; `EMPLOYEE_INACTIVE` and `SERVICE_INACTIVE` in the error state, each rendering the server's
+own sentence; the loading spinner; and the cleared-date state.
+
+**The business zone is proven rather than assumed.** The tenant was switched to `America/New_York`
+(UTC−4) while the browser ran at UTC+4 — eight hours apart — and the slots read 10:00–15:00, which
+is the business's clock and not the browser's.
