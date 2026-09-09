@@ -10,6 +10,7 @@ import java.time.Clock;
 import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -192,6 +193,36 @@ class NotificationEnqueueTest extends IntegrationTest {
     }
 
     /**
+     * The sibling of the test above, on the path ADR-0008 opened.
+     *
+     * <p>A Customer whose address is cleared between booking and moving gets no reschedule email,
+     * and that much is deliberate. The reminder is not. {@code appointmentRescheduled} returned on
+     * {@code !hasEmail()} <strong>before</strong> superseding it, so the row minted against the old
+     * start time survived {@code PENDING} — aimed at a moment the appointment had left, carrying a
+     * body that still named the old time. {@code recipientEmail} is copied at enqueue and is not
+     * updatable, so the address being gone does not stop the poller sending it.
+     *
+     * <p>{@code appointmentCancelled} supersedes before it checks for an address, and this is the
+     * same shape. Nothing replaces the superseded row: a reminder needs a recipient, and there is
+     * none — no reminder is the honest outcome, and a wrong one is not.
+     */
+    @Test
+    @DisplayName("a reschedule supersedes the old reminder even with no address on file")
+    void rescheduling_without_an_address_still_supersedes_the_reminder() {
+        String id = bookWithEmail(aria.at(aria.monday, 14, 30));
+        clearTheAddressBookedWith(id);
+
+        aria.owner.post(
+                "/appointments/" + id + "/reschedule",
+                Map.of("startsAt", aria.at(aria.monday.plusDays(1), 15, 30).toString()));
+
+        assertThat(rowsFor(id))
+                .containsExactlyInAnyOrder(
+                        Map.entry("BOOKING_CONFIRMATION", "PENDING"),
+                        Map.entry("REMINDER_24H", "CANCELLED"));
+    }
+
+    /**
      * <strong>The reason the partial unique index carries a type predicate.</strong> Two moves owe
      * two emails; an index over every type would have refused the second insert and taken the whole
      * reschedule down with it. See the note in {@code V6__notifications.sql}.
@@ -238,6 +269,19 @@ class NotificationEnqueueTest extends IntegrationTest {
     }
 
     // --- helpers ------------------------------------------------------------
+
+    /**
+     * Clears the Customer's address the way a Business actually can — the dashboard {@code PATCH},
+     * not a write straight at the column. The reachability of this state is half the point.
+     */
+    private void clearTheAddressBookedWith(String appointmentId) {
+        UUID customerId = jdbc.queryForObject(
+                "select customer_id from appointments where id = ?", UUID.class, UUID.fromString(appointmentId));
+        ResponseEntity<String> cleared = aria.owner.patch("/customers/" + customerId, Map.of("email", ""));
+        if (!cleared.getStatusCode().is2xxSuccessful()) {
+            throw new IllegalStateException("Fixture could not clear the address: " + cleared.getBody());
+        }
+    }
 
     private String bookWithEmail(OffsetDateTime startsAt) {
         return bookAt(startsAt);
