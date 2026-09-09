@@ -2,6 +2,7 @@ package dev.reception.appointments;
 
 import dev.reception.common.error.ApiException;
 import dev.reception.common.error.ErrorCode;
+import dev.reception.notifications.NotificationEnqueuer;
 import java.time.Clock;
 import java.util.UUID;
 import org.springframework.stereotype.Service;
@@ -21,6 +22,7 @@ public class CancellationService {
     private final AppointmentLookup lookup;
     private final CancellationWindow window;
     private final AppointmentEventRecorder events;
+    private final NotificationEnqueuer notifications;
     private final Clock clock;
 
     public CancellationService(
@@ -28,11 +30,13 @@ public class CancellationService {
             AppointmentLookup lookup,
             CancellationWindow window,
             AppointmentEventRecorder events,
+            NotificationEnqueuer notifications,
             Clock clock) {
         this.appointments = appointments;
         this.lookup = lookup;
         this.window = window;
         this.events = events;
+        this.notifications = notifications;
         this.clock = clock;
     }
 
@@ -40,9 +44,9 @@ public class CancellationService {
      * Cancels, or does nothing if it is already cancelled.
      *
      * <p><strong>Idempotent</strong> (docs/04-api-overview.md §2). A repeated call returns the same
-     * appointment, writes no second audit event and — from phase 07 — sends no second email. The
-     * case is ordinary rather than exotic: a Customer taps a Manage Link twice, or a request times
-     * out after the server committed and the client retries.
+     * appointment, writes no second audit event and sends no second email. The case is ordinary
+     * rather than exotic: a Customer taps a Manage Link twice, or a request times out after the
+     * server committed and the client retries.
      *
      * <p>Idempotence is answered <em>before</em> the state machine is consulted, so the two never
      * have to agree about what "already cancelled" means. {@code AppointmentStatus} says a terminal
@@ -73,6 +77,9 @@ public class CancellationService {
         // would know what it referred to.
         Appointment cancelled = appointments.saveAndFlush(appointment);
         events.cancelled(cancelled, actor);
+        // Below the idempotence guard above, so cancelling twice supersedes the pending rows once
+        // and enqueues one cancellation email — the second call returned before it reached here.
+        notifications.appointmentCancelled(cancelled);
         return cancelled;
     }
 

@@ -113,6 +113,16 @@ app:
     enabled: ${RATE_LIMIT_ENABLED:true}
   mail:
     from: ${MAIL_FROM:no-reply@reception.local}
+  notifications:
+    # The poller's timer, not its behaviour. The retry schedule and the attempt cap are policy and
+    # live in RetryBackoff, for the same reason the rate limits live in RateLimitProperties: a
+    # number that changes what customers experience should be reviewed, not configured.
+    poller-enabled: ${NOTIFICATIONS_POLLER_ENABLED:true}
+    poll-interval-ms: 60000
+    # Ten seconds, so a restart does not spend its first moment sending mail while Flyway, the
+    # connection pool and the availability engine are all still warming up.
+    poll-initial-delay-ms: 10000
+    batch-size: 50
   security:
     jwt-secret: ${JWT_SECRET:local-dev-only-jwt-secret-change-me-please}
     manage-link-secret: ${MANAGE_LINK_SECRET:local-dev-only-manage-link-secret-change-me}

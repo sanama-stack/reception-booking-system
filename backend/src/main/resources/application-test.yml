@@ -13,6 +13,12 @@ app:
     # hundred-and-first for a reason that has nothing to do with what it asserts. The limits are
     # still exercised — by the tests that switch them back on deliberately.
     enabled: false
+  notifications:
+    # Off, and this one is not merely convenient. A background thread claiming rows every sixty
+    # seconds would race every test that asserts on what is still PENDING, and it would do so
+    # intermittently — the worst kind of failure to inherit. The dispatcher bean is still there and
+    # the tests drive it directly, which is why the switch is on the poller rather than on it.
+    poller-enabled: false
 
 logging:
   level:

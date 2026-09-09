@@ -1,0 +1,14 @@
+Hi {{customerName}},
+
+Your appointment has been cancelled.
+
+  What: {{serviceName}}
+  Was:  {{when}}
+
+{{#cancellationReason}}Reason given: {{cancellationReason}}
+
+{{/cancellationReason}}Nothing further is needed. If you would like to rebook, we would be
+glad to see you.
+
+{{#businessPhone}}Questions? Call us on {{businessPhone}}.
+{{/businessPhone}}This message was sent by {{businessName}} about your appointment.

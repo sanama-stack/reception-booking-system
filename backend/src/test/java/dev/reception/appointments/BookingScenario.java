@@ -18,31 +18,35 @@ import org.springframework.http.ResponseEntity;
 /**
  * A business that can take a booking, built over HTTP the way an owner would build it.
  *
- * <p>Six test classes need the same six steps — register, set a zone, add a service, add an
- * employee, assign one to the other, give them a week — and none of them is what any of the six is
- * testing. Written once here so a failure in the setup is one failure rather than six, and so the
- * tests themselves start at the line that matters.
+ * <p>Seven test classes need the same six steps — register, set a zone, add a service, add an
+ * employee, assign one to the other, give them a week — and none of them is what any of the seven
+ * is testing. Written once here so a failure in the setup is one failure rather than seven, and so
+ * the tests themselves start at the line that matters.
+ *
+ * <p>Public, and in this package rather than in {@code support}, because phase 07's outbox tests
+ * need exactly this business from {@code dev.reception.notifications}. Moving it would rewrite six
+ * imports to make one reader's life marginally tidier.
  *
  * <p><strong>Configured through the API, never through repositories.</strong> A fixture that wrote
  * rows directly could build a business the application would refuse to build, and the tests would
  * then be passing against a state no user can reach.
  */
-final class BookingScenario {
+public final class BookingScenario {
 
-    static final String PASSWORD = "a-long-enough-password";
+    public static final String PASSWORD = "a-long-enough-password";
 
     /** A real zone with a real offset, so a conversion that was never applied is visible. */
-    static final ZoneId TBILISI = ZoneId.of("Asia/Tbilisi");
+    public static final ZoneId TBILISI = ZoneId.of("Asia/Tbilisi");
 
     /** Parseable without a country on the Business, which registration leaves unset. */
-    static final String CUSTOMER_PHONE = "+995555123456";
+    public static final String CUSTOMER_PHONE = "+995555123456";
 
-    final AuthTestClient owner;
-    final String serviceId;
-    final String employeeId;
+    public final AuthTestClient owner;
+    public final String serviceId;
+    public final String employeeId;
 
     /** A Monday at least a week out: inside the horizon, clear of the minimum lead time. */
-    final LocalDate monday;
+    public final LocalDate monday;
 
     /**
      * A Monday that has definitely already happened.
@@ -52,7 +56,7 @@ final class BookingScenario {
      * six days out depending on which weekday the suite runs on — and a test asserting
      * {@code BOOKING_IN_PAST} would then pass on Tuesdays and fail on Wednesdays.
      */
-    final LocalDate pastMonday;
+    public final LocalDate pastMonday;
 
     private BookingScenario(
             AuthTestClient owner, String serviceId, String employeeId, LocalDate monday, LocalDate pastMonday) {
@@ -64,7 +68,7 @@ final class BookingScenario {
     }
 
     /** One employee, one sixty-minute service at 60.00, Monday to Friday 09:00–17:00. */
-    static BookingScenario open(TestRestTemplate rest, int port, Clock clock) {
+    public static BookingScenario open(TestRestTemplate rest, int port, Clock clock) {
         AuthTestClient owner = new AuthTestClient(rest, port);
         owner.register("nino@aria.test", PASSWORD, "Salon Aria");
         owner.patch("/business", Map.of("timezone", TBILISI.getId()));
@@ -81,7 +85,7 @@ final class BookingScenario {
         return new BookingScenario(owner, service, employee, monday, pastMonday);
     }
 
-    static String createService(
+    public static String createService(
             AuthTestClient client, String name, int durationMinutes, String price, int bufferBefore, int bufferAfter) {
         Map<String, Object> body = new HashMap<>();
         body.put("name", name);
@@ -92,11 +96,11 @@ final class BookingScenario {
         return JsonPath.read(client.post("/services", body).getBody(), "$.id");
     }
 
-    static String createEmployee(AuthTestClient client, String fullName) {
+    public static String createEmployee(AuthTestClient client, String fullName) {
         return JsonPath.read(client.post("/employees", Map.of("fullName", fullName)).getBody(), "$.id");
     }
 
-    static void setSchedule(AuthTestClient client, String employeeId, String from, String to) {
+    public static void setSchedule(AuthTestClient client, String employeeId, String from, String to) {
         List<Map<String, Object>> week = List.of(1, 2, 3, 4, 5).stream()
                 .map(day -> Map.<String, Object>of("dayOfWeek", day, "startsAt", from, "endsAt", to))
                 .toList();
@@ -104,7 +108,7 @@ final class BookingScenario {
     }
 
     /** A start time on the Business's clock, which is the only clock a booking is expressed in. */
-    OffsetDateTime at(LocalDate date, int hour, int minute) {
+    public OffsetDateTime at(LocalDate date, int hour, int minute) {
         return date.atTime(hour, minute).atZone(TBILISI).toOffsetDateTime();
     }
 
@@ -115,29 +119,38 @@ final class BookingScenario {
      * zero and Jackson does not — every start time in this system lands on a minute boundary, so
      * comparing the two forms directly fails on every single case.
      */
-    static String wireTime(LocalDate date, int hour, int minute) {
+    public static String wireTime(LocalDate date, int hour, int minute) {
         return date.atTime(hour, minute)
                 .atZone(TBILISI)
                 .toOffsetDateTime()
                 .format(DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ssXXX"));
     }
 
-    ResponseEntity<String> book(OffsetDateTime startsAt) {
+    public ResponseEntity<String> book(OffsetDateTime startsAt) {
         return book(startsAt, employeeId, "Ana Tsereteli", CUSTOMER_PHONE);
     }
 
-    ResponseEntity<String> book(OffsetDateTime startsAt, String employee, String customerName, String phone) {
+    public ResponseEntity<String> book(OffsetDateTime startsAt, String employee, String customerName, String phone) {
+        return book(startsAt, employee, customerName, phone, null);
+    }
+
+    /** With an email, which is what decides whether the booking enqueues anything at all. */
+    public ResponseEntity<String> book(
+            OffsetDateTime startsAt, String employee, String customerName, String phone, String email) {
         Map<String, Object> body = new HashMap<>();
         body.put("serviceId", serviceId);
         body.put("employeeId", employee);
         body.put("startsAt", startsAt.toString());
         body.put("customerName", customerName);
         body.put("customerPhone", phone);
+        if (email != null) {
+            body.put("customerEmail", email);
+        }
         return owner.post("/appointments", body);
     }
 
     /** The id of an appointment booked at this time, failing loudly if the booking was refused. */
-    String bookedAt(OffsetDateTime startsAt) {
+    public String bookedAt(OffsetDateTime startsAt) {
         ResponseEntity<String> response = book(startsAt);
         if (!response.getStatusCode().is2xxSuccessful()) {
             throw new IllegalStateException("Fixture could not book: " + response.getBody());
@@ -145,7 +158,7 @@ final class BookingScenario {
         return JsonPath.read(response.getBody(), "$.appointment.id");
     }
 
-    static String codeOf(ResponseEntity<String> response) {
+    public static String codeOf(ResponseEntity<String> response) {
         return JsonPath.read(response.getBody(), "$.code");
     }
 }

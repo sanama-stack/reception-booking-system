@@ -5,6 +5,7 @@ import dev.reception.catalog.ServiceCatalogService;
 import dev.reception.common.ids.IdGenerator;
 import dev.reception.customers.Customer;
 import dev.reception.customers.CustomerService;
+import dev.reception.notifications.NotificationEnqueuer;
 import dev.reception.scheduling.application.AvailabilityService;
 import dev.reception.scheduling.domain.ServiceSpec;
 import dev.reception.scheduling.domain.TimeRange;
@@ -22,9 +23,9 @@ import org.springframework.transaction.annotation.Transactional;
  * The write path: one transaction from a requested time to a booked Appointment.
  *
  * <p>Everything in {@link #book} happens or none of it does — validation, the availability re-check,
- * finding or creating the Customer, the price snapshot, the Confirmation Code, the row, and the
- * audit event (docs/02-product-architecture.md §5). Phase 07 adds the notification rows to this same
- * transaction, which is the reason the outbox is a table rather than a queue (ADR-0005).
+ * finding or creating the Customer, the price snapshot, the Confirmation Code, the row, the audit
+ * event and, since phase 07, the notification rows (docs/02-product-architecture.md §5). Those last
+ * ones are the reason the outbox is a table rather than a queue (ADR-0005).
  *
  * <p><strong>The re-check is not what makes this correct.</strong> A Slot list is seconds stale by
  * the time somebody clicks it, and two requests can both pass the re-check. What settles the race is
@@ -46,6 +47,7 @@ public class BookingService {
     private final AvailabilityService availability;
     private final ConfirmationCodeGenerator codes;
     private final AppointmentEventRecorder events;
+    private final NotificationEnqueuer notifications;
     private final TenantContext tenant;
     private final IdGenerator ids;
     private final Clock clock;
@@ -58,6 +60,7 @@ public class BookingService {
             AvailabilityService availability,
             ConfirmationCodeGenerator codes,
             AppointmentEventRecorder events,
+            NotificationEnqueuer notifications,
             TenantContext tenant,
             IdGenerator ids,
             Clock clock) {
@@ -68,6 +71,7 @@ public class BookingService {
         this.availability = availability;
         this.codes = codes;
         this.events = events;
+        this.notifications = notifications;
         this.tenant = tenant;
         this.ids = ids;
         this.clock = clock;
@@ -131,6 +135,11 @@ public class BookingService {
         // violation into 409 SLOT_UNAVAILABLE by constraint name.
         Appointment saved = appointments.saveAndFlush(booked);
         events.created(saved, actor);
+        // In this transaction, which is the whole of ADR-0005: a booking that rolls back takes its
+        // confirmation email with it, and one that commits cannot lose it in the gap before a broker
+        // was told. Enqueued after the flush so a lost race never renders an email for a booking the
+        // exclusion constraint is about to refuse.
+        notifications.bookingConfirmed(saved);
         return saved;
     }
 

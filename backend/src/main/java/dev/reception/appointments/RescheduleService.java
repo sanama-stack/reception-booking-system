@@ -4,6 +4,7 @@ import dev.reception.catalog.Service;
 import dev.reception.catalog.ServiceCatalogService;
 import dev.reception.common.error.ApiException;
 import dev.reception.common.error.ErrorCode;
+import dev.reception.notifications.NotificationEnqueuer;
 import dev.reception.scheduling.application.AvailabilityService;
 import dev.reception.scheduling.domain.ServiceSpec;
 import dev.reception.scheduling.domain.TimeRange;
@@ -39,6 +40,7 @@ public class RescheduleService {
     private final EmployeeService employees;
     private final AvailabilityService availability;
     private final AppointmentEventRecorder events;
+    private final NotificationEnqueuer notifications;
     private final Clock clock;
 
     public RescheduleService(
@@ -49,6 +51,7 @@ public class RescheduleService {
             EmployeeService employees,
             AvailabilityService availability,
             AppointmentEventRecorder events,
+            NotificationEnqueuer notifications,
             Clock clock) {
         this.appointments = appointments;
         this.lookup = lookup;
@@ -57,6 +60,7 @@ public class RescheduleService {
         this.employees = employees;
         this.availability = availability;
         this.events = events;
+        this.notifications = notifications;
         this.clock = clock;
     }
 
@@ -111,6 +115,9 @@ public class RescheduleService {
         // we were deciding. At commit time neither would have a handler that knew what it meant.
         Appointment saved = appointments.saveAndFlush(appointment);
         events.rescheduled(saved, previousStartsAt, previousEndsAt, previousEmployeeId, actor);
+        // The old reminder is superseded and a new one scheduled inside this same transaction, so a
+        // move that loses the exclusion-constraint race leaves the original reminder untouched.
+        notifications.appointmentRescheduled(saved, previousStartsAt);
         return saved;
     }
 }
