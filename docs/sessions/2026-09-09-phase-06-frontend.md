@@ -251,8 +251,17 @@ Everything in §7 of the phase-06 backend handoff still stands unless listed bel
   08's to decide, for both clients.
 - **`GET /availability` still cannot exclude an appointment being rescheduled.** See §4.3. Phase 08's
   to decide, unchanged from the backend handoff.
-- **The throwaway tenant was deleted** at the end of this session — see §8. The owner's own business
-  was not touched at any point.
+- **The verification tenant is kept, deliberately, and is the one to use next time.**
+  `Phase 06 Scratch` / `phase-06-scratch`, owner `scratch@example.com`, timezone `UTC`, currency
+  `USD`. It carries a 60-minute service at 50.00, one employee working 09:00–17:00 seven days
+  against opening hours of Mon–Fri, and 21 appointments across four days in every status. The owner
+  asked for it to stay so later phases verify against it rather than building a tenant each time.
+
+  **Two things a future session should know.** Its data is *not* pristine — it is the wreckage of
+  this verification, so a screen that needs an empty list wants a different tenant or a cleared
+  table. And an agent cannot sign in to it: entering a password is not something an agent does, so
+  the owner has to sign in inside whatever browser the session can drive before any of it is
+  reachable. The owner's own business, `GD auto repair`, was not touched at any point.
 - **Gradle 8.14 cannot run on this machine's default JDK.** Unchanged.
 - **`aiEnabled` and `aiDailyCostCapCents` still have no UI.** Phase 09 owes them.
 
