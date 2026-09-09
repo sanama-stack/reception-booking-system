@@ -123,16 +123,89 @@ class PublicChatTest extends IntegrationTest {
 
         assertThat((String) JsonPath.read(response.getBody(), "$.appointmentCreated.confirmationCode"))
                 .isNotBlank();
-        assertThat((String) JsonPath.read(response.getBody(), "$.appointmentCreated.service"))
+        assertThat((String) JsonPath.read(response.getBody(), "$.appointmentCreated.service.name"))
                 .isEqualTo("Haircut");
-        assertThat((String) JsonPath.read(response.getBody(), "$.appointmentCreated.price"))
+        assertThat((Integer) JsonPath.read(response.getBody(), "$.appointmentCreated.service.durationMinutes"))
+                .isEqualTo(60);
+        assertThat((String) JsonPath.read(response.getBody(), "$.appointmentCreated.price.amount"))
                 .isEqualTo("60.00");
+        // The Business's own currency, read from it rather than written in here: what the card must
+        // carry is the one the price was snapshotted in, not a particular three-letter code.
+        assertThat((String) JsonPath.read(response.getBody(), "$.appointmentCreated.price.currency"))
+                .isEqualTo(JsonPath.read(aria.owner.get("/business").getBody(), "$.currency"));
+        // The zone id, not the offset the instants carry. A card renders a place, and an offset
+        // cannot be turned back into one.
+        assertThat((String) JsonPath.read(response.getBody(), "$.appointmentCreated.timezone"))
+                .isEqualTo(BookingScenario.TBILISI.getId());
         // No address was given, so nothing was enqueued — and the panel is told, not left to guess
         // (ADR-0007).
         assertThat((Boolean) JsonPath.read(response.getBody(), "$.appointmentCreated.confirmationSent"))
                 .isFalse();
         // The snake_case the tool speaks must not have reached the wire.
-        assertThat(response.getBody()).doesNotContain("confirmation_code").doesNotContain("service_name");
+        assertThat(response.getBody())
+                .doesNotContain("confirmation_code")
+                .doesNotContain("service_name")
+                .doesNotContain("service_duration_minutes");
+    }
+
+    /**
+     * One card shape, whichever door the booking came in through.
+     *
+     * <p>This is the test the shipped code did not have. {@code appointmentCreated} used to be a
+     * second record whose key <em>names</em> matched {@link PublicResponses.BookedAppointment} and
+     * whose types did not: {@code service} a bare string beside a {@code BookedService},
+     * {@code price} and {@code currency} flat beside a {@code Money}, and no {@code timezone} at
+     * all — under a javadoc claiming a client would not need two shapes to render one card. A
+     * client did.
+     *
+     * <p>Nothing caught it. {@code PublicFieldAllowListTest.ALLOWED} is a flat set of key names, so
+     * every one of those keys was already on it for a different record (issue #10), and the
+     * assertions above only ever read the fields they knew about.
+     *
+     * <p>Comparing <em>structures</em> is what closes that. Both bookings are real, made against the
+     * same business through the two real endpoints, and the two responses are reduced to a
+     * key-and-type skeleton — so a field added to one and not the other fails here, naming itself,
+     * whatever it is called.
+     */
+    @Test
+    @DisplayName("the Receptionist's card and the Classic Flow's are the same shape, key for key")
+    void one_card_shape_serves_both_doors() {
+        // The Classic Flow takes eleven o'clock.
+        Map<String, Object> classic = new HashMap<>();
+        classic.put("serviceId", aria.serviceId);
+        classic.put("employeeId", aria.employeeId);
+        classic.put("startsAt", aria.at(aria.monday, 11, 0).toString());
+        classic.put("customer", Map.of("fullName", "Ana", "phone", "+995555123456"));
+        ResponseEntity<String> booked = stranger.post("/public/businesses/" + slug + "/appointments", classic);
+        assertThat(booked.getStatusCode()).isEqualTo(HttpStatus.CREATED);
+
+        // The Receptionist takes ten.
+        model.willCall("create_appointment", bookingArguments()).willSay("You're booked.");
+        ResponseEntity<String> turn = sendMessage(tokenFrom(startSession()), "book monday at ten");
+
+        assertThat(skeleton(JsonPath.read(turn.getBody(), "$.appointmentCreated")))
+                .as("a Receptionist booking and a Classic Flow booking are the same event")
+                .isEqualTo(skeleton(JsonPath.read(booked.getBody(), "$")));
+    }
+
+    /**
+     * A JSON value reduced to its keys and the shape of their values, sorted — the structure with
+     * the data taken out, so two bookings of different services at different times compare equal
+     * exactly when a client could render both with one component.
+     */
+    private static String skeleton(Object node) {
+        if (node instanceof Map<?, ?> map) {
+            return map.entrySet().stream()
+                    .map(entry -> entry.getKey() + ":" + skeleton(entry.getValue()))
+                    .sorted()
+                    .collect(java.util.stream.Collectors.joining(",", "{", "}"));
+        }
+        if (node instanceof List<?> list) {
+            return list.isEmpty() ? "[]" : "[" + skeleton(list.get(0)) + "]";
+        }
+        // Numbers deliberately collapse: Money.amount is serialised as a string and
+        // durationMinutes as a number, and it is that distinction the comparison must keep.
+        return node == null ? "null" : node.getClass().getSimpleName();
     }
 
     @Test

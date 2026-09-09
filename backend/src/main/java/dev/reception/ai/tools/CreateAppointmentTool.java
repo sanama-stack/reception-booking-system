@@ -121,6 +121,7 @@ public class CreateAppointmentTool implements Tool {
         context.authorized().authorize(booked.getId());
 
         ZoneId zone = businesses.read().timezone();
+        var service = catalog.read(booked.serviceId());
         ObjectNode result = ToolResults.object();
         result.put("appointment_id", booked.getId().toString());
         // The Confirmation Code the email will carry. Said out loud by the Receptionist because the
@@ -129,7 +130,15 @@ public class CreateAppointmentTool implements Tool {
         result.put("confirmation_code", booked.confirmationCode());
         result.put("starts_at", booked.startsAt().atZone(zone).toOffsetDateTime().toString());
         result.put("ends_at", booked.endsAt().atZone(zone).toOffsetDateTime().toString());
-        result.put("service_name", catalog.read(booked.serviceId()).name());
+        // The zone id, not only the offset the two instants above carry. A confirmation card
+        // renders "Asia/Tbilisi", and an offset cannot be turned back into one; the Classic Flow's
+        // BookedAppointment has always carried it, and this result is projected onto that same
+        // record so that one card renders a booking whichever door it came in through.
+        result.put("timezone", zone.getId());
+        result.put("service_name", service.name());
+        // Also what the card shows beneath the service name. Worth the model seeing too: "two and
+        // a half hours" is a thing a customer asks about a booking it has just made.
+        result.put("service_duration_minutes", service.durationMinutes());
         result.put("employee_name", employees.read(booked.employeeId()).fullName());
         result.put("price", booked.priceAmount().toPlainString());
         result.put("currency", booked.currency());

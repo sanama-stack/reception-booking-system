@@ -2,6 +2,8 @@ package dev.reception.publicapi;
 
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import dev.reception.ai.application.ConversationTurn;
+import java.math.BigDecimal;
+import java.time.OffsetDateTime;
 import java.util.UUID;
 
 /**
@@ -38,59 +40,54 @@ public final class PublicChatResponses {
             String reply,
             String conversationStatus,
             int messagesRemaining,
-            BookedAppointment appointmentCreated) {
+            PublicResponses.BookedAppointment appointmentCreated) {
 
         public static Reply of(ConversationTurn turn) {
             return new Reply(
                     turn.reply(),
                     turn.status().name(),
                     turn.messagesRemaining(),
-                    BookedAppointment.from(turn.appointmentCreated()));
+                    bookedAppointment(turn.appointmentCreated()));
         }
     }
 
     /**
-     * The confirmation card, in this package's vocabulary rather than the tool surface's.
+     * The confirmation card, projected onto the Classic Flow's own record.
      *
-     * <p><strong>Projected, not passed through</strong>, and the distinction is narrower than it
-     * looks. What makes this field a hallucination control is its <em>provenance</em> — it exists
-     * only because {@code create_appointment} returned a success — and that is untouched by
-     * renaming the keys on the way out. What passing the tool result through verbatim would have
-     * cost is the rule this whole package is built on: one hand-written vocabulary, in
-     * {@code camelCase}, governed by {@code PublicFieldAllowListTest}. The tools speak
+     * <p><strong>The same shape, not merely the same field names.</strong> A Receptionist booking
+     * and a Classic Flow booking are the same event, and this returns
+     * {@link PublicResponses.BookedAppointment} itself so that one component renders either. An
+     * earlier version declared a second record here whose keys matched and whose <em>types</em> did
+     * not — {@code service} a string beside a {@code BookedService}, {@code price} and
+     * {@code currency} flat beside a {@code Money}, and no {@code timezone} at all — under a javadoc
+     * claiming a client would not need two shapes. It did. Same-named fields of different types are
+     * worse than differently-named ones, because a reader assumes they agree; {@code ALLOWED} is a
+     * flat set of key names and could not see it either (issue #10).
+     *
+     * <p><strong>Projected, not passed through.</strong> What makes this field a hallucination
+     * control is its <em>provenance</em> — it exists only because {@code create_appointment}
+     * returned a success — and that is untouched by re-shaping it on the way out. The tools speak
      * {@code snake_case} because that is what reads well in a JSON Schema a model consumes; a
      * booking page should not have to know that.
      *
-     * <p>The fields are deliberately the same ones {@code PublicResponses.BookedAppointment} carries,
-     * including {@code confirmationSent} — a Receptionist booking and a Classic Flow booking are the
-     * same event, and a client should not need two shapes to render one card.
+     * <p>Null in, null out — most turns book nothing, and that is the ordinary case.
      */
-    public record BookedAppointment(
-            UUID id,
-            String confirmationCode,
-            String startsAt,
-            String endsAt,
-            String service,
-            String employee,
-            String price,
-            String currency,
-            boolean confirmationSent) {
-
-        /** Null in, null out — most turns book nothing, and that is the ordinary case. */
-        static BookedAppointment from(ObjectNode toolResult) {
-            if (toolResult == null) {
-                return null;
-            }
-            return new BookedAppointment(
-                    UUID.fromString(toolResult.path("appointment_id").asText()),
-                    toolResult.path("confirmation_code").asText(),
-                    toolResult.path("starts_at").asText(),
-                    toolResult.path("ends_at").asText(),
-                    toolResult.path("service_name").asText(),
-                    toolResult.path("employee_name").asText(),
-                    toolResult.path("price").asText(),
-                    toolResult.path("currency").asText(),
-                    toolResult.path("confirmation_email_sent").asBoolean());
+    static PublicResponses.BookedAppointment bookedAppointment(ObjectNode toolResult) {
+        if (toolResult == null) {
+            return null;
         }
+        return new PublicResponses.BookedAppointment(
+                UUID.fromString(toolResult.path("appointment_id").asText()),
+                toolResult.path("confirmation_code").asText(),
+                OffsetDateTime.parse(toolResult.path("starts_at").asText()),
+                OffsetDateTime.parse(toolResult.path("ends_at").asText()),
+                toolResult.path("timezone").asText(),
+                new PublicResponses.BookedService(
+                        toolResult.path("service_name").asText(),
+                        toolResult.path("service_duration_minutes").asInt()),
+                new PublicResponses.BookedEmployee(toolResult.path("employee_name").asText()),
+                new PublicResponses.Money(
+                        new BigDecimal(toolResult.path("price").asText()), toolResult.path("currency").asText()),
+                toolResult.path("confirmation_email_sent").asBoolean());
     }
 }

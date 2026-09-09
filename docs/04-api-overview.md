@@ -346,11 +346,26 @@ Manage Link endpoints make about the id in their path, with the difference that 
 a claim and a body can simply not carry one.
 
 `appointmentCreated` is populated only when `create_appointment` succeeded, so the UI can render a
-confirmation card from **backend data** rather than parsing the model's prose. It carries this surface's
-usual `camelCase` vocabulary — `id`, `confirmationCode`, `startsAt`, `endsAt`, `service`, `employee`,
-`price`, `currency`, `confirmationSent` — projected from the tool result rather than passed through in the
-`snake_case` the tool surface speaks. The provenance is what makes the field a hallucination control; the
-casing is what makes it a public response.
+confirmation card from **backend data** rather than parsing the model's prose. The provenance is what makes
+the field a hallucination control; the casing is what makes it a public response.
+
+It is **the same shape** `POST …/appointments` returns above — the record itself, not a second one with
+matching key names — so one component renders a booking whichever door it came in through:
+
+```json
+{ "id": "…", "confirmationCode": "7QK4M2XR",
+  "startsAt": "…", "endsAt": "…", "timezone": "Asia/Tbilisi",
+  "service": { "name": "Colour", "durationMinutes": 150 },
+  "employee": { "fullName": "Lika" },
+  "price": { "amount": "220.00", "currency": "GEL" },
+  "confirmationSent": false }
+```
+
+Phase 09 first shipped a second record here whose keys matched and whose types did not — `service` a bare
+string beside a `BookedService`, `price` and `currency` flat beside a `Money`, and no `timezone` at all.
+Same-named fields of different types are worse than differently-named ones, because a reader assumes they
+agree, and a flat allow-list of key names cannot see the difference. `PublicChatTest` now compares the two
+responses as structures rather than field by field.
 
 `messagesRemaining` is counted by the server because the ceiling counts tool rows the client never sees; a
 panel counting its own bubbles would be wrong, and wrong optimistically.

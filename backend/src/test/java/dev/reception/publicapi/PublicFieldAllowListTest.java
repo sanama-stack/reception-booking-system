@@ -83,12 +83,13 @@ class PublicFieldAllowListTest extends IntegrationTest {
             "confirmationCode", "service", "status", "note", "canCancel", "canReschedule", "business",
             "confirmationSent", "emailOnFile",
             // PublicChatResponses (phase 09). sessionToken is a capability and is returned exactly
-            // once, by design — the row keeps only its SHA-256. appointmentCreated is the
-            // confirmation card, projected into this package's camelCase rather than passed through
-            // in the tool surface's snake_case, so it adds no vocabulary of its own: id, service,
-            // employee, price, currency, confirmationCode and confirmationSent are all already here.
-            // "employee" is not repeated here: AvailabilityResponses already contributes it above,
-            // and the card deliberately reuses it rather than inventing employeeName.
+            // once, by design — the row keeps only its SHA-256. appointmentCreated adds no
+            // vocabulary at all: it IS PublicResponses.BookedAppointment, the record the Classic
+            // Flow's booking returns, so every key it contributes is already above. That is a
+            // stronger statement than the one this comment used to make — the card was a separate
+            // record whose key names matched and whose types did not, and a flat set of names is
+            // exactly what could not see the difference (issue #10). PublicChatTest compares the
+            // two responses as structures for that reason.
             "conversationId", "sessionToken", "reply", "appointmentCreated", "conversationStatus",
             "messagesRemaining");
 
