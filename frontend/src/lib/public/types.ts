@@ -100,6 +100,19 @@ export interface BookedAppointment {
   service: BookedService;
   employee: BookedEmployee;
   price: Money;
+  /**
+   * Whether a confirmation email was actually enqueued — **the server's answer, not ours.**
+   *
+   * A Customer is identified by phone number alone, and a returning number keeps the email
+   * already on file: the address typed into the form may not be where the message goes, and when
+   * the stored record has no address there is no message. So the email in our own form state is
+   * not evidence of anything, and this is the only field that is (ADR-0007).
+   *
+   * The resolved recipient is deliberately **not** sent — echoing a stored address back would
+   * turn a phone number into a way to read it — so the screen can say *that* a confirmation is
+   * coming and never *to where*.
+   */
+  confirmationSent: boolean;
 }
 
 /**

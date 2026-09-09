@@ -145,19 +145,65 @@ class PublicBookingTest extends IntegrationTest {
     @Test
     @DisplayName("the confirmation email is enqueued by the booking itself, in its own transaction")
     void booking_enqueues_the_confirmation() {
-        book(scenario.at(scenario.monday, 11, 0), "ana@example.test");
+        ResponseEntity<String> response = book(scenario.at(scenario.monday, 11, 0), "ana@example.test");
 
         // Nothing in publicapi mentions notifications. BookingService enqueues inside the booking
         // transaction, so the public flow inherited this for free the moment it called book().
         assertThat(pendingNotificationTypes()).contains("BOOKING_CONFIRMATION", "REMINDER_24H");
+        assertThat(JsonPath.<Boolean>read(response.getBody(), "$.confirmationSent")).isTrue();
     }
 
     @Test
-    @DisplayName("a booking with no email address queues nothing and still succeeds")
+    @DisplayName("a booking with no email address queues nothing and says so")
     void booking_without_an_email_still_books() {
-        assertThat(book(scenario.at(scenario.monday, 12, 0), null).getStatusCode())
-                .isEqualTo(HttpStatus.CREATED);
+        ResponseEntity<String> response = book(scenario.at(scenario.monday, 12, 0), null);
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.CREATED);
         assertThat(pendingNotificationTypes()).isEmpty();
+        assertThat(JsonPath.<Boolean>read(response.getBody(), "$.confirmationSent")).isFalse();
+    }
+
+    // ---------------------------------------------------- the returning Customer (ADR-0007)
+    //
+    // A Customer is identified by phone alone and findOrCreate returns a match untouched, so the
+    // email in the request body is not necessarily the address the confirmation goes to — and is
+    // not necessarily an address at all. Both tests below book the same CUSTOMER_PHONE twice,
+    // which is what every helper in this class already does.
+
+    @Test
+    @DisplayName("a returning number keeps its stored address, and the response still says a confirmation went")
+    void a_returning_customer_is_mailed_at_the_address_on_file() {
+        // First booking creates the Customer, and with it the stored address.
+        book(scenario.at(scenario.monday, 10, 0), "ada@example.test");
+
+        // Second booking, same phone, a different address typed into the form.
+        ResponseEntity<String> response = book(scenario.at(scenario.monday, 11, 0), "typed@example.test");
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.CREATED);
+
+        // What was actually enqueued went to the address on file. This is the behaviour, not a
+        // defect — the same rule that refuses to rename a Customer from a public form.
+        assertThat(recipientEmails()).containsOnly("ada@example.test").doesNotContain("typed@example.test");
+
+        // So the screen may promise a confirmation — but it learns that from here rather than from
+        // what it typed, and it must not name an address.
+        assertThat(JsonPath.<Boolean>read(response.getBody(), "$.confirmationSent")).isTrue();
+        assertThat(response.getBody()).doesNotContain("ada@example.test");
+    }
+
+    @Test
+    @DisplayName("a returning number with no stored address is mailed nothing, and the response admits it")
+    void a_returning_customer_without_a_stored_address_is_not_mailed() {
+        // First booking gives no email, so the Customer is stored without one.
+        book(scenario.at(scenario.monday, 10, 0), null);
+
+        // Second booking supplies one. findOrCreate discards it, so the Customer still has none.
+        ResponseEntity<String> response = book(scenario.at(scenario.monday, 11, 0), "typed@example.test");
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.CREATED);
+
+        // Nothing was enqueued: no confirmation, and no reminder either. This is the case the
+        // confirmation screen used to promise an email for.
+        assertThat(pendingNotificationTypes()).isEmpty();
+        assertThat(JsonPath.<Boolean>read(response.getBody(), "$.confirmationSent")).isFalse();
     }
 
     @Test
@@ -278,5 +324,10 @@ class PublicBookingTest extends IntegrationTest {
      */
     private List<String> pendingNotificationTypes() {
         return jdbc.queryForList("select type from notifications", String.class);
+    }
+
+    /** Who the outbox is actually addressed to, which is not always who the request named. */
+    private List<String> recipientEmails() {
+        return jdbc.queryForList("select distinct recipient_email from notifications", String.class);
     }
 }

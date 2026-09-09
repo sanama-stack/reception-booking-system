@@ -76,8 +76,10 @@ class PublicFieldAllowListTest extends IntegrationTest {
             "fullName", "jobTitle",
             // AvailabilityResponses, shared with the internal endpoint unchanged
             "days", "emptyReason", "date", "slots", "startsAt", "endsAt", "employee",
-            // BookedAppointment and ManagedAppointment
-            "confirmationCode", "service", "status", "note", "canCancel", "canReschedule", "business");
+            // BookedAppointment and ManagedAppointment. confirmationSent is one bit — whether a
+            // message was enqueued — and never the address it went to (ADR-0007).
+            "confirmationCode", "service", "status", "note", "canCancel", "canReschedule", "business",
+            "confirmationSent");
 
     /**
      * Keys that would each be a specific, named failure.
@@ -92,7 +94,11 @@ class PublicFieldAllowListTest extends IntegrationTest {
             "aiAdditionalInfo", "aiDailyCostCapCents", "bookingUrl",
             "bufferBeforeMinutes", "bufferAfterMinutes", "active",
             "blockedFrom", "blockedTo", "source", "version", "createdAt", "updatedAt",
-            "userId", "cancelledBy", "cancellationReason");
+            "userId", "cancelledBy", "cancellationReason",
+            // The resolved confirmation recipient, considered and rejected for BookedAppointment:
+            // a returning Customer's stored address must not be readable by whoever holds their
+            // phone number (ADR-0007). confirmationSent carries the one bit the screen needs.
+            "recipientEmail", "customerEmail", "sentTo");
 
     private static final ObjectMapper JSON = new ObjectMapper();
 

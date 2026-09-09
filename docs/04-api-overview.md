@@ -269,8 +269,15 @@ no internal settings, no other customers.
   "startsAt": "…", "endsAt": "…", "timezone": "Asia/Tbilisi",
   "service": { "name": "Colour", "durationMinutes": 150 },
   "employee": { "fullName": "Lika" },
-  "price": { "amount": "220.00", "currency": "GEL" } }
+  "price": { "amount": "220.00", "currency": "GEL" },
+  "confirmationSent": true }
 ```
+`confirmationSent` is whether a confirmation was actually enqueued, and **not** the address it went to. A
+Customer is identified by phone number alone and a returning number keeps the email already on file, so the
+`customer.email` in the request is neither necessarily the recipient nor necessarily present — the
+confirmation screen has to be told rather than assume. The resolved recipient is never returned: booking is
+proved by a phone number, and echoing back the address filed against one would make it readable to whoever
+holds it (ADR-0007).
 Errors: `SLOT_UNAVAILABLE`, `SERVICE_INACTIVE`, `EMPLOYEE_INACTIVE`,
 `EMPLOYEE_CANNOT_PERFORM_SERVICE`, `OUTSIDE_BUSINESS_HOURS`, `OUTSIDE_WORKING_HOURS`, `BOOKING_IN_PAST`,
 `BELOW_MIN_LEAD_TIME`, `BEYOND_MAX_ADVANCE`, `VALIDATION_FAILED`, `RATE_LIMITED`.

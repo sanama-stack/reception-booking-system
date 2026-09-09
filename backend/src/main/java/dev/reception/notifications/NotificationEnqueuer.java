@@ -93,7 +93,7 @@ public class NotificationEnqueuer {
     @Transactional(propagation = Propagation.MANDATORY)
     public void bookingConfirmed(Appointment appointment) {
         Customer customer = customers.read(appointment.customerId());
-        if (!hasEmail(customer)) {
+        if (!customer.hasEmail()) {
             return;
         }
         MailModel model = modelFor(appointment, customer, null, null);
@@ -118,7 +118,7 @@ public class NotificationEnqueuer {
         cancelPending(appointment);
 
         Customer customer = customers.read(appointment.customerId());
-        if (!hasEmail(customer)) {
+        if (!customer.hasEmail()) {
             return;
         }
         Instant now = clock.instant();
@@ -148,7 +148,7 @@ public class NotificationEnqueuer {
     @Transactional(propagation = Propagation.MANDATORY)
     public void appointmentRescheduled(Appointment appointment, Instant previousStartsAt) {
         Customer customer = customers.read(appointment.customerId());
-        if (!hasEmail(customer)) {
+        if (!customer.hasEmail()) {
             return;
         }
         Instant now = clock.instant();
@@ -233,9 +233,5 @@ public class NotificationEnqueuer {
     private String manageUrlFor(Appointment appointment) {
         UUID id = appointment.getId();
         return publicUrl + "/manage/" + manageTokens.issue(id, appointment.endsAt());
-    }
-
-    private static boolean hasEmail(Customer customer) {
-        return customer.email() != null && !customer.email().isBlank();
     }
 }

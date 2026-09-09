@@ -7,6 +7,7 @@ import dev.reception.appointments.BookingService;
 import dev.reception.business.BusinessService;
 import dev.reception.catalog.ServiceCatalogService;
 import dev.reception.customers.CustomerFieldNames;
+import dev.reception.customers.CustomerService;
 import dev.reception.staff.EmployeeService;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
@@ -40,16 +41,19 @@ public class PublicBookingController {
     private final ServiceCatalogService catalog;
     private final EmployeeService employees;
     private final BusinessService businesses;
+    private final CustomerService customers;
 
     public PublicBookingController(
             BookingService booking,
             ServiceCatalogService catalog,
             EmployeeService employees,
-            BusinessService businesses) {
+            BusinessService businesses,
+            CustomerService customers) {
         this.booking = booking;
         this.catalog = catalog;
         this.employees = employees;
         this.businesses = businesses;
+        this.customers = customers;
     }
 
     @PostMapping
@@ -73,13 +77,21 @@ public class PublicBookingController {
                 // creation event is simply what happened.
                 Actor.customer());
 
-        // Re-read rather than held from before the write: both are already loaded inside the
-        // booking transaction, and reading them again here is two indexed lookups against rows this
+        // The resolved Customer, not the email that was typed. A returning phone number keeps the
+        // address already on file (CustomerService.findOrCreate), so what the caller sent is not
+        // evidence that anything was sent — and when the stored record has no address, nothing was.
+        // Asking the same predicate NotificationEnqueuer asked is what keeps the screen and the
+        // outbox from disagreeing (ADR-0007).
+        boolean confirmationSent = customers.read(booked.customerId()).hasEmail();
+
+        // Re-read rather than held from before the write: all three are already loaded inside the
+        // booking transaction, and reading them again here is indexed lookups against rows this
         // request just proved exist.
         return PublicResponses.BookedAppointment.of(
                 booked,
                 catalog.read(booked.serviceId()),
                 employees.read(booked.employeeId()),
-                businesses.read().timezone());
+                businesses.read().timezone(),
+                confirmationSent);
     }
 }

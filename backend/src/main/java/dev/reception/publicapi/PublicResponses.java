@@ -144,6 +144,15 @@ public final class PublicResponses {
      *
      * <p>The Confirmation Code is here because this is the one moment it can be shown: the email is
      * on its way but has not arrived, and a Customer who closes this tab without it has to wait.
+     *
+     * @param confirmationSent whether a confirmation email was actually enqueued. <strong>One bit,
+     *     and deliberately not the address</strong> (ADR-0007). A Customer is identified by phone
+     *     alone, so a returning number keeps the email already on file and the message may go
+     *     somewhere other than the address just typed — or nowhere, when the stored record has none.
+     *     Without this field the screen has to guess, and it guessed wrong in both directions. The
+     *     resolved recipient is <em>not</em> returned: echoing a stored address back would turn a
+     *     phone number into a way to read it, which is the leak {@link ManagedAppointment} refuses
+     *     for the same reason
      */
     public record BookedAppointment(
             UUID id,
@@ -153,9 +162,15 @@ public final class PublicResponses {
             String timezone,
             BookedService service,
             BookedEmployee employee,
-            Money price) {
+            Money price,
+            boolean confirmationSent) {
 
-        public static BookedAppointment of(Appointment appointment, Service service, Employee employee, ZoneId zone) {
+        public static BookedAppointment of(
+                Appointment appointment,
+                Service service,
+                Employee employee,
+                ZoneId zone,
+                boolean confirmationSent) {
             return new BookedAppointment(
                     appointment.getId(),
                     appointment.confirmationCode(),
@@ -164,7 +179,8 @@ public final class PublicResponses {
                     zone.getId(),
                     new BookedService(service.name(), service.durationMinutes()),
                     new BookedEmployee(employee.fullName()),
-                    new Money(appointment.priceAmount(), appointment.currency()));
+                    new Money(appointment.priceAmount(), appointment.currency()),
+                    confirmationSent);
         }
     }
 
