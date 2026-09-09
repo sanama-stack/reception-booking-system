@@ -16,10 +16,14 @@
 import { api } from '@/lib/api/client';
 import type {
   BookedAppointment,
+  CancelPublicAppointment,
   CreatePublicAppointment,
+  ManageAvailabilityQuery,
+  ManagedAppointment,
   PublicAvailabilityQuery,
   PublicBusiness,
   PublicService,
+  ReschedulePublicAppointment,
 } from './types';
 
 function segment(slug: string): string {
@@ -56,6 +60,41 @@ export function publicAvailabilityPath(slug: string, query: PublicAvailabilityQu
   return `${publicBusinessPath(slug)}/availability?${params.toString()}`;
 }
 
+/**
+ * Resolving a Manage Link.
+ *
+ * **No slug**, and that is the design rather than an inconsistency: a Customer following a link
+ * out of an email does not know which slug their appointment is under, and requiring one would be
+ * a second identifier that could disagree with the token. The server derives the tenant from the
+ * proof instead.
+ *
+ * The token goes in the query string rather than the path because that is the shape the endpoint
+ * publishes — and `URLSearchParams` encodes it, which matters more here than for a slug: this is
+ * an opaque signed string, and a `+` in a base64 alphabet means a space in a URL.
+ */
+export function managePath(token: string): string {
+  return `/public/appointments/manage?${new URLSearchParams({ token }).toString()}`;
+}
+
+/**
+ * The Slots a rescheduling Customer may move to.
+ *
+ * A different endpoint from `publicAvailabilityPath`, and the difference is load-bearing: this one
+ * excludes the appointment being moved. The Customer's own booking blocks the time it occupies and
+ * the Buffers around it, so the ordinary grid would refuse to offer them a slot fifteen minutes
+ * later — and the ordinary grid deliberately takes no exclusion parameter, because diffing the two
+ * answers would tell an anonymous caller that some appointment exists.
+ */
+export function manageAvailabilityPath(query: ManageAvailabilityQuery): string {
+  const params = new URLSearchParams({
+    token: query.token,
+    from: query.from,
+    to: query.to,
+  });
+  if (query.employeeId) params.set('employeeId', query.employeeId);
+  return `/public/appointments/manage/availability?${params.toString()}`;
+}
+
 export const publicApi = {
   /**
    * The page's own reads, run together.
@@ -74,4 +113,21 @@ export const publicApi = {
 
   book: (slug: string, body: CreatePublicAppointment) =>
     api.post<BookedAppointment>(`${publicBusinessPath(slug)}/appointments`, body),
+
+  /** What the Manage Link resolves to. Read from the server component that renders the page. */
+  manage: (token: string) => api.get<ManagedAppointment>(managePath(token)),
+
+  /**
+   * Cancel and reschedule, both addressed by appointment id and both authorised by the body.
+   *
+   * The id in the path is a claim and the proof in the body is what decides: the server resolves
+   * an appointment from the `authority` on its own and then checks the path id against it, so a
+   * token for appointment A presented on B's path is a `404`. Passing the id from the resolved
+   * appointment — never from anywhere else — is what keeps the two agreeing.
+   */
+  cancel: (id: string, body: CancelPublicAppointment) =>
+    api.post<ManagedAppointment>(`/public/appointments/${id}/cancel`, body),
+
+  reschedule: (id: string, body: ReschedulePublicAppointment) =>
+    api.post<ManagedAppointment>(`/public/appointments/${id}/reschedule`, body),
 };

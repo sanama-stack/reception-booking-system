@@ -19,12 +19,14 @@ Phase 07 — the confirmation email and Manage Link must already work.
 
 ## Progress
 
-**The backend half is complete** (2026-09-09). Every box a server can tick is ticked.
+**Phase 08 is complete** (2026-09-09). The backend half, `/book/{slug}` and `/manage/{token}` are
+all built and browser-verified — see [the booking page's
+handoff](../sessions/2026-09-09-phase-08-booking-page.md) and [the Manage Link page's
+handoff](../sessions/2026-09-09-phase-08-manage-page.md).
 
-**`/book/{slug}` is complete and browser-verified** (2026-09-09) — see
-[its handoff](../sessions/2026-09-09-phase-08-booking-page.md). **`/manage/{token}` does not exist
-yet**, so the Definition of Done stays open, and the two boxes that belong to that page are the ones
-still unticked below.
+One box below stays unticked and is **not** an oversight: "Any available" with more than one
+eligible Employee has still never been rendered, because no tenant has two people assigned to one
+Service and the fixture does not exist. It is the only branch of the flow nothing has exercised.
 
 **How the Frontend testing boxes were satisfied, because it is not what the heading implies.** This
 repository has no frontend test harness — `frontend/package.json` carries no `test` script and no
@@ -147,11 +149,12 @@ adds no privileged path.
 - [x] `/book/{slug}` is publicly reachable and shows business, services, prices and durations
 - [x] A stranger books end to end with no account
 - [x] The confirmation email arrives with a working Manage Link
-- [ ] The Manage Link page cancels and reschedules
+- [x] The Manage Link page cancels and reschedules
 - [x] Lookup requires code **and** phone
 - [x] Every public endpoint is rate limited
 - [x] No internal or cross-tenant field appears in any public response
-- [ ] All tests above pass
+- [x] All tests above pass — with the one "Any available" box above named as unexercised rather
+      than passing
 
 ## Checklist
 
@@ -174,8 +177,8 @@ adds no privileged path.
 - [x] Date picker and slot grid
 - [x] Customer details form
 - [x] Confirmation screen with the code
-- [ ] `/manage/[token]` page with cancel and reschedule
-- [ ] Policy-aware refusal messaging
+- [x] `/manage/[token]` page with cancel and reschedule
+- [x] Policy-aware refusal messaging
 - [x] Designed `404` and "not accepting bookings" pages
 - [x] Mobile layout verified at 360 px
 - [x] Empty, loading and error states throughout

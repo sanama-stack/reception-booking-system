@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { FORTNIGHT_DAYS, FortnightPicker } from '@/components/fortnight-picker';
 import { Button, Card, CardHeader, Input, ResourceGate, Textarea, cn } from '@/components/ui';
 import { ApiError } from '@/lib/api/client';
 import { useResource } from '@/lib/api/use-resource';
@@ -24,18 +25,7 @@ import {
   type IsoDate,
   type Timezone,
 } from '@/lib/time';
-import { AvailabilityStep } from './availability-step';
 import { Confirmation } from './confirmation';
-
-/**
- * How many days one availability question covers.
- *
- * The endpoint accepts up to 31. A fortnight is chosen because it is the largest window that still
- * fits as a strip of tappable days at 360 px without scrolling sideways — the grid is four columns
- * there, so fourteen is three and a half rows. Asking for a month and showing half of it would be
- * fetching an answer the page cannot put on screen.
- */
-const WINDOW_DAYS = 14;
 
 /**
  * Which name each customer input is reported under.
@@ -167,21 +157,18 @@ export function ClassicFlow({
   }
 
   /** Paging moves the whole window, so the chosen day goes with it — it is no longer on screen. */
-  function page(by: number) {
-    const next = addIsoDays(windowStart, by);
-    // ISO dates compare correctly as strings, which is the whole reason the format is fixed-width.
-    setWindowStart(next < today ? today : next);
+  function page(nextStart: IsoDate) {
+    setWindowStart(nextStart);
     setChosenDate(null);
     setSelection(null);
     setError(null);
   }
 
-  const windowEnd = addIsoDays(windowStart, WINDOW_DAYS - 1);
   const path = service
     ? publicAvailabilityPath(slug, {
         serviceId: service.id,
         from: windowStart,
-        to: windowEnd,
+        to: addIsoDays(windowStart, FORTNIGHT_DAYS - 1),
         ...(employee ? { employeeId: employee.id } : {}),
       })
     : null;
@@ -338,39 +325,11 @@ export function ClassicFlow({
             description={`${formatDuration(service.durationMinutes)}. Days with no times are either fully booked or closed.`}
           />
 
-          <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
-            {/*
-              `min-h-11` on top of the small size: 44 px is the thumb guideline the slot grid and
-              the day strip are built to, and these two are how a Customer moves between fortnights
-              — the most-tapped controls on the card. `h-8` and `min-h-11` set different properties,
-              so the larger minimum simply wins without fighting the size class.
-            */}
-            <Button
-              type="button"
-              variant="secondary"
-              size="sm"
-              className="min-h-11"
-              disabled={windowStart <= today}
-              onClick={() => page(-WINDOW_DAYS)}
-            >
-              ← Earlier
-            </Button>
-            <p className="text-ink-muted order-last w-full text-center text-xs sm:order-none sm:w-auto sm:text-sm">
-              {formatIsoDate(windowStart)} – {formatIsoDate(windowEnd)}
-            </p>
-            <Button
-              type="button"
-              variant="secondary"
-              size="sm"
-              className="min-h-11"
-              onClick={() => page(WINDOW_DAYS)}
-            >
-              Later →
-            </Button>
-          </div>
-
-          <AvailabilityStep
+          <FortnightPicker
             key={`${path}#${refreshes}`}
+            today={today}
+            windowStart={windowStart}
+            onPage={page}
             path={path}
             service={service}
             employeeName={employee?.fullName ?? null}
@@ -483,11 +442,17 @@ export function ClassicFlow({
               {formatTime(selection.startsAt, selection.timezone)}
             </span>
           </p>
+          {/*
+            `min-h-11` for the reason the slot buttons and the pager carry it: 44 px is the thumb
+            guideline this page is built to, and the shared `Button` is 40 px. It was missed here
+            until the completed flow was measured at 360 px — the earlier measurement was taken
+            before a slot had been chosen, and this button does not exist until one has been.
+          */}
           <Button
             type="submit"
             loading={booking}
             disabled={fullName.trim() === '' || phone.trim() === ''}
-            className="w-full sm:w-auto"
+            className="min-h-11 w-full sm:w-auto"
           >
             Confirm booking
           </Button>
