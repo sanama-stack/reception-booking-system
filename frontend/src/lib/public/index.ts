@@ -4,6 +4,8 @@ export {
   publicApi,
   publicAvailabilityPath,
   publicBusinessPath,
+  publicChatPath,
+  publicChatSessionPath,
   publicEmployeesPath,
   publicServicesPath,
 } from './api';
@@ -12,6 +14,8 @@ export type {
   BookedEmployee,
   BookedService,
   CancelPublicAppointment,
+  ChatReply,
+  ConversationStatus,
   CreatePublicAppointment,
   CustomerDetails,
   ManageAuthority,
@@ -24,4 +28,7 @@ export type {
   PublicEmployee,
   PublicService,
   ReschedulePublicAppointment,
+  SendChatMessage,
+  StartChatSession,
+  StartedChatSession,
 } from './types';
