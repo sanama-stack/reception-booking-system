@@ -91,7 +91,7 @@ appointment and grants nothing else. Excluded from logs and never echoed in erro
 
 ## Frontend work
 
-None required. Mailpit's own UI at `:8025` is the demo surface, and a link to it in the README is more
+None required. Mailpit's own UI at `:9083` is the demo surface, and a link to it in the README is more
 useful than a screen.
 
 ## Testing
@@ -148,7 +148,7 @@ useful than a screen.
 - [ ] Redact manage tokens and codes from logs
 
 ### Infrastructure
-- [ ] Mailpit service in compose, UI on `:8025`
+- [ ] Mailpit service in compose, UI on `:9083` (`8025` inside the container)
 - [ ] SMTP variables in `.env.example`
 - [ ] README note pointing at the Mailpit UI
 

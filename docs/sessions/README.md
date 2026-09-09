@@ -19,6 +19,7 @@ was left in. The design documents say what to build; these say what happened whi
 | [2026-09-08](./2026-09-08-phase-05-availability-engine.md) | Phase 05 — the availability engine, **backend half only**. 538 tests. Merged to `main` with a merge commit, which ends the squash conflicts. |
 | [2026-09-08](./2026-09-08-phase-05-frontend.md) | Phase 05 — the availability preview. **Phase 05 complete.** Found a phase-02 defect: the transparent refresh never fires in a browser. §7.2 carries the fix, merged into `dev` on 2026-09-09 and still unpushed. |
 | [2026-09-09](./2026-09-09-phase-06-backend.md) | Phase 06 — Appointments, **backend half only**. 625 tests, the exclusion constraint proven under twenty threads, and the last stub deleted. Still not pushed. |
+| [2026-09-09](./2026-09-09-phase-06-frontend.md) | Phase 06 — the six Appointments and Customers screens. **Phase 06 complete.** Verified in a browser, where a `409` was raced for real and a field error found to be arriving under a name the request does not have. Merged to `main` as part of pull request #3. |
 
 **Reading order for a new session:** the newest handoff first, then
 [../09-phase-plan.md](../09-phase-plan.md), then the current phase document.
