@@ -1,10 +1,15 @@
 # Phase 09 — AI Receptionist
 
-> **Backend half complete; the frontend half is not started.** Everything under *Database*, *Backend*
+> **Backend half complete; the frontend half has its wire types and nothing that renders.** Everything under *Database*, *Backend*
 > and levels 1 and 2 of *Testing* ships and is green — 61 new tests. *Frontend work* and the parts of
 > the Definition of Done that depend on a screen are untouched, and level 3 is written but unrun.
 > The split follows phases 03–06 and 08, each of which shipped its backend and its screens in separate
 > sessions.
+>
+> `lib/public` gained the chat types and the two calls on 2026-09-10 (`43b28bb`); every box under
+> *Frontend* below is still empty because none of them is a type. The same session aligned
+> `appointmentCreated` onto `PublicResponses.BookedAppointment`, so the confirmation card is the
+> Classic Flow's existing component rather than a new one — see that day's handoff §4.
 
 ## Goal
 
