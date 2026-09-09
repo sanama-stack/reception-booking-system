@@ -78,6 +78,47 @@ export function formatIsoDate(date: IsoDate): string {
   return `${Number(day)} ${name} ${year}`;
 }
 
+/**
+ * Which day of the week an `IsoDate` falls on — 1 is Monday, 7 is Sunday.
+ *
+ * ISO-8601 numbering, matching `java.time.DayOfWeek` and the `dayOfWeek` on the wire, rather than
+ * `Date`'s own 0-is-Sunday. Returning the platform's numbering would put an off-by-one between
+ * this function and every row it is used to match.
+ *
+ * Parsed at UTC midnight and read back in UTC, which is the only pair that cancels out: an
+ * `IsoDate` has already been resolved into the business's zone by whoever produced it, so there is
+ * nothing left to convert and any conversion here would be the second one. Reading it back with
+ * `getDay()` instead would re-interpret it in the *browser's* zone and answer with the wrong
+ * weekday for half of every day — the same off-by-one-day `formatIsoDate` avoids, arrived at from
+ * the other side.
+ */
+export function isoDateWeekday(date: IsoDate): number {
+  const parsed = new Date(`${date}T00:00:00Z`);
+  if (Number.isNaN(parsed.getTime())) {
+    throw new TypeError(`Not a valid date: ${date}`);
+  }
+  const day = parsed.getUTCDay();
+  return day === 0 ? 7 : day;
+}
+
+/**
+ * `2026-09-09` plus a number of days, as an `IsoDate`. Negative moves back.
+ *
+ * Calendar arithmetic, not instant arithmetic — which is why it is safe to do at UTC midnight
+ * despite ADR-0003. Adding 24 hours to an *instant* in a zone that changes offset that night
+ * lands an hour out; adding a day to a *date* does not, because a date has no offset to change.
+ * UTC is chosen precisely because it never has one, so the arithmetic cannot be perturbed by the
+ * business's DST or the browser's.
+ */
+export function addIsoDays(date: IsoDate, days: number): IsoDate {
+  const parsed = new Date(`${date}T00:00:00Z`);
+  if (Number.isNaN(parsed.getTime())) {
+    throw new TypeError(`Not a valid date: ${date}`);
+  }
+  parsed.setUTCDate(parsed.getUTCDate() + days);
+  return parsed.toISOString().slice(0, 10);
+}
+
 /** `8 September 2026` */
 export function formatDate(instant: IsoInstant | Date, timezone: Timezone): string {
   return format(instant, timezone, { day: 'numeric', month: 'long', year: 'numeric' });

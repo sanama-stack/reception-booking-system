@@ -45,6 +45,7 @@ export function SlotPicker({
 
         if (slots.length === 0) {
           const reason = explainEmptyReason(result.emptyReason, {
+            audience: 'owner',
             serviceName: service.name,
             durationMinutes: service.durationMinutes,
             employeeName,

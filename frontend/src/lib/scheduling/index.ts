@@ -1,4 +1,5 @@
 export { availabilityPath } from './api';
+export { isStaleSlot } from './stale';
 export type {
   Availability,
   AvailabilityDay,

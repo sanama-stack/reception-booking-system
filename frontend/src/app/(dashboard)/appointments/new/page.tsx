@@ -16,43 +16,14 @@ import {
   Textarea,
   useToast,
 } from '@/components/ui';
-import { ApiError, type ErrorCode } from '@/lib/api/client';
+import { ApiError } from '@/lib/api/client';
 import { appointmentApi } from '@/lib/appointments';
 import { useResource } from '@/lib/api/use-resource';
 import { useSession } from '@/lib/auth';
 import { formatDuration, type ServiceDetail, type ServiceList } from '@/lib/catalog';
-import { availabilityPath, type AvailableSlot } from '@/lib/scheduling';
+import { availabilityPath, isStaleSlot, type AvailableSlot } from '@/lib/scheduling';
 import type { EmployeeList } from '@/lib/staff';
 import { formatMoney, formatTime, toBusinessDate, type Timezone } from '@/lib/time';
-
-/**
- * Every refusal that means **the slot list on screen is out of date**.
- *
- * `SLOT_UNAVAILABLE` is the one the phase document singles out — the exclusion constraint refused
- * the write because somebody else took the time between this list being drawn and the button being
- * pressed — but it is not the only way the world moves underneath an open screen. A service
- * deactivated in another tab, an employee unassigned, or simply enough time passing for the start
- * to fall inside the minimum lead time all leave a list of times that can no longer be booked.
- *
- * All of them get the same treatment, because the same thing is true of all of them: the answer on
- * screen was computed against a world that has changed, so it is re-asked and the selection is
- * dropped. Silently leaving the old times up — or leaving one selected — would invite the owner to
- * press the same doomed button again.
- *
- * A validation failure is deliberately **not** here. A mistyped phone number says nothing about
- * availability, and clearing a chosen time because a name was too long would be its own defect.
- */
-const STALE_SLOT_CODES: ReadonlySet<ErrorCode> = new Set<ErrorCode>([
-  'SLOT_UNAVAILABLE',
-  'SERVICE_INACTIVE',
-  'EMPLOYEE_INACTIVE',
-  'EMPLOYEE_CANNOT_PERFORM_SERVICE',
-  'OUTSIDE_BUSINESS_HOURS',
-  'OUTSIDE_WORKING_HOURS',
-  'BOOKING_IN_PAST',
-  'BELOW_MIN_LEAD_TIME',
-  'BEYOND_MAX_ADVANCE',
-]);
 
 interface Selection {
   startsAt: string;
@@ -214,7 +185,7 @@ function BookingFlow({
         return;
       }
       setError(cause);
-      if (STALE_SLOT_CODES.has(cause.code)) {
+      if (isStaleSlot(cause.code)) {
         setSelection(null);
         setRefreshes((count) => count + 1);
       }
@@ -376,7 +347,7 @@ function BookingFlow({
           className="border-danger/30 bg-danger/5 text-ink rounded-md border px-3 py-2 text-sm"
         >
           {unfielded}
-          {error && STALE_SLOT_CODES.has(error.code) && (
+          {error && isStaleSlot(error.code) && (
             <span className="mt-1 block">
               The times above have been recalculated — choose one of those.
             </span>
