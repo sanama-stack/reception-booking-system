@@ -1,4 +1,4 @@
-# Session handoff — 2026-09-10 — The flat allow-list, the 40 px default, and the pull request
+# Session handoff — 2026-09-10 — The flat allow-list, the 40 px default, and an empty tracker
 
 > **Purpose.** Enough context to continue without re-reading this session. §1 says where things
 > stand; §2 is the two decisions the principal made and the options they were made from; §3 and §4
@@ -7,7 +7,10 @@
 >
 > **This session built no screen.** It was asked to clear the tracker before the phase 09 frontend
 > half. Both remaining issues were `ready-for-human` — decisions, not patches — so both were put to
-> the principal first. The pull request four handoffs had been asking for is **open**.
+> the principal first. The pull request four handoffs had been asking for was opened and **merged**;
+> §5.1 is what merging it turned up, which was not nothing.
+>
+> **The tracker is empty — zero open issues — for the first time in the project's history.**
 
 ---
 
@@ -16,29 +19,36 @@
 | | |
 |---|---|
 | Repository | https://github.com/sanama-stack/reception-booking-system — **public** |
-| `origin/main` | `c56d9df` — still all of phase 08, until [#12](https://github.com/sanama-stack/reception-booking-system/pull/12) merges |
-| `dev` | `46c8d5c`, **pushed**, fifteen commits ahead of `main` |
-| Pull request | **[#12](https://github.com/sanama-stack/reception-booking-system/pull/12) is open** — `dev` → `main`, fifteen commits. Closes all six issues |
+| `origin/main` | **`3efcfd2`** — phase 09's backend half and everything before it |
+| `dev` | **`3efcfd2`** — fast-forwarded onto `main` after the merge, so the two are identical (§5.2) |
+| Pull request | **[#12](https://github.com/sanama-stack/reception-booking-system/pull/12) is MERGED** — `dev` → `main`, seventeen commits, merge commit `3efcfd2`. All six checks green |
 | Backend | **798 tests, 0 failures, 0 errors, 0 skipped** — unchanged in count, because this session strengthened an existing test rather than adding one |
 | Frontend gates | lint, typecheck, `format:check` green. **`pnpm build` not run** — a dev server is up |
 | Migrations | **V7**, unchanged. No migration this session |
-| Issues open | **Six, all fixed, all closed by #12 on merge** — #5, #7, #8, #9 from previous sessions, #10 and #11 here. The tracker is empty afterwards |
+| Issues open | **Zero.** #5, #8, #9, #10 and #11 closed automatically on merge; #7 was closed by hand and §5.1 says why |
 | Phase 09 | Backend complete. Frontend: **types and client only**, no component. Unchanged |
 
 ### The commits, in order
 
 ```
-12d93b7  Make 44 px the default rather than something four files remember   #11
+12d93b7  Make 44 px the default rather than something four files remember      #11
 46c8d5c  Let the allow-list say where a key is allowed, not merely that it is  #10
+60168e8  Record the session that decided twice and opened the pull request
+637d41e  Merge branch 'main' into dev                                          §5.1
+3efcfd2  Merge pull request #12 from sanama-stack/dev                          on main
 ```
 
 ### The one thing that is genuinely new to know
 
-**The pull request is open, and that is a change of policy rather than of code.** Three handoffs
+**The pull request merged, and that is a change of policy rather than of code.** Three handoffs
 held it back on the same reasoning: phase 09 is half-built, and `main` is meant to be a commit a
 stranger could clone and run. The principal asked for it directly. It is not actually a problem —
 `main` gets a complete Classic Flow and a Receptionist reachable by API, with no chat panel — and
 the PR body says so in its second paragraph rather than leaving a reader to discover it.
+
+**The consequence for the next session is that `main` is no longer a phase behind.** Every previous
+handoff opened with a `dev` that was some number of commits ahead of an older `main`; this one does
+not, and `dev` and `main` are the same commit.
 
 ---
 
@@ -177,10 +187,44 @@ back afterwards, and `PublicResponses.java` is byte-identical to `HEAD`.
 
   No horizontal overflow on either page.
 
+- **CI green on the merged head.** All six checks — Backend, Frontend and Compose smoke test, on
+  both the push and the pull request — against `637d41e`, which is the exact tree that became
+  `main`. The Backend job runs the same 798 tests on a clean runner rather than on this machine, so
+  it is the stronger of the two signals.
+
 **Not verified.** Anything involving a real model — unchanged, and there is still no
-`OPENAI_API_KEY`. Level 3 is still written and still unrun. **CI had not finished on #12 when this
-was written**: both Frontend checks passed, both Backend jobs were still running. A fresh session
-should confirm them rather than inherit this sentence.
+`OPENAI_API_KEY`. Level 3 is still written and still unrun.
+
+### 5.1 Merging found two things, and neither was a test failure
+
+**`main` was not mergeable, and green CI would not have fixed it.** Branch protection on `main` sets
+`required_status_checks.strict = true` — *require branches to be up to date before merging* — and
+`main` carried one commit `dev` did not: `c56d9df`, the merge commit from PR #6. So #12 sat at
+`mergeStateStatus=BEHIND` no matter how the checks went, and the failure mode is a quiet one: the
+checks are green, the PR looks ready, and the merge button is simply refused.
+
+Checked before fixing rather than after: `git diff origin/dev...origin/main` is **empty**, so there
+was no content on `main` that `dev` lacked and the update was purely topological. `dev` already
+carried the merge commits from #2, #3 and #4, so pulling `main` back is this repository's own
+pattern and not an improvisation — there is even an `a038093` named *Record that main is already
+contained in dev*. `gh pr update-branch 12` produced `637d41e`, which re-triggered CI, which is why
+the suite ran twice.
+
+**#7 did not close itself.** Its fix commit `f6cddf6` carries `Refs #7` rather than a closing
+keyword, so GitHub never linked it, and the merge that closed the other five left it open. The PR
+body claimed six. It was closed by hand *after* confirming the fix is genuinely on `main` —
+`AppointmentLockRepository`, `DeadlockRetry`, and `BookingService` holding its boundary in a
+`TransactionTemplate` — rather than on the strength of the PR body saying so.
+
+**A closing keyword is worth writing even when a handoff records the link.** Five issues closed
+themselves and one needed a person; the difference was one word in a commit message.
+
+### 5.2 `dev` was fast-forwarded onto `main`
+
+`dev` was an ancestor of the merge commit, so this is a true fast-forward and adds no commit. Done
+deliberately rather than left: without it the next pull request opens one commit `BEHIND` and meets
+the same strict-protection refusal described above, which is exactly the friction this session paid
+for once already.
 
 ---
 
@@ -203,6 +247,13 @@ should confirm them rather than inherit this sentence.
 - **Do not run `pnpm build` while `next dev` is running.** Unchanged, and still true.
 - **The Browser pane must be visible.** A hidden pane is 0×0, the page never paints, and `navigate`
   times out after a full 300 seconds. It cost that here before the pane was revealed.
+- **Do not read a green pull request as a mergeable one.** §5.1. `main` requires branches to be up to
+  date, so a PR whose checks all pass is still refused while `dev` is behind. `gh pr view --json
+  mergeStateStatus` is the field that says so; the checks do not.
+- **Do not re-merge `main` into `dev` by hand while they are equal.** §5.2 already did the
+  fast-forward. Merging again creates an empty merge commit for nothing.
+- **Write `Closes #N`, not `Refs #N`, in a commit that fixes an issue.** §5.1. One word is the whole
+  difference between the tracker maintaining itself and someone noticing months later.
 
 ---
 
@@ -211,8 +262,8 @@ should confirm them rather than inherit this sentence.
 ### P0
 
 1. **The frontend half of phase 09** — unchanged from the previous handoff, and now genuinely
-   unblocked: the tracker is clear and there is nothing left to fix first. What the phase document
-   still owes:
+   unblocked: the tracker is empty, `main` is current, and there is nothing left to fix first. It is
+   the only substantial work between here and phase 10. What the phase document still owes:
    - the chat panel in `/book/[slug]`'s right column, full-width on mobile
    - the message list, typing indicator, and inline tool activity
    - the confirmation card **from `appointmentCreated`**, which is the Classic Flow's existing
@@ -227,13 +278,18 @@ should confirm them rather than inherit this sentence.
 
 ### P1
 
-3. **Merge #12** once CI is green.
-4. **Run level 3 once**, with a real key. Unchanged across three handoffs and still the largest
-   unverified thing in the project.
+3. **Run level 3 once**, with a real key. Unchanged across three handoffs, and now the largest
+   unverified thing in the project by a wider margin than ever — it is very nearly the only one
+   left. Everything else on this list is work not yet done rather than work not yet checked.
 
 ### P2
 
-5. **Retention.** Unchanged: nothing deletes an `ai_message`, and nothing is meant to yet.
+4. **Retention.** Unchanged: nothing deletes an `ai_message`, and nothing is meant to yet.
+
+### Done here, and off the list
+
+**Merging #12**, which every handoff since 2026-09-09 carried as a P0 or P1. `main` is current for
+the first time since phase 08, and the next pull request starts from an even branch.
 
 ---
 
@@ -275,6 +331,9 @@ backend/src/test/…/PublicFieldAllowListTest.java  ALLOWED becomes qualified pa
                                                   NEVER matched on the leaf segment
 ```
 
+`60168e8` — the handoff and its index row. `637d41e` — `main` merged into `dev` to satisfy strict
+branch protection, no content (§5.1). `3efcfd2` — the merge of #12 into `main`.
+
 Nothing else. `PublicResponses.java` was modified to plant the §4.1 leak and restored; it is
 identical to `HEAD`.
 
@@ -311,6 +370,22 @@ There are **three** Postgres containers on this machine — `smart-express-postg
 `order-management-platform-postgres-1` belong to other projects. A `docker ps | grep postgres | head -1`
 picks the wrong one and fails with `role "reception" does not exist`.
 
+```bash
+# Whether a pull request can actually merge. The checks do not answer this.
+gh pr view 12 --json mergeable,mergeStateStatus
+```
+Returned `mergeable=MERGEABLE mergeState=BEHIND` with every check green — §5.1. After
+`gh pr update-branch 12` and a second CI pass it returned `CLEAN`, and only then did
+`gh pr merge 12 --merge` succeed.
+
+```bash
+# What main requires before it will accept anything.
+gh api repos/sanama-stack/reception-booking-system/branches/main/protection \
+  --jq '{strict: .required_status_checks.strict, contexts: .required_status_checks.contexts}'
+```
+`strict: true`, contexts `["Backend", "Frontend", "Compose smoke test"]`. All three are required;
+none may be skipped.
+
 ---
 
 ## 11. Confidence
@@ -329,6 +404,12 @@ real screens, not Tailwind arithmetic.
 principal's decision and the trade was stated, but the 4 px was checked for overflow on one Settings
 screen, not on all of them. Nothing else was measured, and a dense table row elsewhere could look
 different.
+
+**High — checked on the server rather than assumed.** That #12 merged, that all six checks were
+green on the merged head, that the tracker is empty, and that `dev` and `main` are the same commit.
+Each read back from `gh` or `git` after the fact rather than inferred from a command having
+succeeded — including #7, whose fix was confirmed present on `main` by listing the files before the
+issue was closed rather than on the strength of the PR body claiming it.
 
 **None — not verified at all.** Anything involving a real model. Unchanged, and now by a wider
 margin than ever, since it is the only substantial unverified area left.
