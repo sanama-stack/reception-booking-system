@@ -102,6 +102,36 @@ evidence about the rate, only about the mode existing.
 **Compute an interval, not just a point.** Clopper–Pearson, and validate the helper against a
 published answer first: 2 of 20 is [0.0123, 0.3170] in any textbook.
 
+## Check that your fixture can even reach the defect
+
+The first design of `RescheduleDateFidelityRateTest`'s weekday arm had the customer say "Monday".
+It would have returned a near-perfect score and meant nothing.
+
+Every observed failure of issue #17 has the model searching `[tomorrow, tomorrow+6]` instead
+of the date it was given. A **bare weekday can only name a date within seven days** — so its
+target is always *inside* the very window the model wrongly substitutes, and the failure mode is
+unreachable by construction. The arm was re-phrased to "the Monday after next", which names a date
+ten days out, and only then could it measure anything.
+
+**Ask what makes the defect visible before you ask how often it happens.** A fixture that cannot
+express the failing input measures the fixture.
+
+## Phrasing is a variable, and a large one
+
+Same harness, same target date, same appointment, fifty conversations each — only the wording
+of the date changed:
+
+| How the customer named the date | Landed on it |
+|---|---|
+| `2026-09-21` | 42/47 = **89.4%** |
+| "the Monday after next" | 13/29 = **44.8%** (60.0% allowing the other reading of the phrase) |
+
+Fisher one-sided p = 3.9 × 10⁻⁵. `date_from` was aimed exactly at the target in 84% of the first
+arm's trials against 20% of the second's.
+
+So a rate measured with an explicit ISO date is a **best case**, and customers do not talk that way.
+State the phrasing beside the number, the way the weekday test states its weekday.
+
 ## The rule that produced all of this
 
 **Never hand-write the tool JSON.** A simplified two-tool probe scored 5 of 5 on the very prompt the

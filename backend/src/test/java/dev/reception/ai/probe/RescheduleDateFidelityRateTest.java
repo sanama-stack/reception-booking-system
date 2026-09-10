@@ -66,7 +66,24 @@ class RescheduleDateFidelityRateTest extends IntegrationTest {
     private static final int CONVERSATIONS =
             Integer.parseInt(Optional.ofNullable(System.getenv("PROBE_CONVERSATIONS")).orElse("50"));
 
-    /** {@code ISO} names the date as {@code 2026-09-21}; {@code WEEKDAY} names it as "Monday". */
+    /**
+     * How the Customer names the target date. {@code ISO} says {@code 2026-09-21}; {@code WEEKDAY}
+     * says "the Monday after next". Both name <strong>the same date</strong>, so the two arms differ
+     * only in phrasing and are directly comparable.
+     *
+     * <p><strong>Why not a bare weekday.</strong> "Monday" can only ever name a date within seven
+     * days, and every observed failure of this defect had the model searching
+     * {@code [tomorrow, tomorrow+6]} — so a bare weekday's target is <em>always inside the very
+     * window the model wrongly substitutes.</em> The failure mode is unreachable by construction,
+     * and a bare-weekday arm would come back near-perfect while proving nothing. That is a fact
+     * about the defect's reachability, not about the model: <strong>#17 needs a target more than a
+     * week out, which a bare weekday cannot express.</strong>
+     *
+     * <p><strong>The residual ambiguity is measured, not assumed away.</strong> "The Monday after
+     * next" is read by some English speakers as the nearest Monday instead. That reading is a
+     * different date, it is defensible, and scoring it as this defect would inflate the arm. It is
+     * counted separately as {@code OTHER READING} — see the loop.
+     */
     private static final String DATE_STYLE =
             Optional.ofNullable(System.getenv("PROBE_DATE_STYLE")).orElse("ISO").toUpperCase(Locale.ROOT);
 
@@ -104,9 +121,14 @@ class RescheduleDateFidelityRateTest extends IntegrationTest {
 
         String bookedAt = aria.monday + " 12:00";
         String wanted = aria.monday + " 15:00";
-        String spokenDate = "ISO".equals(DATE_STYLE)
-                ? aria.monday.toString()
-                : aria.monday.getDayOfWeek().getDisplayName(TextStyle.FULL, Locale.ENGLISH);
+        String dayName = aria.monday.getDayOfWeek().getDisplayName(TextStyle.FULL, Locale.ENGLISH);
+        String spokenDate = "ISO".equals(DATE_STYLE) ? aria.monday.toString() : "the " + dayName + " after next";
+
+        // The nearest occurrence of the same weekday: the other defensible reading of the phrase
+        // above, and never the same date as the target, because BookingScenario puts its Monday
+        // more than a week out.
+        java.time.LocalDate otherReading = java.time.LocalDate.now(clock.withZone(BookingScenario.TBILISI))
+                .with(java.time.temporal.TemporalAdjusters.next(aria.monday.getDayOfWeek()));
 
         System.out.printf(
                 "%d trials. Appointment on %s; the Customer asks for 15:00 and names the day as \"%s\" "
@@ -115,6 +137,7 @@ class RescheduleDateFidelityRateTest extends IntegrationTest {
 
         int wrote = 0;
         int correct = 0;
+        int otherReadingCount = 0;
         int searchedTheNamedDate = 0;
         Map<String, Integer> landedOn = new LinkedHashMap<>();
         List<Integer> wrongTrials = new ArrayList<>();
@@ -184,6 +207,11 @@ class RescheduleDateFidelityRateTest extends IntegrationTest {
             if (wanted.equals(landed)) {
                 correct++;
                 System.out.printf("%3d  OK%n", trial);
+            } else if (landed != null && landed.startsWith(otherReading.toString())) {
+                // The other reading of "the <day> after next". Not this defect, and not scored as
+                // one — but it is not a success either, so it is out of both counts and named.
+                otherReadingCount++;
+                System.out.printf("%3d  OTHER READING landed=%s searched=%s%n", trial, landed, searches);
             } else {
                 wrongTrials.add(trial);
                 System.out.printf("%3d  WRONG    landed=%s searched=%s%n", trial, landed, searches);
@@ -192,6 +220,7 @@ class RescheduleDateFidelityRateTest extends IntegrationTest {
 
         System.out.printf(
                 "%n%d of %d writes landed on the named date (%d trials, %d never wrote)%n"
+                        + "of those writes, %d took the other reading of the phrase (%s)%n"
                         + "the search included the named date in %d of %d trials%n"
                         + "landed on: %s%n"
                         + "wrong at trials: %s%n"
@@ -200,6 +229,8 @@ class RescheduleDateFidelityRateTest extends IntegrationTest {
                 wrote,
                 CONVERSATIONS,
                 CONVERSATIONS - wrote,
+                otherReadingCount,
+                otherReading,
                 searchedTheNamedDate,
                 CONVERSATIONS,
                 landedOn,
