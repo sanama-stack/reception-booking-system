@@ -53,8 +53,17 @@ import org.springframework.test.context.TestPropertySource;
 @TestPropertySource(properties = "app.ai.scripted=false")
 class WeekdayResolutionRateTest extends IntegrationTest {
 
-    /** Fifty separates 84% from 96%. Twenty does not, and sixteen is what missed it for a session. */
-    private static final int CONVERSATIONS = 50;
+    /**
+     * Fifty separates 84% from 96%. Twenty does not, and sixteen is what missed it for a session.
+     *
+     * <p>Fifty is not enough for every question, though, and {@code PROBE_CONVERSATIONS} raises it.
+     * Against a 96% arm the failures are so rare that fifty trials cannot see an improvement at all
+     * — 48 of 50 against a perfect 50 of 50 is Fisher p = 0.49, which is no result. Separating 96%
+     * from 100% takes about a hundred and fifty per arm, and twelve minutes. Read the environment
+     * rather than a system property because Gradle hands the test JVM the former and not the latter.
+     */
+    private static final int CONVERSATIONS =
+            Integer.parseInt(Optional.ofNullable(System.getenv("PROBE_CONVERSATIONS")).orElse("50"));
 
     private static final String UTTERANCE = "What have you got free next Monday?";
     private static final DayOfWeek EXPECTED = DayOfWeek.MONDAY;
