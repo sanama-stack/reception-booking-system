@@ -2,51 +2,33 @@ import { Card } from '@/components/ui';
 import { DAYS } from '@/lib/business';
 import type { PublicBusiness, PublicDayHours } from '@/lib/public';
 import { isoDateWeekday, toBusinessDate } from '@/lib/time';
+import { ReceptionistPanel } from './receptionist-panel';
 
 /**
- * The right-hand column: the Receptionist's reserved space, the opening hours, and the
- * cancellation policy.
+ * The right-hand column: the Receptionist, the opening hours, and the cancellation policy.
  *
- * Everything here is reference material — true regardless of what the visitor has chosen — which
- * is why it is a server component with no state, and why it sits *after* the flow in the document
- * rather than before it. At 360 px the columns stack in source order, so a visitor who came to
- * book meets the booking form first and finds the hours below it.
+ * Everything below the Receptionist is reference material — true regardless of what the visitor
+ * has chosen — which is why this stays a server component and only the conversation crosses into
+ * the client.
+ *
+ * It sits *after* the flow in the document, and that is a decision about 360 px rather than about
+ * desktop: the columns stack in source order, so a visitor on a phone meets the booking form
+ * first. The Receptionist being the default door is a claim about a two-column screen; on a
+ * one-column one, putting a chat panel above the form would bury the fallback under the thing it
+ * is the fallback for.
  */
-export function BusinessPanel({ business }: { business: PublicBusiness }) {
+export function BusinessPanel({ business, slug }: { business: PublicBusiness; slug: string }) {
   return (
     <aside className="flex flex-col gap-4 lg:sticky lg:top-8">
-      <ReceptionistSlot business={business} />
+      {/*
+        A server component rendering a client one, which is the whole of the boundary here: the
+        hours and the policy are static facts and stay on the server, and only the conversation
+        ships JavaScript.
+      */}
+      {business.aiEnabled && <ReceptionistPanel slug={slug} business={business} />}
       <OpeningHours business={business} />
       <Policy business={business} />
     </aside>
-  );
-}
-
-/**
- * Where the Receptionist goes (phase 09).
- *
- * **The space is reserved here, and the reservation is the deliverable**
- * (docs/phases/phase-08-public-booking.md). Laying the column out now is what keeps the Classic
- * Flow a peer of the chat rather than something the chat displaces — and the Classic Flow being a
- * genuine peer is the whole basis of its being the fallback for every AI failure mode
- * (docs/05-ai-architecture.md §8).
- *
- * `aiEnabled` is already read, so phase 09 inherits the branch rather than adding it: a business
- * that has not switched the Receptionist on says nothing about it, because advertising a feature
- * this business does not offer would be worse than an empty column. There is no Settings control
- * for the flag yet — phase 09 owes that too.
- */
-function ReceptionistSlot({ business }: { business: PublicBusiness }) {
-  if (!business.aiEnabled) return null;
-
-  return (
-    <Card className="border-brand/25 bg-brand/[0.03]">
-      <h2 className="text-ink text-sm font-semibold">Ask the receptionist</h2>
-      <p className="text-ink-muted mt-2 text-sm leading-relaxed">
-        {business.name} is setting up a receptionist you can talk to — it will answer questions and
-        book for you from this panel. Until then, the form does everything it will.
-      </p>
-    </Card>
   );
 }
 

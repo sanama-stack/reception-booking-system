@@ -33,14 +33,19 @@ export function Confirmation({
   appointment: BookedAppointment;
   business: PublicBusiness;
   /**
-   * What the Customer actually typed, or `null` when they left it blank — email is optional.
+   * What the Customer actually typed, `null` when they left it blank, and **`undefined` when this
+   * screen has no way to know** — email is optional, and the Receptionist collects it in
+   * conversation rather than in a form this component can read.
    *
-   * **Not the recipient, and not evidence a message was sent.** It is used only to tell the two
-   * "nothing was sent" cases apart: one where they gave no address and one where they gave one the
-   * booking could not use. `appointment.confirmationSent` decides whether anything went at all.
+   * **Not the recipient, and not evidence a message was sent.** It is used only to tell the
+   * "nothing was sent" cases apart, and the third state exists because conflating "not known" with
+   * "left blank" would put a false sentence on the screen: the Classic Flow can say *you did not
+   * give an address*, and the chat panel cannot.
+   * `appointment.confirmationSent` decides whether anything went at all.
    */
-  email: string | null;
-  onBookAnother: () => void;
+  email?: string | null;
+  /** Omitted where there is nothing to reset — in the chat panel, booking again is done by asking. */
+  onBookAnother?: () => void;
 }) {
   const { timezone } = appointment;
 
@@ -117,10 +122,23 @@ export function Confirmation({
             <span className="text-ink font-medium">{email}</span> if you would like messages in
             future.
           </p>
-        ) : (
+        ) : email === null ? (
           <p className="text-ink-muted mt-2 text-sm leading-relaxed">
             You did not give an email address, so there is nothing to send — which means the code
             above is your only copy of it. Write it down before you leave this page.
+          </p>
+        ) : (
+          <p className="text-ink-muted mt-2 text-sm leading-relaxed">
+            {/*
+              The Receptionist's booking. What was said to it is not readable from here, so the two
+              sentences above — "you did not give an address" and "the address you gave cannot be
+              used" — are both claims this branch is in no position to make. What
+              `confirmationSent` does establish is the part that matters to the Customer: nothing
+              is coming, so the code on this screen is the only copy of it.
+            */}
+            <span className="text-ink font-medium">No confirmation email is being sent.</span> There
+            is no email address on file with {business.name} for this number, so the code above is
+            your only copy of it. Write it down before you leave this page.
           </p>
         )}
         {business.cancellationWindowHours > 0 && (
@@ -134,11 +152,13 @@ export function Confirmation({
         )}
       </Card>
 
-      <div>
-        <Button variant="secondary" onClick={onBookAnother}>
-          Book another appointment
-        </Button>
-      </div>
+      {onBookAnother && (
+        <div>
+          <Button variant="secondary" onClick={onBookAnother}>
+            Book another appointment
+          </Button>
+        </div>
+      )}
     </div>
   );
 }

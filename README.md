@@ -8,13 +8,21 @@ Receptionist acts only through validated tools; those tools call the same endpoi
 calls; and the database makes double-booking structurally impossible regardless of what any layer above it
 believes.
 
-> **Build status: phase 08 of 11 complete.** An owner can configure a business and run its
+> **Build status: phase 09 of 11 complete.** An owner can configure a business and run its
 > calendar from the dashboard — booking, moving, cancelling and closing out appointments, and
 > seeing who has booked — with double booking made impossible by the database rather than by a
-> check, and every one of those changes sends the customer a real email. A stranger can now book
+> check, and every one of those changes sends the customer a real email. A stranger can book
 > without an account at `/book/{slug}`, and manage that appointment from the link the email
-> carries. The AI receptionist is still to come. See
+> carries. **They can also just ask.** The AI receptionist answers on the booking page, books
+> through the same endpoints the form uses, and cannot invent a slot, a price or a policy — its
+> confirmation card is rendered from the booking the server made, never from what it said. The
+> owner reads every conversation, and every tool call inside it, under **Conversations**. What
+> remains is the calendar and analytics screens, then hardening. See
 > [docs/09-phase-plan.md](docs/09-phase-plan.md) for the build order.
+>
+> The receptionist needs an `OPENAI_API_KEY` in `.env`. Without one it degrades to the booking
+> form and says so — which is the ordinary state of a fresh clone, and deliberately not a startup
+> failure.
 
 ## Quick start
 

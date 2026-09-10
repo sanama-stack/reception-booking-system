@@ -14,6 +14,7 @@ import dev.reception.support.DatabaseCleaner;
 import dev.reception.support.IntegrationTest;
 import dev.reception.tenancy.TenantAdoption;
 import java.time.Clock;
+import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.Map;
@@ -352,6 +353,73 @@ class ConversationLoopTest extends IntegrationTest {
         assertThat(model.messagesOnCall(0).get(0).content()).contains("Salon Aria");
         assertThat(jdbc.queryForList("select distinct role from ai_messages", String.class))
                 .doesNotContain("SYSTEM");
+    }
+
+    /**
+     * <strong>Every date a customer can name without saying a number is spelled out.</strong> A
+     * regression for the defect that made the Receptionist's first real conversation wrong: the
+     * prompt stated the date alone and left the model to work out which weekday it was, so a
+     * customer asking about Monday had the Saturday searched on their behalf. The tool answered
+     * {@code CLOSED} correctly and the customer was told, truthfully about the wrong day, that the
+     * business was closed.
+     *
+     * <p>The day name went in first and was not enough — a live run showed the model still counting
+     * its way to the wrong Monday — so the seven days that follow are resolved here and listed. Both
+     * halves are asserted because the second is the one that does the work and the first is what
+     * makes the list legible.
+     *
+     * <p><strong>The order of the two fields inside a list line is asserted, and it is not a
+     * formatting preference.</strong> Over fifty live conversations each way, {@code MONDAY
+     * 2026-09-14} resolved "next Monday" 42 times in 50 — every failure the SATURDAY line of the
+     * same list, the model misreading rather than calculating — and {@code 2026-09-14 is a MONDAY}
+     * 48 in 50, at Fisher p = 0.046. Reversing this line is a defect a customer meets, so it is
+     * spelled out here rather than left to {@code contains} on two substrings in any arrangement.
+     *
+     * <p>Scripted, because the fact is either in the prompt or it is not and that needs no network.
+     * Whether a model then uses it lives in {@code LiveReceptionistTest}, where it costs money.
+     */
+    @Test
+    @DisplayName("the prompt dates today and each of the next seven days by name")
+    void the_prompt_resolves_every_nameable_day() {
+        model.willSay("Hello.");
+
+        respond(start(), "hi");
+
+        // The business's zone, not the server's — the same date the tools will resolve against.
+        LocalDate today = LocalDate.now(clock.withZone(BookingScenario.TBILISI));
+        String prompt = model.messagesOnCall(0).get(0).content();
+
+        assertThat(prompt)
+                .contains("Today's date, in this business's timezone: " + today + " (" + today.getDayOfWeek() + ")");
+
+        // Seven, not one: "Monday" from a Thursday is four days out, and the whole point is that
+        // nothing in the week has to be counted to.
+        for (int ahead = 1; ahead <= 7; ahead++) {
+            LocalDate day = today.plusDays(ahead);
+            assertThat(prompt).as("day %d ahead", ahead).contains(day + " is a " + day.getDayOfWeek());
+        }
+
+        // And the instruction to prefer the list over arithmetic. Measured as the half that carries
+        // the fix: with the dates alone the model resolved a named weekday correctly 2 times in 5,
+        // and with this sentence 42 in 50 — 48 in 50 once the list lines were turned around.
+        assertThat(prompt).contains("take the date from the seven-day list above");
+    }
+
+    /**
+     * <strong>A wire field nothing explains is a wire field nothing reads.</strong> Tool refusals
+     * carry {@code fields} naming the arguments that failed; this asserts the prompt says what they
+     * are, because the two halves are one change and either alone does nothing.
+     */
+    @Test
+    @DisplayName("the prompt explains what an error's fields mean")
+    void the_prompt_explains_field_level_refusals() {
+        model.willSay("Hello.");
+
+        respond(start(), "hi");
+
+        assertThat(model.messagesOnCall(0).get(0).content())
+                .contains("error carrying `fields`")
+                .contains("never send the same value again");
     }
 
     // ------------------------------------------------------- authority

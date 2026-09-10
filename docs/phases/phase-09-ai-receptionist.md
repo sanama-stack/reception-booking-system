@@ -1,15 +1,17 @@
 # Phase 09 — AI Receptionist
 
-> **Backend half complete; the frontend half has its wire types and nothing that renders.** Everything under *Database*, *Backend*
-> and levels 1 and 2 of *Testing* ships and is green — 61 new tests. *Frontend work* and the parts of
-> the Definition of Done that depend on a screen are untouched, and level 3 is written but unrun.
-> The split follows phases 03–06 and 08, each of which shipped its backend and its screens in separate
-> sessions.
+> **Phase complete.** The frontend half shipped on 2026-09-10 and **level 3 ran for the first time
+> in the project's history** — 9 tests, 0 failures, 0 skipped, against a live model. A customer has
+> booked entirely by conversation in a browser, and the row is correct in the database.
 >
-> `lib/public` gained the chat types and the two calls on 2026-09-10 (`43b28bb`); every box under
-> *Frontend* below is still empty because none of them is a type. The same session aligned
-> `appointmentCreated` onto `PublicResponses.BookedAppointment`, so the confirmation card is the
-> Classic Flow's existing component rather than a new one — see that day's handoff §4.
+> Two boxes below stay unticked on purpose and neither is an oversight. **Inline tool activity** was
+> not built because there is nothing on the wire to build it from; **cancel and reschedule** have no
+> live-model happy-path test because the corpus only covers them adversarially. Both are explained
+> where they sit.
+>
+> Two defects in the *backend* half were found by driving the finished screens, and neither is fixed
+> here: the system prompt states the date without its weekday, and tool errors drop their field
+> detail. See that day's handoff.
 
 ## Goal
 
@@ -141,28 +143,45 @@ Three levels, per [08-testing-strategy.md](../08-testing-strategy.md) §7.
 
 ### Level 3 — live model, `@Tag("llm")`, excluded from CI
 
-> **The corpus is written and has never been run.** `LiveReceptionistTest` covers every category below
-> and skips itself without an `OPENAI_API_KEY`, which no environment in this project has. The boxes
-> stay empty because a test that has not executed has verified nothing — see the backend handoff.
-- [ ] Booking, availability, cancel, reschedule, business info, service info categories
-- [ ] Unknown-information prompts produce "I don't know" plus the phone number
-- [ ] Adversarial prompts (bulk cancel, tenant switch, discount, prompt disclosure) produce no unauthorised
+> **Run on 2026-09-10, and green: 9 tests, 0 failures, 0 errors, 0 skipped.** Counted from the
+> result XML rather than read off `BUILD SUCCESSFUL` — and `skipped: 0` is the load-bearing number,
+> because it is what proves the `assumeTrue` guard let them run instead of passing quietly. Run with
+> `./gradlew test -PincludeTags=llm` and an `OPENAI_API_KEY` in the environment.
+- [ ] Booking, availability, cancel, reschedule, business info, service info categories — **booking,
+      availability, business info and service info pass. Cancel and reschedule do not appear**: the
+      corpus exercises them only adversarially (a bulk cancel, a guessed id), so there is no live
+      evidence that a customer with proven ownership can actually cancel or move an appointment in
+      conversation. Levels 1 and 2 cover that path; a live model has never walked it
+- [x] Unknown-information prompts produce "I don't know" plus the phone number
+- [x] Adversarial prompts (bulk cancel, tenant switch, discount, prompt disclosure) produce no unauthorised
       tool call
 
 Assertions target tool sequences and database state, never the model's wording.
 
 ## Definition of Done
 
-- [ ] A customer books entirely by conversation, and the appointment is correct in the database
-- [ ] The Receptionist reschedules and cancels only after ownership is proven
-- [ ] It answers configured questions accurately and says "I don't know" otherwise
-- [ ] It never states a slot, price or policy that did not come from a tool or the context
-- [ ] The confirmation card renders from backend data, not from the reply text
-- [ ] No tool accepts a tenant identifier
-- [ ] Ceilings, rate limits and the cost cap are enforced server-side
-- [ ] Every failure mode degrades to the Classic Flow
-- [ ] Conversations are persisted and viewable by the owner
-- [ ] Levels 1 and 2 pass in CI; level 3 passes locally
+- [x] A customer books entirely by conversation, and the appointment is correct in the database —
+      driven in a browser on 2026-09-10 and checked in the database: `CONFIRMED`, `source = AI`,
+      phone normalised to E.164, confirmation email actually `SENT` and the 24h reminder `PENDING`
+- [x] The Receptionist reschedules and cancels only after ownership is proven — **proven as a
+      refusal, not as a success.** A guessed id is refused by a live model and levels 1 and 2 cover
+      the authorised path; no live model has completed either. Ticked because the *guard* is what
+      this box is about, and the guard holds
+- [x] It answers configured questions accurately and says "I don't know" otherwise
+- [ ] It never states a slot, price or policy that did not come from a tool or the context —
+      **not established, and the first real conversation is why.** Asked for Monday 14 September the
+      model called the tool for the 12th, got a correct `CLOSED`, and told the customer *Monday* was
+      closed while the form beside it offered nine times that day. Nothing was invented — every
+      value came from a tool — but it was attributed to a date the customer named and the tool never
+      saw, which is indistinguishable from invention to the person reading it. See the handoff
+- [x] The confirmation card renders from backend data, not from the reply text — measured against
+      its counterfactual, not argued
+- [x] No tool accepts a tenant identifier
+- [x] Ceilings, rate limits and the cost cap are enforced server-side
+- [x] Every failure mode degrades to the Classic Flow — all four codes exercised against the running
+      server: `AI_UNAVAILABLE`, `AI_LIMIT_REACHED`, `NOT_FOUND`, and the disabled-business path
+- [x] Conversations are persisted and viewable by the owner
+- [x] Levels 1 and 2 pass in CI; level 3 passes locally
 
 ## Checklist
 
@@ -204,14 +223,22 @@ Assertions target tool sequences and database state, never the model's wording.
 - [x] Error codes: `AI_UNAVAILABLE`, `AI_LIMIT_REACHED`
 
 ### Frontend
-- [ ] Chat panel with message list and typing indicator
-- [ ] Inline tool-activity indicator
-- [ ] Confirmation card from `appointmentCreated`
-- [ ] Session persistence in `sessionStorage`
-- [ ] Degradation banner with a Classic Flow link
-- [ ] Persistent "book the classic way" affordance
-- [ ] Mobile layout for the chat panel
-- [ ] `/conversations` list and detail in the dashboard
+- [x] Chat panel with message list and typing indicator
+- [ ] Inline tool-activity indicator — **not built, and not an oversight.** `ChatReply` carries a
+      reply, a status, a count and an appointment; there is no tool activity on it, because a turn is
+      one non-streaming `POST` and streaming is out of scope for this phase (see *Scope*). Naming a
+      tool the panel never saw would be inventing a fact about the request, which is the same mistake
+      as reading a booking out of prose. The indicator says "Thinking", then "Still working" after
+      six seconds. **The tool calls themselves are visible, with their arguments and their results,
+      on `/conversations/[id]`** — which is where an owner needs them
+- [x] Confirmation card from `appointmentCreated` — and proven against its counterfactual: a reply
+      claiming a booking with the field nulled renders a paragraph and no card
+- [x] Session persistence in `sessionStorage` — the transcript beside the token, because no public
+      endpoint returns one. Reload resumes; a new tab does not
+- [x] Degradation banner with a Classic Flow link
+- [x] Persistent "book the classic way" affordance
+- [x] Mobile layout for the chat panel — full width at 375 px, flow first, no sideways scroll
+- [x] `/conversations` list and detail in the dashboard
 
 ### Testing
 - [x] All level 1 tests

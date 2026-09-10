@@ -114,21 +114,36 @@ export default async function BookingPage({ params }: PageProps) {
       </header>
 
       {/*
-        Two columns, with the right one reserved for the Receptionist (phase 09). The layout is
-        laid out here on purpose rather than being retrofitted later: the Classic Flow is the
-        permanent fallback for every AI failure mode (docs/05-ai-architecture.md §8), so it has to
-        be a first-class column beside the chat rather than something the chat pushes off-screen.
+        Two columns: the Classic Flow, and the Receptionist above the reference material. Phase 08
+        reserved the right-hand column and phase 09 filled it, which is why the layout was laid out
+        before there was anything to put in it — the Classic Flow is the permanent fallback for
+        every AI failure mode (docs/05-ai-architecture.md §8), so it has to be a first-class column
+        beside the chat rather than something the chat pushes off-screen.
+
+        `24rem` rather than the `19rem` phase 08 reserved. 304 px is enough for opening hours and
+        was never enough for a transcript: at that width a message bubble wraps every four or five
+        words and the confirmation card inside it is unreadable. The 80 px comes out of the Classic
+        Flow's column, which drops to roughly 560 px and needs about 440 for its widest row — the
+        slot grid — so the trade costs it nothing that shows.
 
         One column below `lg`, flow first. A visitor at 360 px came to book, not to read the
         opening hours, so the hours and the policy follow the flow rather than preceding it.
       */}
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1fr)_19rem] lg:items-start lg:gap-8">
-        {services.length === 0 ? (
-          <NotAcceptingBookings business={business} />
-        ) : (
-          <ClassicFlow slug={slug} business={business} services={services} today={today} />
-        )}
-        <BusinessPanel business={business} />
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1fr)_24rem] lg:items-start lg:gap-8">
+        {/*
+          The target of the Receptionist's permanent "or book the classic way" link. `scroll-mt-6`
+          is what keeps the heading off the very top edge when the anchor lands, and the id lives on
+          a wrapper rather than inside `ClassicFlow` so that the fallback still has somewhere to go
+          when this business has no services and the other branch renders instead.
+        */}
+        <div id="classic-flow" className="scroll-mt-6">
+          {services.length === 0 ? (
+            <NotAcceptingBookings business={business} />
+          ) : (
+            <ClassicFlow slug={slug} business={business} services={services} today={today} />
+          )}
+        </div>
+        <BusinessPanel business={business} slug={slug} />
       </div>
     </main>
   );

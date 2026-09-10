@@ -8,6 +8,8 @@ import dev.reception.support.DatabaseCleaner;
 import dev.reception.support.IntegrationTest;
 import dev.reception.tenancy.TenantAdoption;
 import java.time.Clock;
+import java.time.DayOfWeek;
+import java.time.LocalDate;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -89,6 +91,23 @@ class LiveReceptionistTest extends IntegrationTest {
 
     // ------------------------------------------------------------- BOOK_APPOINTMENT
 
+    /**
+     * <strong>The accepting turn names a time, and it must keep naming one.</strong> It said
+     * "That's fine" until 2026-09-10, and the corpus was then green in only two runs of four — a
+     * flake that cost two sessions' worth of doubt about a prompt change that had nothing to do
+     * with it.
+     *
+     * <p>The transcript said why. Asked for "the morning", the model lists every slot in it — twelve,
+     * at fifteen-minute steps — and asks which one. "That's fine" then refers to nothing, so it asks
+     * again, and the conversation ends one turn short of the write with no row and no defect. The
+     * model was right to refuse to pick a slot on a customer's behalf; the fixture was wrong to
+     * assume it had.
+     *
+     * <p>The named time is asserted as well as the row, which is what the vague phrasing could never
+     * do: this now proves the appointment landed on the time the customer asked for rather than
+     * merely that some appointment landed. 09:00 is free by construction — {@link BookingScenario}
+     * opens at 09:00 and the database is cleaned before every test.
+     */
     @Test
     @DisplayName("a customer books by conversation, and the row is correct")
     void a_booking_can_be_completed_in_conversation() {
@@ -96,15 +115,19 @@ class LiveReceptionistTest extends IntegrationTest {
 
         say(token, "Hi, I'd like a haircut.");
         say(token, "Whatever you have on " + aria.monday + " in the morning.");
-        say(token, "That's fine. Ana Tsereteli, " + BookingScenario.CUSTOMER_PHONE + ".");
+        say(token, "09:00 works. Ana Tsereteli, " + BookingScenario.CUSTOMER_PHONE + ".");
 
         // The database, not the reply. Whether it said the right thing is unfalsifiable; whether it
-        // wrote the right row is not.
+        // wrote the right row is not. Read back in the business timezone, because that is the only
+        // zone in which "09:00" is a fact rather than an offset the assertion happened to survive.
         Map<String, Object> booked = jdbc.queryForMap(
-                "select source, status, service_id::text as service from appointments");
+                "select source, status, service_id::text as service, "
+                        + "to_char(starts_at at time zone 'Asia/Tbilisi', 'YYYY-MM-DD HH24:MI') as local_start "
+                        + "from appointments");
         assertThat(booked.get("source")).isEqualTo("AI");
         assertThat(booked.get("status")).isEqualTo("CONFIRMED");
         assertThat(booked.get("service")).isEqualTo(aria.serviceId);
+        assertThat(booked.get("local_start")).isEqualTo(aria.monday + " 09:00");
     }
 
     // ------------------------------------------------------------- CHECK_AVAILABILITY
@@ -117,6 +140,37 @@ class LiveReceptionistTest extends IntegrationTest {
         say(token, "What have you got free on " + aria.monday + "?");
 
         assertThat(toolsCalled()).contains("find_available_slots");
+    }
+
+    /**
+     * <strong>A weekday spoken by name, with no date anywhere in the sentence.</strong> The
+     * customer says "Monday"; only the prompt's own statement of today can turn that into the
+     * {@code YYYY-MM-DD} the engine takes, and there is no tool that converts one to the other.
+     *
+     * <p>This is the case the corpus did not have, and its absence is why a green live run and 798
+     * tests both missed the prompt stating a date with no day name — asked for Monday, the model
+     * searched a Saturday, was told {@code CLOSED} by a tool that was entirely correct, and told the
+     * customer their Monday was closed while the Classic Flow beside it offered nine times.
+     *
+     * <p>The assertion is on the weekday and not on which Monday: "next Monday" is genuinely
+     * ambiguous in English between the coming one and the one after, and a test that picked a side
+     * would be asserting a reading rather than a resolution. What is not ambiguous is that it must
+     * be a Monday, and it must not be in the past.
+     */
+    @Test
+    @DisplayName("a weekday named without a date is resolved to a date that is that weekday")
+    void a_spoken_weekday_resolves_to_the_right_day() {
+        String token = start();
+
+        say(token, "What have you got free next Monday?");
+
+        List<String> searched = slotSearchDates();
+        assertThat(searched).as("find_available_slots was never called").isNotEmpty();
+        assertThat(searched).allSatisfy(date -> {
+            LocalDate asked = LocalDate.parse(date);
+            assertThat(asked.getDayOfWeek()).as("searched %s", date).isEqualTo(DayOfWeek.MONDAY);
+            assertThat(asked).isAfterOrEqualTo(LocalDate.now(clock.withZone(BookingScenario.TBILISI)));
+        });
     }
 
     // ------------------------------------------------------------- BUSINESS_INFO / SERVICE_INFO
@@ -232,6 +286,14 @@ class LiveReceptionistTest extends IntegrationTest {
 
     private String say(String token, String message) {
         return conversations.respond(token, message).reply();
+    }
+
+    /** The {@code date_from} of every availability search, as the model wrote it. */
+    private List<String> slotSearchDates() {
+        return jdbc.queryForList(
+                "select tool_arguments->>'date_from' from ai_messages "
+                        + "where role = 'TOOL' and tool_name = 'find_available_slots' order by created_at",
+                String.class);
     }
 
     private List<String> toolsCalled() {

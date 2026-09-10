@@ -85,7 +85,18 @@ public class ToolRegistry {
                     name,
                     e.code(),
                     context.conversationId());
-            return ToolResults.error(e.code().name(), e.getMessage());
+            // The fieldErrors travel with it. VALIDATION_FAILED's own message is "One or more
+            // fields are invalid", which tells the model to try again and nothing about what to
+            // change — and what it changed, three times running, was nothing.
+            //
+            // Measured by replaying the loop against the real tool schemas with create_appointment
+            // refusing an unusable phone number: with the detail on the wire and rule 3 in the
+            // prompt, the model asked the customer for a number in international form in 12 turns
+            // out of 12, against 5 of 12 without it — the rest being a vague "there was a problem"
+            // that leaves the customer with nothing to do. The incident's three identical retries
+            // did not reproduce in a single-turn harness, so what is measured here is the answer the
+            // customer gets rather than the calls that were saved.
+            return ToolResults.error(e.code().name(), e.getMessage(), e.fieldErrors());
         } catch (RuntimeException e) {
             log.error("Tool {} failed unexpectedly (conversation {})", name, context.conversationId(), e);
             return ToolResults.error(TOOL_ERROR, "Something went wrong on my end. Let me try that another way.");

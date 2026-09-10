@@ -36,3 +36,6 @@ frontend/test-results/
 *.log
 npm-debug.log*
 pnpm-debug.log*
+
+# Probe fixtures, written by ProbeFixtureDumpTest. Outputs, not sources.
+backend/tools/receptionist-probe/fixtures/
