@@ -75,6 +75,22 @@ class PublicFieldAllowListTest extends IntegrationTest {
     private static final String CUSTOMER_EMAIL = "ana.private@example.test";
 
     /**
+     * Three more plants, each a different class of leak from the contact details above.
+     *
+     * <p>The value half of this class caught four strings, all of them somebody's phone or email.
+     * That leaves the leaks that are not contact details invisible: an account identity, the owner's
+     * private instructions to the model, and a free-text field a Customer typed into one response
+     * and might read back out of another.
+     *
+     * <p>{@code AI_INTERNAL_CONTEXT} is the sharpest of the three. It enters every system prompt
+     * ({@code ai_additional_info}), so unlike the others it is genuinely in play on the chat path —
+     * a reply that quoted the prompt would publish whatever an owner wrote there.
+     */
+    private static final String AI_INTERNAL_CONTEXT = "STAFF ONLY: the safe code is 4417-Kartuli.";
+
+    private static final String CANCELLATION_REASON = "Reason-Sxvisi-Mizezi-9931";
+
+    /**
      * Every path any public response may contain, and nothing else.
      *
      * <p>Qualified by the response it comes from, so a key is admitted where it belongs and nowhere
@@ -299,6 +315,11 @@ class PublicFieldAllowListTest extends IntegrationTest {
                 "/employees/" + scenario.employeeId, Map.of("email", EMPLOYEE_EMAIL, "phone", EMPLOYEE_PHONE));
         scenario.owner.patch("/business", Map.of("phone", "+995322000000", "email", "hello@aria.test"));
 
+        // Private instructions to the Receptionist. Owner-written, bounded at 2000 characters
+        // because it enters every system prompt — and therefore the one planted value that a
+        // response could carry without any entity being serialised at all.
+        scenario.owner.patch("/business", Map.of("aiAdditionalInfo", AI_INTERNAL_CONTEXT));
+
         collectEveryPublicResponse();
     }
 
@@ -343,6 +364,32 @@ class PublicFieldAllowListTest extends IntegrationTest {
         assertThat(responses).allSatisfy(body -> assertThat(body.json())
                 .doesNotContain(CUSTOMER_PHONE)
                 .doesNotContain(CUSTOMER_EMAIL));
+    }
+
+    @Test
+    @DisplayName("an account identity, the AI's private context and a cancellation reason all stay in")
+    void internal_text_fields_are_not_published() {
+        // Stored, so their absence below is minimisation rather than three empty columns. Each is
+        // read back through a different table, because that is where each would leak from.
+        assertThat(jdbc.queryForObject(
+                        "select email from users where email = ?", String.class, BookingScenario.OWNER_EMAIL))
+                .isEqualTo(BookingScenario.OWNER_EMAIL);
+        assertThat(jdbc.queryForObject("select ai_additional_info from businesses", String.class))
+                .isEqualTo(AI_INTERNAL_CONTEXT);
+        assertThat(jdbc.queryForObject(
+                        "select cancellation_reason from appointments where cancellation_reason is not null",
+                        String.class))
+                .isEqualTo(CANCELLATION_REASON);
+
+        assertThat(responses).allSatisfy(body -> assertThat(body.json())
+                // The owner's login. The Business's own email is published two lines above this in
+                // the fixture and belongs on the page; the account it is administered from does not.
+                .doesNotContain(BookingScenario.OWNER_EMAIL)
+                // What the owner told the model, which is not what the model is licensed to repeat.
+                .doesNotContain(AI_INTERNAL_CONTEXT)
+                // Written by one Customer through the manage token, and readable by anyone holding
+                // a Confirmation Code and a phone number if any response echoed it.
+                .doesNotContain(CANCELLATION_REASON));
     }
 
     @Test
@@ -483,7 +530,9 @@ class PublicFieldAllowListTest extends IntegrationTest {
                 stranger
                         .post(
                                 "/public/appointments/" + booked.id() + "/cancel",
-                                Map.of("authority", Map.of("manageToken", token), "reason", "Changed my mind"))
+                                Map.of(
+                                        "authority", Map.of("manageToken", token),
+                                        "reason", CANCELLATION_REASON))
                         .getBody());
 
         // The Receptionist (phase 09). Scripted to book, so the confirmation card is in the swept
