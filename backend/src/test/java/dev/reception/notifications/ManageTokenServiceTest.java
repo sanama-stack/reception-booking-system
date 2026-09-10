@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneOffset;
+import java.util.Base64;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
 
@@ -22,6 +23,11 @@ class ManageTokenServiceTest {
 
     private static ManageTokenService serviceAt(Instant now, String secret) {
         return new ManageTokenService(secret, Clock.fixed(now, ZoneOffset.UTC));
+    }
+
+    /** The signature a token actually carries, decoded — which is not the same as its spelling. */
+    private static byte[] signatureBytesOf(String token) {
+        return Base64.getUrlDecoder().decode(token.substring(token.indexOf('.') + 1));
     }
 
     @Test
@@ -64,12 +70,33 @@ class ManageTokenServiceTest {
         assertThat(tokens.verify(swapped)).isEmpty();
     }
 
+    /**
+     * <strong>Edits the FIRST character of the signature, not the last, and proves the edit landed.</strong>
+     *
+     * <p>This test used to change the last character and was flaky one run in sixteen — it went red
+     * in CI on 2026-09-10 having passed five runs before it. base64url of a 32-byte HmacSHA256 is
+     * 43 characters, and 43 × 6 = 258 bits carrying 256 bits of signature, so <em>the final
+     * character has only four significant bits and its low two are discarded on decode.</em> The
+     * sixteen reachable final characters are {@code 048AEIMQUYcgkosw}, and swapping 'A' for 'B'
+     * decodes to the identical byte array — so whenever the genuine signature happened to end in
+     * 'A', the "tampered" token was byte-for-byte the real one and {@code verify} correctly
+     * accepted it. Measured over 200 000 random signatures: 6.27%, against 1/16 = 6.25%.
+     *
+     * <p>Every bit of the first character is significant, so this edit always changes byte 0. The
+     * second assertion is the guard the old version lacked: it asserts on the decoded
+     * <em>signature</em> rather than on the token text, so a future edit that changes the string
+     * without changing what it means fails here instead of passing silently.
+     */
     @Test
     void editing_the_signature_invalidates_the_token() {
         String token = tokens.issue(UUID.randomUUID(), ENDS_AT);
-        char last = token.charAt(token.length() - 1);
-        String tampered = token.substring(0, token.length() - 1) + (last == 'A' ? 'B' : 'A');
+        int signature = token.indexOf('.') + 1;
+        char first = token.charAt(signature);
+        String tampered = token.substring(0, signature) + (first == 'A' ? 'B' : 'A') + token.substring(signature + 1);
 
+        assertThat(signatureBytesOf(tampered))
+                .describedAs("the edit must actually change the signature, not merely its spelling")
+                .isNotEqualTo(signatureBytesOf(token));
         assertThat(tokens.verify(tampered)).isEmpty();
     }
 
