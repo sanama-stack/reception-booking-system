@@ -242,6 +242,9 @@ class ToolExecutionTest extends IntegrationTest {
         assertThat(result.path("error").asText()).isEqualTo("SLOT_UNAVAILABLE");
         // A sentence the model can read out, not a stack frame.
         assertThat(result.path("message").asText()).isNotBlank();
+        // Nothing was wrong with any argument, so there is no fields key at all — an empty array
+        // would invite the model to conclude that nothing in particular was wrong with what it sent.
+        assertThat(result.has("fields")).isFalse();
     }
 
     /**
@@ -403,6 +406,39 @@ class ToolExecutionTest extends IntegrationTest {
 
         assertThat(result.path("error").asText()).isEqualTo("VALIDATION_FAILED");
         assertThat(result.path("message").asText()).contains("service_id");
+    }
+
+    /**
+     * <strong>The verdict is not enough; the model needs the detail.</strong> {@code
+     * VALIDATION_FAILED}'s own message is the generic "One or more fields are invalid", so a refusal
+     * carrying only that tells the model to try again and nothing about what to change. What it
+     * changed, on the first real conversation this system ever held, was nothing: an unusable phone
+     * number went out three times before the customer was asked for a different one, and then
+     * blamed for it.
+     *
+     * <p>{@code field} is the tool's own argument name rather than the HTTP body's, because the
+     * tools pass their names into validation — so the key the model reads back is the key it wrote.
+     */
+    @Test
+    @DisplayName("a rejected argument comes back named, so the model can fix the one it got wrong")
+    void a_validation_refusal_names_the_argument_that_failed() {
+        String unusable = args(
+                "service_id", aria.serviceId,
+                "employee_id", aria.employeeId,
+                "starts_at", aria.at(aria.monday, 10, 0).toString(),
+                "customer_name", "Ana Tsereteli",
+                "customer_phone", "5550100");
+
+        ObjectNode result = call("create_appointment", unusable);
+
+        assertThat(result.path("error").asText()).isEqualTo("VALIDATION_FAILED");
+        // The half the model could not act on: the generic message names nothing.
+        assertThat(result.path("message").asText()).doesNotContain("customer_phone");
+        // The half that was being thrown away.
+        assertThat(result.path("fields").size()).isEqualTo(1);
+        assertThat(result.path("fields").path(0).path("field").asText()).isEqualTo("customer_phone");
+        assertThat(result.path("fields").path(0).path("message").asText()).isNotBlank();
+        assertThat(jdbc.queryForObject("select count(*) from appointments", Long.class)).isZero();
     }
 
     // ---------------------------------------------------------------- helpers

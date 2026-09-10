@@ -398,6 +398,23 @@ class ConversationLoopTest extends IntegrationTest {
         assertThat(prompt).contains("take the date from the seven-day list above");
     }
 
+    /**
+     * <strong>A wire field nothing explains is a wire field nothing reads.</strong> Tool refusals
+     * carry {@code fields} naming the arguments that failed; this asserts the prompt says what they
+     * are, because the two halves are one change and either alone does nothing.
+     */
+    @Test
+    @DisplayName("the prompt explains what an error's fields mean")
+    void the_prompt_explains_field_level_refusals() {
+        model.willSay("Hello.");
+
+        respond(start(), "hi");
+
+        assertThat(model.messagesOnCall(0).get(0).content())
+                .contains("error carrying `fields`")
+                .contains("never send the same value again");
+    }
+
     // ------------------------------------------------------- authority
 
     /**
