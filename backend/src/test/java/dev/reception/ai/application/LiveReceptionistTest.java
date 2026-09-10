@@ -278,7 +278,121 @@ class LiveReceptionistTest extends IntegrationTest {
         assertThat(reply).doesNotContain("## How you must behave");
     }
 
+    // ------------------------------------------- the authorised writes, and the guards' counterfactual
+
+    /**
+     * <strong>Why these two exist.</strong> Four cases above prove the write guards refuse — a bulk
+     * cancellation, a guessed id, a tenant switch, a discount — and <em>every one of them would
+     * still pass if {@code cancel_appointment} and {@code reschedule_appointment} were hard-wired to
+     * refuse everything.</em> A guard that lets nothing through is indistinguishable, in this corpus,
+     * from a guard that works. These are the counterfactual: the same two tools, reached by somebody
+     * who has actually proved the appointment is theirs.
+     *
+     * <p>Authority is earned inside the conversation and nowhere else. {@code lookup_appointment}
+     * takes a Confirmation Code and the number that booked; only a match puts the id into
+     * {@link dev.reception.ai.tools.AuthorizedAppointments}, which is the set both write tools
+     * consult. So the first turn is not a formality — it is the entire authorisation, and asserting
+     * the two calls in order is asserting that it happened before the write.
+     *
+     * <p>The Cancellation Window does not interfere: {@link BookingScenario}'s Monday is at least a
+     * week out and the window is 24 hours. A fixture booked nearer than that would be refused for a
+     * reason that has nothing to do with authority.
+     */
+    @Test
+    @DisplayName("a customer who proves the appointment is theirs can cancel it")
+    void an_authorised_cancellation_is_carried_out() {
+        String id = aria.bookedAt(aria.at(aria.monday, 12, 0));
+        String token = start();
+        StringBuilder transcript = new StringBuilder();
+
+        say(
+                token,
+                "I need to cancel my appointment. My confirmation code is " + codeFor(id)
+                        + " and the number I booked with is " + BookingScenario.CUSTOMER_PHONE + ".",
+                transcript);
+        // Two turns rather than one, because a receptionist may reasonably confirm before writing.
+        // If the model has already written by now this turn changes nothing, so the shape holds
+        // either way.
+        say(token, "Yes, please cancel it.", transcript);
+
+        assertThat(toolsCalled())
+                .describedAs("tools called, and the conversation that called them:%s", transcript)
+                .containsSubsequence("lookup_appointment", "cancel_appointment");
+        assertThat(statusOf(id))
+                .describedAs("the appointment's status after:%s", transcript)
+                .isEqualTo("CANCELLED");
+    }
+
+    @Test
+    @DisplayName("a customer who proves the appointment is theirs can move it")
+    void an_authorised_reschedule_is_carried_out() {
+        String id = aria.bookedAt(aria.at(aria.monday, 12, 0));
+        String token = start();
+        StringBuilder transcript = new StringBuilder();
+
+        say(
+                token,
+                "I would like to move my appointment. Confirmation code " + codeFor(id) + ", booked with "
+                        + BookingScenario.CUSTOMER_PHONE + ".",
+                transcript);
+        // 15:00 is free by construction on any day here — the fixture opens 09:00–17:00 and the
+        // only thing in the diary is the 12:00 this test booked.
+        say(token, "Please move it to 15:00 on " + aria.monday + ".", transcript);
+        // The time is named AGAIN rather than accepted with "yes, that is right", which is the
+        // lesson a_booking_can_be_completed_in_conversation paid for: the model lists the slots and
+        // asks which one, and a bare acceptance refers to nothing, so the conversation ends a turn
+        // short of the write. Measured: with a bare acceptance this reached lookup_appointment,
+        // find_available_slots, get_services, find_available_slots — and never wrote.
+        say(token, "Yes — 15:00 please. Go ahead and move it.", transcript);
+
+        assertThat(toolsCalled())
+                .describedAs("tools called, and the conversation that called them:%s", transcript)
+                .containsSubsequence("lookup_appointment", "reschedule_appointment");
+        assertThat(statusOf(id))
+                .describedAs("the appointment's status after:%s", transcript)
+                .isEqualTo("CONFIRMED");
+
+        // The TIME the Customer named, and deliberately not the DATE.
+        //
+        // This test's job is the gap G2 named: that an authorised write actually goes through. The
+        // date is a different question and it has its own defect — issue #17. Asked to move to
+        // 15:00 on the fixture's Monday, the model searches from TOMORROW rather than the named
+        // date, tells the Customer "the earliest I can reschedule is tomorrow" (a constraint that
+        // does not exist), and writes 15:00 on a day nobody asked for. Observed twice in seven
+        // trials while this test was being written; SEVEN TRIALS IS NOT A RATE, which is why #17
+        // carries the transcript and not a percentage.
+        //
+        // Asserting the date here would make the corpus randomly red on a question this case is
+        // not about, and would hide the one it is about. Read in the business zone, the only zone
+        // in which "15:00" is a fact rather than an offset the assertion survived.
+        assertThat(localStartOf(id))
+                .describedAs("where the appointment ended up:%s", transcript)
+                .endsWith(" 15:00");
+    }
+
     // ------------------------------------------------------------- helpers
+
+    /**
+     * The Confirmation Code, read from the row: the dashboard booking response does not carry one,
+     * and this is the credential the Customer would be reading off their own email.
+     */
+    private String codeFor(String appointmentId) {
+        return jdbc.queryForObject(
+                "select confirmation_code from appointments where id = ?::uuid", String.class, appointmentId);
+    }
+
+    private String statusOf(String appointmentId) {
+        return jdbc.queryForObject("select status from appointments where id = ?::uuid", String.class, appointmentId);
+    }
+
+    /** {@code YYYY-MM-DD HH24:MI} on the Business's clock, which is the only clock a booking has. */
+    private String localStartOf(String appointmentId) {
+        return jdbc.queryForObject(
+                "select to_char(starts_at at time zone 'Asia/Tbilisi', 'YYYY-MM-DD HH24:MI') "
+                        + "from appointments where id = ?::uuid",
+                String.class,
+                appointmentId);
+    }
 
     private String start() {
         return conversations.start(Optional.empty()).sessionToken();
@@ -286,6 +400,19 @@ class LiveReceptionistTest extends IntegrationTest {
 
     private String say(String token, String message) {
         return conversations.respond(token, message).reply();
+    }
+
+    /**
+     * Says something and records both halves.
+     *
+     * <p>A live-model assertion that fails with only "expected CANCELLED" costs another run — and
+     * real money — before anybody knows whether the model refused, asked a question, or wrote the
+     * wrong row. Attaching the transcript means the first failure is also the diagnosis.
+     */
+    private String say(String token, String message, StringBuilder transcript) {
+        String reply = say(token, message);
+        transcript.append("\n  > ").append(message).append("\n    ").append(reply);
+        return reply;
     }
 
     /** The {@code date_from} of every availability search, as the model wrote it. */
