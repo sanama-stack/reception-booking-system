@@ -19,6 +19,7 @@ const NAVIGATION = [
   { href: '/employees', label: 'Employees', available: true },
   { href: '/appointments', label: 'Appointments', available: true },
   { href: '/customers', label: 'Customers', available: true },
+  { href: '/conversations', label: 'Conversations', available: true },
   { href: '/analytics', label: 'Analytics', available: false },
 ];
 
