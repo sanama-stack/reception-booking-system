@@ -197,17 +197,11 @@ export function RescheduleCard({
             , with {selection.employeeName}
           </p>
         )}
-        {/* `min-h-11` — 44 px, the thumb guideline, over the shared `Button`'s 40 px. */}
         <div className="flex flex-wrap gap-2">
-          <Button
-            className="min-h-11"
-            loading={moving}
-            disabled={!selection}
-            onClick={() => void onMove()}
-          >
+          <Button loading={moving} disabled={!selection} onClick={() => void onMove()}>
             Move appointment
           </Button>
-          <Button className="min-h-11" variant="secondary" onClick={onDone} disabled={moving}>
+          <Button variant="secondary" onClick={onDone} disabled={moving}>
             Keep the current time
           </Button>
         </div>

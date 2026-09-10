@@ -12,9 +12,20 @@ const VARIANTS: Record<Variant, string> = {
   danger: 'bg-danger text-brand-contrast hover:opacity-90',
 };
 
+/**
+ * `md` is 44 px, the smallest target a thumb hits reliably, because the surfaces that matter most
+ * for target size are the public ones — `/book/{slug}` and `/manage/{token}` — and they take the
+ * default. It was the other way round until issue #11: the shared control was 40 px and every
+ * public screen overrode it with `min-h-11`, four files deep with the same comment written twice.
+ * A guideline applied by remembering is not applied.
+ *
+ * `sm` stays 32 px and is for dense, mouse-operated dashboard rows. A small button on a thumb
+ * surface pairs it with `min-h-11`, which sets a different property and so wins without fighting
+ * the size class — see `fortnight-picker`'s pager.
+ */
 const SIZES: Record<Size, string> = {
   sm: 'h-8 px-3 text-sm',
-  md: 'h-10 px-4 text-sm',
+  md: 'h-11 px-4 text-sm',
 };
 
 /** The one place a button's appearance is decided, so a link that acts as one cannot drift. */

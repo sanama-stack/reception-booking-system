@@ -139,11 +139,9 @@ export function ManageFlow({
             title="Need to change it?"
             description="No password and no account — this link is all you need."
           />
-          {/* `min-h-11` — 44 px, the thumb guideline, over the shared `Button`'s 40 px. */}
           <div className="flex flex-wrap gap-2">
             {appointment.canReschedule && (
               <Button
-                className="min-h-11"
                 onClick={() => {
                   setMoving(true);
                   setOutcome(null);
@@ -155,7 +153,6 @@ export function ManageFlow({
             )}
             {appointment.canCancel && (
               <Button
-                className="min-h-11"
                 variant="danger"
                 onClick={() => {
                   setCancelling(true);

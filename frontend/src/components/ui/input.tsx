@@ -26,7 +26,7 @@ export function Input({ label, error, hint, id, className, ...props }: InputProp
         aria-invalid={error ? true : undefined}
         aria-describedby={describedBy}
         className={cn(
-          'border-border bg-surface text-ink h-10 rounded-md border px-3 text-sm',
+          'border-border bg-surface text-ink h-11 rounded-md border px-3 text-sm',
           'placeholder:text-ink-muted disabled:opacity-50',
           error && 'border-danger',
           className,

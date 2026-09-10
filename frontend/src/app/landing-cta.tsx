@@ -24,7 +24,9 @@ export function LandingCta() {
   if (status === 'loading') {
     return (
       <div className="flex flex-wrap gap-3" aria-busy="true">
-        <div className="bg-border h-10 w-40 animate-pulse rounded-md" />
+        {/* h-11 tracks the shared `Button`, so the promise above — a placeholder of the same
+            height — stays true rather than jumping 4 px when the answer arrives. */}
+        <div className="bg-border h-11 w-40 animate-pulse rounded-md" />
         <span className="sr-only">Checking whether you are signed in</span>
       </div>
     );
