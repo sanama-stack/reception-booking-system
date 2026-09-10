@@ -25,8 +25,9 @@ handoff](../sessions/2026-09-09-phase-08-booking-page.md) and [the Manage Link p
 handoff](../sessions/2026-09-09-phase-08-manage-page.md).
 
 One box below stays unticked and is **not** an oversight: "Any available" with more than one
-eligible Employee has still never been rendered, because no tenant has two people assigned to one
-Service and the fixture does not exist. It is the only branch of the flow nothing has exercised.
+eligible Employee has still never been **rendered**. As of 2026-09-10 it is no longer unexercised —
+`PublicBookingTest` builds the two-Employee fixture and asserts the grid's behaviour through the
+public API — but nobody has seen the page draw it, and that is what the box asks.
 
 **How the Frontend testing boxes were satisfied, because it is not what the heading implies.** This
 repository has no frontend test harness — `frontend/package.json` carries no `test` script and no
@@ -140,8 +141,14 @@ adds no privileged path.
 ### Frontend
 - [x] Classic Flow completes end to end
 - [x] `409` refreshes the grid and preserves entered details
-- [ ] "Any available" shows a specific employee before the slot is chosen — **the one branch nothing has
-      exercised.** No tenant has two Employees assigned to one Service, so the fixture does not exist yet
+- [ ] "Any available" shows a specific employee before the slot is chosen — **the branch is now
+      exercised, but not on a screen.** The fixture that did not exist now does:
+      `PublicBookingTest.secondStylist()` puts two Employees on one Service, and two cases assert
+      what the grid does with them — each start offered once, naming somebody specific, and a start
+      whose preferred Employee is busy offered as the other one rather than disappearing. That is
+      the engine and the wire. **This box is under *Frontend testing* and stays unticked because no
+      person has looked at the rendered page with two eligible Employees** — doing so needs a second
+      stylist in a real tenant, and the verification tenant was deliberately not altered for it
 - [x] The page is usable at 360 px
 
 ## Definition of Done

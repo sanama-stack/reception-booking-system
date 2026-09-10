@@ -147,11 +147,18 @@ Three levels, per [08-testing-strategy.md](../08-testing-strategy.md) §7.
 > result XML rather than read off `BUILD SUCCESSFUL` — and `skipped: 0` is the load-bearing number,
 > because it is what proves the `assumeTrue` guard let them run instead of passing quietly. Run with
 > `./gradlew test -PincludeTags=llm` and an `OPENAI_API_KEY` in the environment.
-- [ ] Booking, availability, cancel, reschedule, business info, service info categories — **booking,
-      availability, business info and service info pass. Cancel and reschedule do not appear**: the
-      corpus exercises them only adversarially (a bulk cancel, a guessed id), so there is no live
-      evidence that a customer with proven ownership can actually cancel or move an appointment in
-      conversation. Levels 1 and 2 cover that path; a live model has never walked it
+>
+> **Re-run on 2026-09-10 after the authorised write cases were added: 12 tests, 0 failures, 0
+> errors, 0 skipped.** The earlier count stands as the record of that run; this is a second one, not
+> a correction of it.
+- [x] Booking, availability, cancel, reschedule, business info, service info categories — **all six,
+      as of 2026-09-10.** Cancel and reschedule were the gap: the corpus exercised them only
+      adversarially (a bulk cancel, a guessed id), and *every one of those cases would still have
+      passed with the write tools hard-wired to refuse.* `an_authorised_cancellation_is_carried_out`
+      and `an_authorised_reschedule_is_carried_out` are their counterfactual — a live model looks the
+      appointment up with a Confirmation Code and the number that booked, and then writes. The
+      reschedule case asserts the **time** and deliberately not the **date**, because the date has
+      its own defect: [#17](https://github.com/sanama-stack/reception-booking-system/issues/17)
 - [x] Unknown-information prompts produce "I don't know" plus the phone number
 - [x] Adversarial prompts (bulk cancel, tenant switch, discount, prompt disclosure) produce no unauthorised
       tool call
@@ -163,17 +170,25 @@ Assertions target tool sequences and database state, never the model's wording.
 - [x] A customer books entirely by conversation, and the appointment is correct in the database —
       driven in a browser on 2026-09-10 and checked in the database: `CONFIRMED`, `source = AI`,
       phone normalised to E.164, confirmation email actually `SENT` and the 24h reminder `PENDING`
-- [x] The Receptionist reschedules and cancels only after ownership is proven — **proven as a
-      refusal, not as a success.** A guessed id is refused by a live model and levels 1 and 2 cover
-      the authorised path; no live model has completed either. Ticked because the *guard* is what
-      this box is about, and the guard holds
+- [x] The Receptionist reschedules and cancels only after ownership is proven — **now proven both
+      ways.** A guessed id is refused by a live model, and as of 2026-09-10 a live model also
+      *completes* both writes once a Confirmation Code and the booking number have been presented.
+      The refusal half was what this box asked for; the success half is what makes the refusal
+      meaningful, because a tool that refuses everything satisfies the refusal half perfectly
 - [x] It answers configured questions accurately and says "I don't know" otherwise
 - [ ] It never states a slot, price or policy that did not come from a tool or the context —
       **not established, and the first real conversation is why.** Asked for Monday 14 September the
       model called the tool for the 12th, got a correct `CLOSED`, and told the customer *Monday* was
       closed while the form beside it offered nine times that day. Nothing was invented — every
       value came from a tool — but it was attributed to a date the customer named and the tool never
-      saw, which is indistinguishable from invention to the person reading it. See the handoff
+      saw, which is indistinguishable from invention to the person reading it. See the handoff.
+      **A second, plainer instance found on 2026-09-10**
+      ([#17](https://github.com/sanama-stack/reception-booking-system/issues/17)): on the reschedule
+      path the model said *"the earliest I can reschedule your appointment for is tomorrow"* — a
+      **policy that came from no tool and is false** — and then wrote the appointment to that day.
+      The first instance was a misattributed date; this one is an invented rule, which is the box's
+      own words. **Left unticked deliberately**, and not waiting on #15: ticking it means deciding
+      that ~95% is the bar
 - [x] The confirmation card renders from backend data, not from the reply text — measured against
       its counterfactual, not argued
 - [x] No tool accepts a tenant identifier
