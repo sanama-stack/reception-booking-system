@@ -29,8 +29,8 @@
 
 | | |
 |---|---|
-| `origin/main` | current — merged as pull request [#20] |
-| `dev` | pushed, even with `main`, CI green on all three jobs |
+| `origin/main` | **`976bb57`** — merged as pull request [#20], and its own CI green on all three jobs |
+| `dev` | **`42ef95d`**, even with `main`, nothing outstanding. §5.1 is why it carries one extra merge commit |
 | Working tree | clean |
 | Backend | **804 tests, 0/0/0** — unchanged; the new instrument is `probe`-tagged and excluded from `build` |
 | Level 3 | 12 tests, unchanged. **Not run this session** |
@@ -189,6 +189,24 @@ claiming a "verified solution". **Closed**, with the reasons on the record:
 It also carried a cryptocurrency payout address. **Treated as untrusted input throughout: read, not
 acted on.** Worth expecting more of these — the repository is public and the issues are detailed.
 
+### 5.1 The merge was refused first, and `--admin` was declined again
+
+Written after the rest of this document, because it happened after it.
+
+`gh pr merge 20` came back **`BEHIND`**: strict branch protection requires the head branch to be up
+to date, and `origin/main` carried pull request #19's merge commit, which is not an ancestor of
+`dev`. Two merge commits on `main` were missing from `dev` — #16's and #19's — and neither carries
+content.
+
+`gh` offered `--admin`. **It was not used.** `origin/main` was merged into `dev` instead, the
+diff to `main` was checked to be exactly the five intended files before pushing, CI was allowed to
+run on the result, and the merge then went through normally as `976bb57`.
+
+**This is the second occurrence of the same gate behaviour** — `637d41e` did the identical thing
+before pull request #12, and that handoff recorded it as a one-off. Twice is a pattern, so it is
+now T21: expect `BEHIND` whenever `main` has taken a merge commit since `dev` last diverged, and
+resolve it by merging `main` in. The refusal is the protection working, not a broken gate.
+
 ---
 
 ## 6. Every open item
@@ -219,6 +237,7 @@ Carried: T1–T16 from the previous handoffs. New here:
 | **T17** | **A fixture that cannot express the failing input measures the fixture.** §2.3. Check reachability before rate |
 | **T18** | **`fisher_one_sided(a, b)` tests whether b is BETTER than a.** Called the other way round it returns p = 1.000 for an arm that is dramatically worse. Validate the direction against the recorded 42/50-vs-48/50 pair every time, not just the magnitude |
 | **T19** | **`awk 'length>100'` counts bytes, not characters.** A line with `10⁻⁵` in it is 96 characters and 101 bytes. Measure width in Python before rewrapping prose |
+| **T21** | **NEW: strict branch protection reads `BEHIND` once `main` takes a merge commit.** Merge `main` into `dev`, check the diff to `main` is only what you intended, let CI run, then merge. **Do not reach for `--admin`** — it has now been offered twice and declined twice. §5.1 |
 | **T20** | **A green CI run is a sample, not a proof.** §4 passed five times before it failed, and the failure had nothing to do with the change that exposed it. A test that fails on an unrelated push is a flake until proven otherwise — read it before re-running it |
 
 ### 6.4 Security
