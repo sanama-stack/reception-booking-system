@@ -261,6 +261,65 @@ class PublicBookingTest extends IntegrationTest {
         assertThat(message).contains("+");
     }
 
+    // --------------------------------------------- "Any available", with two who can
+
+    @Test
+    @DisplayName("with two who can perform it, each start is offered once and names who would take it")
+    void any_available_offers_each_start_once_and_names_whoever_would_take_it() {
+        String dato = secondStylist();
+
+        String grid = availability();
+
+        // Two Employees free at 10:00 is one Slot, not two. A Customer picks a time; picking a
+        // person is what naming an Employee in the query is for.
+        assertThat(JsonPath.<List<String>>read(grid, "$.days[0].slots[*].startsAt"))
+                .isNotEmpty()
+                .doesNotHaveDuplicates();
+
+        // And the Slot names somebody specific, because the booking request requires an employeeId
+        // — "Choose who will perform it." — and the page has nowhere else to get one. That is what
+        // "Any available" means on the wire: the grid resolves it, and the write never re-resolves.
+        assertThat(JsonPath.<List<String>>read(grid, "$.days[0].slots[*].employee.id"))
+                .doesNotContainNull()
+                .allMatch(id -> id.equals(scenario.employeeId) || id.equals(dato));
+        assertThat(JsonPath.<List<String>>read(grid, "$.days[0].slots[*].employee.fullName"))
+                .doesNotContainNull();
+    }
+
+    @Test
+    @DisplayName("booking the one the grid named leaves the time offered as the other one")
+    void a_busy_employee_hands_the_start_to_the_other_rather_than_removing_it() {
+        String dato = secondStylist();
+        String ten = BookingScenario.wireTime(scenario.monday, 10, 0);
+
+        String first = employeeOfferedAt(availability(), ten);
+        assertThat(first).isNotNull();
+        assertThat(book(scenario.at(scenario.monday, 10, 0), scenario.serviceId, first, null)
+                        .getStatusCode())
+                .isEqualTo(HttpStatus.CREATED);
+
+        // The whole point of "Any available": 10:00 does not disappear because one of them is
+        // busy. It is the same time offered as somebody else, and the grid is what worked that out.
+        String second = employeeOfferedAt(availability(), ten);
+        assertThat(second).isNotNull().isNotEqualTo(first);
+        assertThat(List.of(scenario.employeeId, dato)).contains(second);
+
+        ResponseEntity<String> response =
+                book(scenario.at(scenario.monday, 10, 0), scenario.serviceId, second, null);
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.CREATED);
+        // The booking landed with the person the grid named, not whoever a second resolution would
+        // have chosen. Asserted by name because the confirmation carries no Employee id — the grid
+        // publishes one because the write requires it, and BookedEmployee deliberately does not,
+        // since a Customer is meeting a person rather than an id. Both 10:00 bookings now stand,
+        // with different Employees, which the exclusion constraint permits because it is keyed on
+        // the Employee alone.
+        assertThat(JsonPath.<String>read(response.getBody(), "$.employee.fullName"))
+                .isEqualTo(second.equals(dato) ? "Dato Kapanadze" : "Nino Beridze");
+
+        // With both diaries full it is gone, rather than offered a third time to nobody.
+        assertThat(employeeOfferedAt(availability(), ten)).isNull();
+    }
+
     // ------------------------------------------------------------ unknown slug
 
     @Test
@@ -287,6 +346,42 @@ class PublicBookingTest extends IntegrationTest {
     }
 
     // ------------------------------------------------------------------ helpers
+
+    /**
+     * A second Employee on the same Service — the fixture no test in this project had until now.
+     * Every other scenario has exactly one eligible person, so the branch that has to <em>choose</em>
+     * one had never run: not the per-start de-duplication, not the load ordering that decides who is
+     * offered, and not the agreement between what the grid said and what the write did.
+     */
+    private String secondStylist() {
+        String dato = BookingScenario.createEmployee(scenario.owner, "Dato Kapanadze");
+        scenario.owner.put("/employees/" + dato + "/services", Map.of("serviceIds", List.of(scenario.serviceId)));
+        BookingScenario.setSchedule(scenario.owner, dato, "09:00", "17:00");
+        return dato;
+    }
+
+    /** The public grid for the scenario's Service on its Monday, naming no Employee. */
+    private String availability() {
+        return stranger
+                .get("/public/businesses/" + slug + "/availability?serviceId=" + scenario.serviceId + "&from="
+                        + scenario.monday + "&to=" + scenario.monday)
+                .getBody();
+    }
+
+    /**
+     * The Employee the grid offers at one start, or {@code null} when nobody is free then.
+     *
+     * <p>Filtered in Java rather than with a JsonPath predicate on a timestamp, because the
+     * comparison that matters is against the wire string the response actually carries.
+     */
+    private String employeeOfferedAt(String grid, String wireStart) {
+        List<Map<String, Object>> slots = JsonPath.read(grid, "$.days[0].slots");
+        return slots.stream()
+                .filter(slot -> wireStart.equals(slot.get("startsAt")))
+                .map(slot -> (String) ((Map<?, ?>) slot.get("employee")).get("id"))
+                .findFirst()
+                .orElse(null);
+    }
 
     private ResponseEntity<String> book(OffsetDateTime startsAt, String email) {
         return book(startsAt, scenario.serviceId, scenario.employeeId, email);

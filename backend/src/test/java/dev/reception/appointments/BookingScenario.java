@@ -41,6 +41,13 @@ public final class BookingScenario {
     /** Parseable without a country on the Business, which registration leaves unset. */
     public static final String CUSTOMER_PHONE = "+995555123456";
 
+    /**
+     * The owner's login, named rather than inlined because a test asserts it never reaches a public
+     * response. It is not the Business's contact email — that one is publishable and is the point of
+     * the booking page; this one is an account identity and a credential-stuffing target.
+     */
+    public static final String OWNER_EMAIL = "nino@aria.test";
+
     public final AuthTestClient owner;
     public final String serviceId;
     public final String employeeId;
@@ -70,7 +77,7 @@ public final class BookingScenario {
     /** One employee, one sixty-minute service at 60.00, Monday to Friday 09:00–17:00. */
     public static BookingScenario open(TestRestTemplate rest, int port, Clock clock) {
         AuthTestClient owner = new AuthTestClient(rest, port);
-        owner.register("nino@aria.test", PASSWORD, "Salon Aria");
+        owner.register(OWNER_EMAIL, PASSWORD, "Salon Aria");
         owner.patch("/business", Map.of("timezone", TBILISI.getId()));
 
         String service = createService(owner, "Haircut", 60, "60.00", 0, 0);

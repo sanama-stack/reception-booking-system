@@ -166,9 +166,24 @@ public class SystemPromptBuilder {
         // 20, so what fixes it is the shape of the data and not the force of the instruction —
         // the same lesson the day name taught, one level further in.
         //
-        // WHAT IS LEFT is a different mistake and a smaller one: both remaining failures searched
-        // 2026-09-11, the FIRST row rather than the named one. Nobody has chased it, and it is
-        // worth knowing that the fix for the Saturday did not turn into a fix for everything.
+        // WHAT IS LEFT IS THE SAME MISTAKE, not a smaller one, and the sample that said otherwise
+        // is the lesson. Fifty conversations put both remaining failures on 2026-09-11, the FIRST
+        // row, and issue #15 was filed on that pair saying the Saturday was gone. Re-measured at
+        // three times the sample, same day, same prompt, same model:
+        //
+        //   150 conversations      142 correct — 94.7%. The eight failures were 2026-09-12, the
+        //                          SATURDAY row, FIVE times, and 2026-09-11 three times
+        //
+        // So the order fix took the Saturday from eight in fifty to five in a hundred and fifty. It
+        // did not remove it, and it is still the majority failure mode. TWO FAILURES DO NOT
+        // CHARACTERISE A DISTRIBUTION: a sample big enough to find a mode is not big enough to say
+        // it is the only one, or that another is gone. This is the same error that closed #13 on
+        // 10 of 10 while its symptom was still reachable, one level further in.
+        //
+        // Before changing this line, read #15 — because measuring the change is the hard part. The
+        // probe saturates here, 119 of 119 against this very prompt, and fifty conversations cannot
+        // separate 96% from 100% at all (Fisher, one-sided, p = 0.25). WeekdayResolutionRateTest at
+        // about a hundred and fifty per arm is the only instrument that can see this.
         prompt.append("- The next seven days. Take a named day from this list; do not work a date out:\n");
         for (int ahead = 1; ahead <= 7; ahead++) {
             LocalDate day = today.plusDays(ahead);
