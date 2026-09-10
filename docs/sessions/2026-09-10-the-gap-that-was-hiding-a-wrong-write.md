@@ -29,7 +29,7 @@
 | | |
 |---|---|
 | Repository | https://github.com/sanama-stack/reception-booking-system — **public** |
-| `origin/main` | **current** — this session's work merged as pull request [#18] |
+| `origin/main` | **current** — this session's work merged as pull request [#19] |
 | `dev` | pushed, even with `main` |
 | Working tree | **CLEAN.** The unmeasured candidate is reverted, by the principal's decision. §2.1 |
 | Backend | **804 tests, 0 failures, 0 errors, 0 skipped** — counted from the XML, not read off `BUILD SUCCESSFUL`. Was 801, carried uncounted since before phase 09 merged |
@@ -39,7 +39,7 @@
 | Issues open | **#15 and #17.** #17 is new and is this session's finding |
 | CI | **Off Node 20** at last — carried since phase 01, nine handoffs |
 
-[#18]: https://github.com/sanama-stack/reception-booking-system/pull/18
+[#19]: https://github.com/sanama-stack/reception-booking-system/pull/19
 
 ### 1.1 What this session did, in one list
 
@@ -380,7 +380,7 @@ T11). The only warning is pre-existing: `ApiException` has no `serialVersionUID`
 
 ## 8. Files, and what changed
 
-Committed on `dev`, then merged to `main` as [#18]:
+Committed on `dev`, then merged to `main` as [#19]:
 
 ```
 Say that the probe saturates, not merely that it exaggerates
