@@ -123,10 +123,14 @@ tasks.withType<Test> {
         // by hand before a release and after any change to the system prompt or a tool description —
         // the two things a scripted model cannot evaluate, because it reads neither. Without a key
         // the corpus skips itself rather than failing.
+        //
+        // The `probe` tag is excluded for a different reason: those are instruments, not tests.
+        // They assert nothing, they write files, and one of them holds a live conversation fifty
+        // times. See tools/receptionist-probe/README.md.
         if (project.hasProperty("includeTags")) {
             includeTags(project.property("includeTags") as String)
         } else {
-            excludeTags("llm")
+            excludeTags("llm", "probe")
         }
     }
     testLogging {
