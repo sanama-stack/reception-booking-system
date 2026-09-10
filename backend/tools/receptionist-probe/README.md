@@ -6,11 +6,14 @@ sessions. They are not interchangeable.
 | | What it answers | Cost | What it cannot do |
 |---|---|---|---|
 | `LiveReceptionistTest` (level 3, tag `llm`) | Is this case broken at all? | ~1 min, ten cases, one run each | See a rate. At a 4% failure it is green twenty-four runs out of twenty-five |
-| `probe.py` (this directory) | Which candidate prompt is better? | ~1 s per trial, pennies for hundreds | State a rate. It exaggerates at both ends |
+| `probe.py` (this directory) | Which candidate prompt is better? | ~1 s per trial, pennies for hundreds | State a rate. It exaggerates at both ends, and below about one in ten it saturates and cannot screen at all |
 | `WeekdayResolutionRateTest` (tag `probe`) | How often, really? | ~4 min for fifty conversations, a few cents | Screen many candidates. Too slow to iterate on |
 
 The workflow is: the corpus says something is wrong, the probe finds a candidate fix, the rate test
 confirms it, and the number that goes in a commit message is the rate test's.
+
+**That workflow assumes the probe can see the failure at all.** For a mode rarer than roughly one in
+ten it cannot, and the middle step has to be dropped — see below.
 
 ## Why not just trust the probe
 
@@ -24,6 +27,28 @@ Measured against fifty real conversations on the same two prompts:
 The probe got the direction and the rough size right, which is exactly what a screen is for. It also
 once returned 80 of 80 for a prompt a later batch scored 39 of 40 — so a single probe batch is not
 even a reliable probe result, let alone a live one. Run at least two.
+
+### Below about one in ten it saturates, and stops being a screen
+
+Exaggeration is the mild failure. Run against the *current* prompt — the one
+`WeekdayResolutionRateTest` scores at 142 of 150 live — the probe reported, at thirty trials an
+utterance:
+
+| Utterance | Expected | Probe |
+|---|---|---|
+| "What have you got free next Monday?" | MONDAY | 30 / 30 |
+| "Do you have anything on Wednesday?" | WEDNESDAY | 30 / 30 |
+| "Anything free on Thursday?" | THURSDAY | 30 / 30 |
+| "What about Sunday?" | SUNDAY | 29 / 29 that searched — one asked a question first |
+
+**119 of 119, for a prompt that fails one live conversation in twenty.** This is not the
+exaggeration above; it is worse. The instrument has no resolution left, so no candidate can beat
+the baseline and the screen cannot rank anything — it is unusable rather than merely optimistic.
+
+So: above roughly a one-in-ten failure rate the probe earns its keep. Below it, **do not screen —
+measure**, and budget the live runs from the start. Note that the rate test needs its own budget
+there too: fifty conversations cannot separate 96% from 100% (Fisher, one-sided, p = 0.25), and
+`PROBE_CONVERSATIONS` exists to raise it.
 
 ## Running it
 
