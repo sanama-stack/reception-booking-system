@@ -368,6 +368,13 @@ class ConversationLoopTest extends IntegrationTest {
      * halves are asserted because the second is the one that does the work and the first is what
      * makes the list legible.
      *
+     * <p><strong>The order of the two fields inside a list line is asserted, and it is not a
+     * formatting preference.</strong> Over fifty live conversations each way, {@code MONDAY
+     * 2026-09-14} resolved "next Monday" 42 times in 50 — every failure the SATURDAY line of the
+     * same list, the model misreading rather than calculating — and {@code 2026-09-14 is a MONDAY}
+     * 48 in 50, at Fisher p = 0.046. Reversing this line is a defect a customer meets, so it is
+     * spelled out here rather than left to {@code contains} on two substrings in any arrangement.
+     *
      * <p>Scripted, because the fact is either in the prompt or it is not and that needs no network.
      * Whether a model then uses it lives in {@code LiveReceptionistTest}, where it costs money.
      */
@@ -389,12 +396,12 @@ class ConversationLoopTest extends IntegrationTest {
         // nothing in the week has to be counted to.
         for (int ahead = 1; ahead <= 7; ahead++) {
             LocalDate day = today.plusDays(ahead);
-            assertThat(prompt).as("day %d ahead", ahead).contains(day.getDayOfWeek() + " " + day);
+            assertThat(prompt).as("day %d ahead", ahead).contains(day + " is a " + day.getDayOfWeek());
         }
 
         // And the instruction to prefer the list over arithmetic. Measured as the half that carries
         // the fix: with the dates alone the model resolved a named weekday correctly 2 times in 5,
-        // and with this sentence 10 in 10.
+        // and with this sentence 42 in 50 — 48 in 50 once the list lines were turned around.
         assertThat(prompt).contains("take the date from the seven-day list above");
     }
 

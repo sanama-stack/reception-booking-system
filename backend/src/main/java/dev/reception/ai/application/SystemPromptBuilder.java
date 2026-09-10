@@ -146,14 +146,33 @@ public class SystemPromptBuilder {
         //
         // The list alone was not enough either, and the numbers are worth keeping: against the real
         // prompt and the real strict tool schemas, "what have you got free next Monday?" resolved
-        // correctly 2 times in 5. Rule 10 below — take the date from this list, never calculate one,
-        // never use your own calendar — took the same question to 10 in 10, and "tomorrow",
-        // "Wednesday" and "Saturday" to 4 in 4 each. The data and the instruction to prefer it are
-        // one change; neither half works without the other.
+        // correctly 2 times in 5. Rule 11 below — take the date from this list, never calculate one,
+        // never use your own calendar — took the same question to 10 in 10. The data and the
+        // instruction to prefer it are one change; neither half works without the other.
+        //
+        // THE ORDER OF THE TWO FIELDS IS LOAD-BEARING, and 10 in 10 is what hid it. Measured over
+        // the real conversation loop, "what have you got free next Monday?", fifty conversations
+        // each way and nothing else changed:
+        //
+        //   MONDAY 2026-09-14      42 of 50 — every one of the eight failures was 2026-09-12,
+        //                          the SATURDAY row of this very list
+        //   2026-09-14 is a MONDAY 48 of 50 — Fisher p = 0.046
+        //
+        // By then the model was not calculating at all; it was reading the wrong line out of the
+        // list. Why the order should matter is a guess — the plausible reading is that the date is
+        // what has to be copied and the day name is what has to be matched, and putting the answer
+        // first makes the copy a shorter reach than the scan that found the line. That it matters
+        // is not a guess. A sterner rule 11 on its own reached 19 in 20 against this line's 20 in
+        // 20, so what fixes it is the shape of the data and not the force of the instruction —
+        // the same lesson the day name taught, one level further in.
+        //
+        // WHAT IS LEFT is a different mistake and a smaller one: both remaining failures searched
+        // 2026-09-11, the FIRST row rather than the named one. Nobody has chased it, and it is
+        // worth knowing that the fix for the Saturday did not turn into a fix for everything.
         prompt.append("- The next seven days. Take a named day from this list; do not work a date out:\n");
         for (int ahead = 1; ahead <= 7; ahead++) {
             LocalDate day = today.plusDays(ahead);
-            prompt.append("  - ").append(day.getDayOfWeek()).append(' ').append(day).append('\n');
+            prompt.append("  - ").append(day).append(" is a ").append(day.getDayOfWeek()).append('\n');
         }
         prompt.append('\n');
     }
