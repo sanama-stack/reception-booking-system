@@ -8,11 +8,12 @@ Receptionist acts only through validated tools; those tools call the same endpoi
 calls; and the database makes double-booking structurally impossible regardless of what any layer above it
 believes.
 
-> **Build status: phase 07 of 11 complete.** An owner can configure a business and run its
+> **Build status: phase 08 of 11 complete.** An owner can configure a business and run its
 > calendar from the dashboard — booking, moving, cancelling and closing out appointments, and
 > seeing who has booked — with double booking made impossible by the database rather than by a
-> check, and every one of those changes now sends the customer a real email. The public booking
-> page and the AI receptionist are still to come. See
+> check, and every one of those changes sends the customer a real email. A stranger can now book
+> without an account at `/book/{slug}`, and manage that appointment from the link the email
+> carries. The AI receptionist is still to come. See
 > [docs/09-phase-plan.md](docs/09-phase-plan.md) for the build order.
 
 ## Quick start
@@ -88,8 +89,8 @@ every sixty seconds ([ADR-0005](docs/adr/0005-database-outbox-instead-of-queue.m
 the outbox is visible in `select type, status, scheduled_for from notifications`.
 
 Each message carries the appointment's Confirmation Code and a **Manage Link** — a signed token
-authorising exactly one appointment, good until twenty-four hours after it ends. The page it opens
-arrives in phase 08; until then the link is a token to read, not a page to visit.
+authorising exactly one appointment, good until twenty-four hours after it ends. Since phase 08 it
+opens a real page: `/manage/{token}`, where the customer reschedules or cancels without an account.
 
 ### Running everything in containers
 
@@ -148,7 +149,7 @@ enforce the same thing from two directions.
 ## Stack
 
 Java 21 · Spring Boot 3.5 · PostgreSQL 16 · Flyway · Next.js 15 · TypeScript · Tailwind 4 · Caddy ·
-Docker Compose · OpenAI tool calling (phase 09)
+Docker Compose · OpenAI tool calling over a hand-written client ([ADR-0009](docs/adr/0009-a-hand-written-rest-client-instead-of-an-sdk.md))
 
 ## Documentation
 

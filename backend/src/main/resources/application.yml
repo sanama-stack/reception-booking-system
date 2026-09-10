@@ -129,6 +129,16 @@ app:
   ai:
     api-key: ${OPENAI_API_KEY:}
     model: ${OPENAI_MODEL:gpt-4o-mini}
+    base-url: ${OPENAI_BASE_URL:https://api.openai.com/v1}
+    # The ceilings are NOT here. Five tool calls a turn, forty messages a conversation and a
+    # twenty-message window are policy, and live in ConversationLimits for the same reason the rate
+    # limits live in RateLimitProperties: a number that changes what a customer experiences should
+    # be reviewed in a diff, not tuned in an environment.
+    timeout-seconds: ${OPENAI_TIMEOUT_SECONDS:30}
+    # gpt-4o-mini's published prices, used only to estimate spend against the daily cap. A different
+    # model needs these set alongside it — which is why the column is called estimated_cost_cents.
+    prompt-cents-per-million-tokens: ${OPENAI_PROMPT_CENTS_PER_MTOK:15}
+    completion-cents-per-million-tokens: ${OPENAI_COMPLETION_CENTS_PER_MTOK:60}
 
 logging:
   level:

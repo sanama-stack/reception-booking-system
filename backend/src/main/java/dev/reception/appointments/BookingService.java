@@ -18,7 +18,8 @@ import java.time.Clock;
 import java.time.Instant;
 import java.util.Optional;
 import java.util.UUID;
-import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.support.TransactionTemplate;
 
 /**
  * The write path: one transaction from a requested time to a booked Appointment.
@@ -42,6 +43,7 @@ import org.springframework.transaction.annotation.Transactional;
 public class BookingService {
 
     private final AppointmentRepository appointments;
+    private final AppointmentLockRepository locks;
     private final ServiceCatalogService catalog;
     private final EmployeeService employees;
     private final CustomerService customers;
@@ -53,8 +55,19 @@ public class BookingService {
     private final IdGenerator ids;
     private final Clock clock;
 
+    /**
+     * The transaction boundary, programmatic rather than declarative.
+     *
+     * <p>{@code @Transactional} on {@link #book} would put the boundary <em>outside</em> the retry,
+     * and a deadlock aborts the transaction it happened in — so the second attempt would run inside
+     * a transaction Postgres has already rolled back and fail on arrival. The retry has to sit
+     * outside the boundary, which means the boundary has to be something this method can open twice.
+     */
+    private final TransactionTemplate transactions;
+
     public BookingService(
             AppointmentRepository appointments,
+            AppointmentLockRepository locks,
             ServiceCatalogService catalog,
             EmployeeService employees,
             CustomerService customers,
@@ -64,8 +77,10 @@ public class BookingService {
             NotificationEnqueuer notifications,
             TenantContext tenant,
             IdGenerator ids,
-            Clock clock) {
+            Clock clock,
+            PlatformTransactionManager transactionManager) {
         this.appointments = appointments;
+        this.locks = locks;
         this.catalog = catalog;
         this.employees = employees;
         this.customers = customers;
@@ -76,6 +91,7 @@ public class BookingService {
         this.tenant = tenant;
         this.ids = ids;
         this.clock = clock;
+        this.transactions = new TransactionTemplate(transactionManager);
     }
 
     /**
@@ -96,14 +112,38 @@ public class BookingService {
             String customerNote,
             CustomerFieldNames customerFields) {}
 
-    @Transactional
+    /**
+     * One booking, attempted until it is decided rather than until it is interrupted.
+     *
+     * <p>Every attempt is a whole transaction — validation, the availability re-check, the Customer,
+     * the row, the audit event and the notification rows — and a retry repeats all of it, because a
+     * deadlock rolled all of it back. That is why the retry lives here and not around the
+     * {@code saveAndFlush} alone: half of an aborted transaction is not a thing that can be resumed.
+     *
+     * <p>Only {@code CannotAcquireLockException} is retried. A
+     * {@code DataIntegrityViolationException} from {@code appointments_no_overlap} is the race being
+     * settled correctly and must reach {@code GlobalExceptionHandler} untouched — retrying it would
+     * turn one honest {@code 409} into three slow ones (issue #7, {@link DeadlockRetry}).
+     */
     public Appointment book(BookingRequest request, AppointmentSource source, Actor actor) {
+        return DeadlockRetry.attempt(() -> transactions.execute(status -> write(request, source, actor)));
+    }
+
+    private Appointment write(BookingRequest request, AppointmentSource source, Actor actor) {
         UUID businessId = tenant.businessId();
 
         // read() is what turns another tenant's id into a 404, and it runs before anything is
         // written — the Customer included, which is why a failed booking leaves no row behind.
         Service service = catalog.read(request.serviceId());
         Employee employee = employees.read(request.employeeId());
+
+        // Everything from here to the commit is one booking's worth of this Employee's diary, and
+        // nobody else's transaction is inside it. Taken before the re-check rather than before the
+        // insert, so that check-and-write is atomic per Employee: a loser waits here, and by the
+        // time it proceeds the winner has committed, so the re-check below refuses it by name
+        // instead of the exclusion constraint deadlocking against it (issue #7,
+        // AppointmentLockRepository). The constraint is still what makes the rule true.
+        locks.lock(AppointmentLockRepository.keyFor(employee.getId()));
 
         Optional<UnbookableReason> refusal = availability.reasonNotBookable(
                 request.serviceId(), request.employeeId(), request.startsAt(), null);

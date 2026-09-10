@@ -250,7 +250,7 @@ no internal settings, no other customers.
 | GET | `/public/appointments/manage/availability?token=&from=&to=&employeeId=` | Slots to move to, excluding this appointment |
 | POST | `/public/appointments/{id}/cancel` | Requires manage token or verified lookup |
 | POST | `/public/appointments/{id}/reschedule` | Same authority requirement |
-| POST | `/public/businesses/{slug}/chat/session` | Start a conversation |
+| POST | `/public/businesses/{slug}/chat/session` | Start a conversation (optionally seeded by a Manage Link) |
 | POST | `/public/businesses/{slug}/chat` | One turn |
 
 **POST `/public/businesses/{slug}/appointments`**
@@ -313,10 +313,23 @@ address itself is never returned, for the reason `confirmationSent` is not eithe
 appointment end + 24 h. It is a single-purpose capability token, not an identity: it authorises exactly one
 appointment, grants nothing else, and is excluded from logs.
 
+**POST `/public/businesses/{slug}/chat/session`** → `201`
+```json
+{ "conversationId": "…", "sessionToken": "…" }
+```
+
+Optionally takes `{ "manageToken": "…" }`. A valid one seeds the conversation's authority with the single
+appointment it authorises, so a customer who arrived from an email can say "move this" without reciting a
+Confirmation Code. A stale or foreign token is ignored rather than refused — the conversation opens with no
+authority, which is what an ordinary visitor gets anyway.
+
+**The `sessionToken` is returned exactly once.** The row stores only its SHA-256, so a read of
+`ai_conversations` does not hand out the ability to continue somebody's conversation.
+
 **POST `/public/businesses/{slug}/chat`**
 
 ```json
-{ "conversationId": "…", "sessionToken": "…", "message": "can I get a colour tomorrow after 5?" }
+{ "sessionToken": "…", "message": "can I get a colour tomorrow after 5?" }
 ```
 → `200`
 ```json
@@ -326,9 +339,39 @@ appointment, grants nothing else, and is excluded from logs.
   "appointmentCreated": null }
 ```
 
-`appointmentCreated` is populated only when a booking tool succeeded, so the UI can render a confirmation
-card from **backend data** rather than parsing the model's prose. Errors: `AI_UNAVAILABLE`,
-`AI_LIMIT_REACHED`, `RATE_LIMITED`, `VALIDATION_FAILED`.
+**No `conversationId` in the body, and phase 09 dropped it deliberately.** The session token already names
+exactly one conversation — it is uniquely indexed — so a second identifier beside it could only agree
+redundantly or disagree, and there is no useful behaviour for the disagreeing case. It is the argument the
+Manage Link endpoints make about the id in their path, with the difference that a URL cannot avoid carrying
+a claim and a body can simply not carry one.
+
+`appointmentCreated` is populated only when `create_appointment` succeeded, so the UI can render a
+confirmation card from **backend data** rather than parsing the model's prose. The provenance is what makes
+the field a hallucination control; the casing is what makes it a public response.
+
+It is **the same shape** `POST …/appointments` returns above — the record itself, not a second one with
+matching key names — so one component renders a booking whichever door it came in through:
+
+```json
+{ "id": "…", "confirmationCode": "7QK4M2XR",
+  "startsAt": "…", "endsAt": "…", "timezone": "Asia/Tbilisi",
+  "service": { "name": "Colour", "durationMinutes": 150 },
+  "employee": { "fullName": "Lika" },
+  "price": { "amount": "220.00", "currency": "GEL" },
+  "confirmationSent": false }
+```
+
+Phase 09 first shipped a second record here whose keys matched and whose types did not — `service` a bare
+string beside a `BookedService`, `price` and `currency` flat beside a `Money`, and no `timezone` at all.
+Same-named fields of different types are worse than differently-named ones, because a reader assumes they
+agree, and a flat allow-list of key names cannot see the difference. `PublicChatTest` now compares the two
+responses as structures rather than field by field.
+
+`messagesRemaining` is counted by the server because the ceiling counts tool rows the client never sees; a
+panel counting its own bubbles would be wrong, and wrong optimistically.
+
+Errors: `AI_UNAVAILABLE`, `AI_LIMIT_REACHED`, `RATE_LIMITED`, `VALIDATION_FAILED`, and `NOT_FOUND` for a
+session token this business does not know.
 
 ## 7. What is deliberately not specified yet
 

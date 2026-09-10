@@ -147,14 +147,19 @@ public class NotificationEnqueuer {
      */
     @Transactional(propagation = Propagation.MANDATORY)
     public void appointmentRescheduled(Appointment appointment, Instant previousStartsAt) {
+        // Before the address is consulted, exactly as cancelling does it. A reminder minted against
+        // the old start time is wrong the moment the appointment moves, and it is wrong whether or
+        // not anybody is reachable — recipientEmail was copied at enqueue and is not updatable, so
+        // an address cleared in between does not stop the poller sending it at the old hour with
+        // the old time in the body.
+        boolean reminderAlreadySent = supersedePendingReminder(appointment);
+
         Customer customer = customers.read(appointment.customerId());
         if (!customer.hasEmail()) {
             return;
         }
         Instant now = clock.instant();
         MailModel model = modelFor(appointment, customer, previousStartsAt, null);
-
-        boolean reminderAlreadySent = supersedePendingReminder(appointment);
 
         Instant remindAt = appointment.startsAt().minus(REMINDER_LEAD);
         if (!reminderAlreadySent && remindAt.isAfter(now)) {

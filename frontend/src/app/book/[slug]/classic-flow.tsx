@@ -442,17 +442,11 @@ export function ClassicFlow({
               {formatTime(selection.startsAt, selection.timezone)}
             </span>
           </p>
-          {/*
-            `min-h-11` for the reason the slot buttons and the pager carry it: 44 px is the thumb
-            guideline this page is built to, and the shared `Button` is 40 px. It was missed here
-            until the completed flow was measured at 360 px — the earlier measurement was taken
-            before a slot had been chosen, and this button does not exist until one has been.
-          */}
           <Button
             type="submit"
             loading={booking}
             disabled={fullName.trim() === '' || phone.trim() === ''}
-            className="min-h-11 w-full sm:w-auto"
+            className="w-full sm:w-auto"
           >
             Confirm booking
           </Button>

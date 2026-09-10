@@ -56,8 +56,14 @@ public class CustomerService {
      * <p><strong>A differing name does not overwrite the stored one.</strong> The common reason a
      * known number arrives with a new name is somebody booking for a partner, a child or a
      * colleague — and renaming the customer would destroy the record of who they are, silently, on
-     * every such booking (docs/03-data-model.md §2). The Appointment records the name it was given;
-     * only an explicit correction through {@link #patch} changes the Customer.
+     * every such booking (docs/03-data-model.md §2). Only an explicit correction through
+     * {@link #patch} changes the Customer.
+     *
+     * <p><strong>The name given at booking is not retained.</strong> {@code appointments} has no
+     * name column, so on a match the argument is discarded and nothing records who the booking was
+     * for. This rule protects the <em>stored</em> name; it does not preserve the <em>given</em> one,
+     * and an earlier version of this javadoc claimed otherwise (issue #5). Recording it would mean
+     * a column on {@code appointments} and a decision about what the dashboard shows.
      *
      * <p>Called inside the booking transaction, so a booking that fails afterwards leaves no
      * customer behind.

@@ -380,7 +380,7 @@ function TimeField({
       value={value}
       onChange={(event) => onChange(event.target.value)}
       className={cn(
-        'border-border bg-surface text-ink h-10 rounded-md border px-3 text-sm',
+        'border-border bg-surface text-ink h-11 rounded-md border px-3 text-sm',
         invalid && 'border-danger',
       )}
     />

@@ -44,9 +44,11 @@ class LayeringTest {
                 .dependOnClassesThat()
                 .resideInAnyPackage("java.sql..", "javax.sql..", "org.springframework.jdbc..")
                 .because("every AI tool goes through the same application services the REST controllers "
-                        + "call (ADR-0004)")
-                // Empty until phase 09; see the note above.
-                .allowEmptyShould(true);
+                        + "call (ADR-0004)");
+        // allowEmptyShould is gone as of phase 09, which filled the package — exactly as it went
+        // from the engine's rule in phase 05, and for the same reason. An empty result would now
+        // mean dev.reception.ai had been renamed or emptied and the rule was passing by finding
+        // nothing to check. Do not add it back to get a red build green.
 
         rule.check(PRODUCTION_CLASSES);
     }

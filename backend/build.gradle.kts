@@ -1,3 +1,22 @@
+// The Flyway Gradle plugin resolves its own classpath, separate from the application's
+// `dependencies` below — so `flyway-database-postgresql` and the driver declared there never reach
+// it, and `flywayMigrate` fails with "No Flyway database plugin found to handle jdbc:postgresql://".
+// Broken since phase 01 and unnoticed, because Flyway also runs at application startup and the
+// suite migrates through Testcontainers, so nothing anybody ran took this path (issue #9).
+//
+// Both versions are pinned literally: a `buildscript` block gets no dependency management. The
+// Flyway module must match the plugin version in `plugins` below, and the driver matches what
+// `runtimeClasspath` resolves for `org.postgresql:postgresql`.
+buildscript {
+    repositories {
+        mavenCentral()
+    }
+    dependencies {
+        classpath("org.flywaydb:flyway-database-postgresql:11.7.2")
+        classpath("org.postgresql:postgresql:42.7.7")
+    }
+}
+
 plugins {
     java
     id("org.springframework.boot") version "3.5.4"
@@ -99,7 +118,16 @@ tasks.withType<Test> {
     useJUnitPlatform {
         // Live-model tests cost money and are non-deterministic; they never gate the pipeline
         // (docs/08-testing-strategy.md §7, §10).
-        excludeTags("llm")
+        //
+        // -PincludeTags=llm runs them and nothing else, which is how the level-3 corpus is exercised
+        // by hand before a release and after any change to the system prompt or a tool description —
+        // the two things a scripted model cannot evaluate, because it reads neither. Without a key
+        // the corpus skips itself rather than failing.
+        if (project.hasProperty("includeTags")) {
+            includeTags(project.property("includeTags") as String)
+        } else {
+            excludeTags("llm")
+        }
     }
     testLogging {
         events("passed", "skipped", "failed")

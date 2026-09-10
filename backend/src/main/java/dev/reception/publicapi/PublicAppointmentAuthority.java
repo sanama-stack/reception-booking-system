@@ -3,12 +3,11 @@ package dev.reception.publicapi;
 import dev.reception.appointments.Appointment;
 import dev.reception.appointments.AppointmentDirectory;
 import dev.reception.appointments.AppointmentLookup;
+import dev.reception.appointments.ConfirmationCodeLookup;
 import dev.reception.common.error.ApiException;
 import dev.reception.common.error.ErrorCode;
-import dev.reception.common.phone.PhoneField;
 import dev.reception.notifications.ManageTokenService;
 import dev.reception.tenancy.TenantAdoption;
-import java.util.Optional;
 import java.util.UUID;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
@@ -37,16 +36,19 @@ import org.springframework.transaction.annotation.Transactional;
 public class PublicAppointmentAuthority {
 
     private final AppointmentDirectory directory;
+    private final ConfirmationCodeLookup codes;
     private final AppointmentLookup appointments;
     private final ManageTokenService tokens;
     private final TenantAdoption tenants;
 
     public PublicAppointmentAuthority(
             AppointmentDirectory directory,
+            ConfirmationCodeLookup codes,
             AppointmentLookup appointments,
             ManageTokenService tokens,
             TenantAdoption tenants) {
         this.directory = directory;
+        this.codes = codes;
         this.appointments = appointments;
         this.tokens = tokens;
         this.tenants = tenants;
@@ -83,39 +85,21 @@ public class PublicAppointmentAuthority {
      */
     @Transactional(readOnly = true)
     public Appointment byLookup(String confirmationCode, String presentedPhone) {
-        // Codes are generated in upper-case Crockford base32; a customer reading one off a phone
-        // screen is not going to hold the shift key.
-        String code = confirmationCode.trim().toUpperCase(java.util.Locale.ROOT);
+        // Across tenants, because this caller has none yet. What a proof matches is
+        // ConfirmationCodeLookup's; which of those matches this endpoint may adopt is the line
+        // below, and phase 09 needed those two to be separable — the Receptionist shares the
+        // matching and must not share the adoption.
+        AppointmentDirectory.ConfirmationCodeMatch candidate = codes.matching(confirmationCode, presentedPhone)
+                .stream()
+                .findFirst()
+                .orElseThrow(() -> new ApiException(
+                        ErrorCode.INVALID_CONFIRMATION_CODE,
+                        "We could not find an appointment with that code and phone number."));
 
-        for (AppointmentDirectory.ConfirmationCodeMatch candidate :
-                directory.findByConfirmationCodeAcrossTenants(code)) {
-            if (!phoneMatches(presentedPhone, candidate)) {
-                continue;
-            }
-            tenants.adopt(candidate.getBusinessId());
-            return appointments.require(candidate.getAppointmentId());
-        }
-        throw new ApiException(
-                ErrorCode.INVALID_CONFIRMATION_CODE,
-                "We could not find an appointment with that code and phone number.");
-    }
-
-    /**
-     * Whether the number the caller typed is the one that booked this candidate.
-     *
-     * <p>Normalised against <em>that candidate's</em> Business, because a local number means
-     * different things in different countries and the stored value is E.164. This is why the country
-     * travels with each row rather than being looked up once: with no slug in the path there is no
-     * single Business to look it up from.
-     *
-     * <p>A plain comparison rather than a constant-time one, and deliberately. What is worth
-     * brute-forcing here is the code, and the index probe that found this candidate has data-dependent
-     * timing this method cannot do anything about — a constant-time compare underneath it would be
-     * theatre. The control that actually bounds guessing is five attempts per hour per address.
-     */
-    private static boolean phoneMatches(String presented, AppointmentDirectory.ConfirmationCodeMatch candidate) {
-        Optional<String> normalised = PhoneField.parse(presented, candidate.getBusinessCountry());
-        return normalised.isPresent() && normalised.get().equals(candidate.getCustomerPhone());
+        tenants.adopt(candidate.getBusinessId());
+        // Scoped to the tenant just adopted, so this is the same read the dashboard performs and
+        // there is no second code path that could forget the filter.
+        return appointments.require(candidate.getAppointmentId());
     }
 
     private static ApiException tokenInvalid() {

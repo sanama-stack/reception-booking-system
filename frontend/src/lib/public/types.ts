@@ -116,6 +116,72 @@ export interface BookedAppointment {
 }
 
 /**
+ * A conversation, as the panel holds it.
+ *
+ * **`sessionToken` is returned exactly once** — by `POST …/chat/session`, and never again. The
+ * server stores only its SHA-256, so there is no endpoint that could hand it back. Losing it loses
+ * the conversation, which is why it goes into `sessionStorage` the moment it arrives.
+ *
+ * `conversationId` is carried for the degradation banner and for support, and is deliberately
+ * *not* sent back on a turn: the token already names exactly one conversation, and a second
+ * identifier beside it could only agree redundantly or disagree (docs/04-api-overview.md §6).
+ */
+export interface StartedChatSession {
+  conversationId: string;
+  sessionToken: string;
+}
+
+/**
+ * Optionally seeded by a Manage Link.
+ *
+ * A valid token opens the conversation already holding authority over the one appointment it
+ * authorises, so a customer arriving from an email can say "move this" without reciting a
+ * Confirmation Code. A stale or foreign one is **ignored rather than refused** — the conversation
+ * opens with no authority, which is what an ordinary visitor gets anyway.
+ */
+export interface StartChatSession {
+  manageToken?: string;
+}
+
+/**
+ * Where a conversation is.
+ *
+ * `CLOSED` and `LIMIT_REACHED` both mean the composer goes away and the Classic Flow is what is
+ * left. They are distinguished because the sentence differs: one ran out of messages, the other
+ * ran out of the business's daily budget, and telling a customer the wrong one is telling them to
+ * wait for something that will not change.
+ */
+export type ConversationStatus = 'ACTIVE' | 'CLOSED' | 'LIMIT_REACHED';
+
+/** One turn: what the customer said in, what the Receptionist says back out. */
+export interface SendChatMessage {
+  sessionToken: string;
+  message: string;
+}
+
+/**
+ * The Receptionist's answer.
+ *
+ * **`appointmentCreated` is the confirmation card, and the card is rendered from it and never from
+ * `reply`.** It is populated only because `create_appointment` returned a success, so a model that
+ * claims a booking it did not make produces a paragraph with no card beneath it — the failure is
+ * visible rather than convincing (docs/05-ai-architecture.md §6). Parsing the prose for a
+ * Confirmation Code would throw that away, which is why the field exists at all.
+ *
+ * It is `BookedAppointment` — the same type the Classic Flow's confirmation screen renders, not a
+ * second shape that resembles it. A booking is the same event whichever door it came in through.
+ *
+ * `messagesRemaining` is the server's count, not ours. The ceiling counts tool rows the panel never
+ * sees, so a panel counting its own bubbles would be wrong, and wrong optimistically.
+ */
+export interface ChatReply {
+  reply: string;
+  conversationStatus: ConversationStatus;
+  messagesRemaining: number;
+  appointmentCreated: BookedAppointment | null;
+}
+
+/**
  * Who is booking. No password and no account — a Customer is a name and a reachable number.
  *
  * **Nested, unlike the dashboard's flat body.** That is the published contract

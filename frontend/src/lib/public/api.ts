@@ -17,6 +17,7 @@ import { api } from '@/lib/api/client';
 import type {
   BookedAppointment,
   CancelPublicAppointment,
+  ChatReply,
   CreatePublicAppointment,
   ManageAvailabilityQuery,
   ManagedAppointment,
@@ -24,6 +25,9 @@ import type {
   PublicBusiness,
   PublicService,
   ReschedulePublicAppointment,
+  SendChatMessage,
+  StartChatSession,
+  StartedChatSession,
 } from './types';
 
 function segment(slug: string): string {
@@ -95,6 +99,21 @@ export function manageAvailabilityPath(query: ManageAvailabilityQuery): string {
   return `/public/appointments/manage/availability?${params.toString()}`;
 }
 
+/**
+ * The Receptionist's two endpoints, both under the slug.
+ *
+ * The slug is what settles the tenant, exactly as it does for availability and booking — so the
+ * conversation's Business is decided by the URL before any of it runs, and there is nothing in a
+ * body that could name a different one.
+ */
+export function publicChatSessionPath(slug: string): string {
+  return `${publicBusinessPath(slug)}/chat/session`;
+}
+
+export function publicChatPath(slug: string): string {
+  return `${publicBusinessPath(slug)}/chat`;
+}
+
 export const publicApi = {
   /**
    * The page's own reads, run together.
@@ -113,6 +132,26 @@ export const publicApi = {
 
   book: (slug: string, body: CreatePublicAppointment) =>
     api.post<BookedAppointment>(`${publicBusinessPath(slug)}/appointments`, body),
+
+  /**
+   * Opens a conversation and returns the token that continues it.
+   *
+   * The body is optional and carries at most a Manage Link. Sent as `{}` rather than omitted so the
+   * request always has a JSON body, which is one fewer shape for the client to have and one fewer
+   * branch on the server.
+   */
+  startChat: (slug: string, body: StartChatSession = {}) =>
+    api.post<StartedChatSession>(publicChatSessionPath(slug), body),
+
+  /**
+   * One turn.
+   *
+   * The session token goes in the **body**, never the URL: it is a capability that continues
+   * somebody's conversation, and a URL is the one place a secret is guaranteed to be written down —
+   * server logs, referrer headers, browser history. The same argument `POST /public/appointments/lookup`
+   * makes about a phone number.
+   */
+  chat: (slug: string, body: SendChatMessage) => api.post<ChatReply>(publicChatPath(slug), body),
 
   /** What the Manage Link resolves to. Read from the server component that renders the page. */
   manage: (token: string) => api.get<ManagedAppointment>(managePath(token)),
