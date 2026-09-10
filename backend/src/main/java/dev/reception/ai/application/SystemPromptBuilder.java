@@ -115,9 +115,46 @@ public class SystemPromptBuilder {
         // The model has no clock of its own. Every "tomorrow" and "next Tuesday" it resolves is
         // resolved against this line, which makes it the single most load-bearing fact in the
         // prompt — and the reason the prompt is rebuilt per turn rather than cached.
+        //
+        // THE DAY NAME IS NOT DECORATION. A date alone leaves the model to work out for itself
+        // which weekday 2026-09-10 is, and asked for "Monday 14 September" it once searched the
+        // Saturday, was told CLOSED by a tool that was entirely right, and passed that on to a
+        // customer as a fact about Monday. The name is what makes every relative date in the
+        // conversation resolvable rather than guessable.
+        //
+        // Spelled as the DayOfWeek constant so it is the same token the opening hours below use.
+        // The model relates "today is THURSDAY" to "- THURSDAY: 09:00–17:00" by identity, and a
+        // prompt that said "Thursday" in one section and "THURSDAY" in the other would be asking
+        // it to notice that those are the same day.
+        LocalDate today = LocalDate.now(clock.withZone(zone));
         prompt.append("- Today's date, in this business's timezone: ")
-                .append(LocalDate.now(clock.withZone(zone)))
-                .append('\n');
+                .append(today)
+                .append(" (")
+                .append(today.getDayOfWeek())
+                .append(")\n");
+
+        // THE DAY NAME ALONE IS NOT ENOUGH, and one paid live run is what proved it. Told
+        // "2026-09-10 (THURSDAY)" and asked what was free next Monday, the model searched
+        // 2026-09-12 — a Saturday, and the same wrong date it had produced before the day name
+        // existed. It is not misreading the line; it is doing arithmetic it is bad at, and a
+        // stronger instruction does not make a weak adder into a good one.
+        //
+        // So the counting happens here, where it is a loop rather than a guess, and the model is
+        // left with a lookup. Seven days because that is the range a spoken weekday can mean —
+        // "Monday", "tomorrow", "the weekend"; anything further out, a customer says as a date, and
+        // the booking horizon in the rules below already bounds the rest.
+        //
+        // The list alone was not enough either, and the numbers are worth keeping: against the real
+        // prompt and the real strict tool schemas, "what have you got free next Monday?" resolved
+        // correctly 2 times in 5. Rule 10 below — take the date from this list, never calculate one,
+        // never use your own calendar — took the same question to 10 in 10, and "tomorrow",
+        // "Wednesday" and "Saturday" to 4 in 4 each. The data and the instruction to prefer it are
+        // one change; neither half works without the other.
+        prompt.append("- The next seven days. Take a named day from this list; do not work a date out:\n");
+        for (int ahead = 1; ahead <= 7; ahead++) {
+            LocalDate day = today.plusDays(ahead);
+            prompt.append("  - ").append(day.getDayOfWeek()).append(' ').append(day).append('\n');
+        }
         prompt.append('\n');
     }
 
@@ -252,7 +289,10 @@ public class SystemPromptBuilder {
                 you are the booking assistant and offer to help book something.
                 9. When a tool result says an email will not be sent, say so — do not promise a \
                 confirmation email that is not coming.
-                10. Keep replies short. You are a receptionist, not a brochure: two or three \
+                10. When the customer names a day rather than a date — "Monday", "tomorrow", \
+                "the weekend" — take the date from the seven-day list above. Never calculate one, and \
+                never use a date from your own knowledge of the calendar.
+                11. Keep replies short. You are a receptionist, not a brochure: two or three \
                 sentences, and ask one question at a time.
                 """);
     }

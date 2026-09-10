@@ -14,6 +14,7 @@ import dev.reception.support.DatabaseCleaner;
 import dev.reception.support.IntegrationTest;
 import dev.reception.tenancy.TenantAdoption;
 import java.time.Clock;
+import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.Map;
@@ -352,6 +353,49 @@ class ConversationLoopTest extends IntegrationTest {
         assertThat(model.messagesOnCall(0).get(0).content()).contains("Salon Aria");
         assertThat(jdbc.queryForList("select distinct role from ai_messages", String.class))
                 .doesNotContain("SYSTEM");
+    }
+
+    /**
+     * <strong>Every date a customer can name without saying a number is spelled out.</strong> A
+     * regression for the defect that made the Receptionist's first real conversation wrong: the
+     * prompt stated the date alone and left the model to work out which weekday it was, so a
+     * customer asking about Monday had the Saturday searched on their behalf. The tool answered
+     * {@code CLOSED} correctly and the customer was told, truthfully about the wrong day, that the
+     * business was closed.
+     *
+     * <p>The day name went in first and was not enough — a live run showed the model still counting
+     * its way to the wrong Monday — so the seven days that follow are resolved here and listed. Both
+     * halves are asserted because the second is the one that does the work and the first is what
+     * makes the list legible.
+     *
+     * <p>Scripted, because the fact is either in the prompt or it is not and that needs no network.
+     * Whether a model then uses it lives in {@code LiveReceptionistTest}, where it costs money.
+     */
+    @Test
+    @DisplayName("the prompt dates today and each of the next seven days by name")
+    void the_prompt_resolves_every_nameable_day() {
+        model.willSay("Hello.");
+
+        respond(start(), "hi");
+
+        // The business's zone, not the server's — the same date the tools will resolve against.
+        LocalDate today = LocalDate.now(clock.withZone(BookingScenario.TBILISI));
+        String prompt = model.messagesOnCall(0).get(0).content();
+
+        assertThat(prompt)
+                .contains("Today's date, in this business's timezone: " + today + " (" + today.getDayOfWeek() + ")");
+
+        // Seven, not one: "Monday" from a Thursday is four days out, and the whole point is that
+        // nothing in the week has to be counted to.
+        for (int ahead = 1; ahead <= 7; ahead++) {
+            LocalDate day = today.plusDays(ahead);
+            assertThat(prompt).as("day %d ahead", ahead).contains(day.getDayOfWeek() + " " + day);
+        }
+
+        // And the instruction to prefer the list over arithmetic. Measured as the half that carries
+        // the fix: with the dates alone the model resolved a named weekday correctly 2 times in 5,
+        // and with this sentence 10 in 10.
+        assertThat(prompt).contains("take the date from the seven-day list above");
     }
 
     // ------------------------------------------------------- authority

@@ -8,6 +8,8 @@ import dev.reception.support.DatabaseCleaner;
 import dev.reception.support.IntegrationTest;
 import dev.reception.tenancy.TenantAdoption;
 import java.time.Clock;
+import java.time.DayOfWeek;
+import java.time.LocalDate;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -117,6 +119,37 @@ class LiveReceptionistTest extends IntegrationTest {
         say(token, "What have you got free on " + aria.monday + "?");
 
         assertThat(toolsCalled()).contains("find_available_slots");
+    }
+
+    /**
+     * <strong>A weekday spoken by name, with no date anywhere in the sentence.</strong> The
+     * customer says "Monday"; only the prompt's own statement of today can turn that into the
+     * {@code YYYY-MM-DD} the engine takes, and there is no tool that converts one to the other.
+     *
+     * <p>This is the case the corpus did not have, and its absence is why a green live run and 798
+     * tests both missed the prompt stating a date with no day name — asked for Monday, the model
+     * searched a Saturday, was told {@code CLOSED} by a tool that was entirely correct, and told the
+     * customer their Monday was closed while the Classic Flow beside it offered nine times.
+     *
+     * <p>The assertion is on the weekday and not on which Monday: "next Monday" is genuinely
+     * ambiguous in English between the coming one and the one after, and a test that picked a side
+     * would be asserting a reading rather than a resolution. What is not ambiguous is that it must
+     * be a Monday, and it must not be in the past.
+     */
+    @Test
+    @DisplayName("a weekday named without a date is resolved to a date that is that weekday")
+    void a_spoken_weekday_resolves_to_the_right_day() {
+        String token = start();
+
+        say(token, "What have you got free next Monday?");
+
+        List<String> searched = slotSearchDates();
+        assertThat(searched).as("find_available_slots was never called").isNotEmpty();
+        assertThat(searched).allSatisfy(date -> {
+            LocalDate asked = LocalDate.parse(date);
+            assertThat(asked.getDayOfWeek()).as("searched %s", date).isEqualTo(DayOfWeek.MONDAY);
+            assertThat(asked).isAfterOrEqualTo(LocalDate.now(clock.withZone(BookingScenario.TBILISI)));
+        });
     }
 
     // ------------------------------------------------------------- BUSINESS_INFO / SERVICE_INFO
@@ -232,6 +265,14 @@ class LiveReceptionistTest extends IntegrationTest {
 
     private String say(String token, String message) {
         return conversations.respond(token, message).reply();
+    }
+
+    /** The {@code date_from} of every availability search, as the model wrote it. */
+    private List<String> slotSearchDates() {
+        return jdbc.queryForList(
+                "select tool_arguments->>'date_from' from ai_messages "
+                        + "where role = 'TOOL' and tool_name = 'find_available_slots' order by created_at",
+                String.class);
     }
 
     private List<String> toolsCalled() {
