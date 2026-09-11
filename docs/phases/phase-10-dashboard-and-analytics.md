@@ -139,7 +139,15 @@ fix is an index in this phase, not a new table.
 - [x] Range validation with business-timezone boundaries
 - [x] Calendar-range appointment query
 - [x] Closure and time-off range endpoints
-- [ ] Indexes verified against a 10 000-appointment dataset
+- [x] Indexes verified against a 10 000-appointment dataset — **measured**, on a clone of the
+      production schema holding 10 000 appointments for the target business and 21 600 for nine
+      other tenants, because a single-tenant table makes a sequential scan genuinely cheapest and
+      the measurement would say nothing. Every analytics query is index-backed and none exceeds
+      **1.5 ms**, including the 366-day maximum range. **No index was added, and one was not the
+      fix that was needed:** the calendar's overlap query is index-backed but its work is
+      proportional to the tenant's history rather than to the range — it reads 8 800 rows to
+      return 20 — and above 10 000 it abandons the index for a sequential scan of the whole table.
+      That is a predicate defect, not a missing index; see the session handoff
 
 ### Frontend — calendar
 - [x] Day view with employee columns

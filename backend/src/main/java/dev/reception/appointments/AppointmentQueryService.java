@@ -95,8 +95,7 @@ public class AppointmentQueryService {
     public List<AppointmentView> overlapping(Instant from, Instant to) {
         return hydrate(
                 appointments
-                        .findByBusinessIdAndStartsAtLessThanAndEndsAtGreaterThanOrderByStartsAtAsc(
-                                tenant.businessId(), to, from)
+                        .findByBusinessIdAndOverlapping(tenant.businessId(), from, to)
                         .stream()
                         .filter(appointment -> appointment.status() != AppointmentStatus.CANCELLED)
                         .toList());
