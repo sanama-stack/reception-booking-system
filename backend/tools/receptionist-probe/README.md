@@ -116,6 +116,40 @@ ten days out, and only then could it measure anything.
 **Ask what makes the defect visible before you ask how often it happens.** A fixture that cannot
 express the failing input measures the fixture.
 
+### And check it again on the day you run it
+
+`BookingScenario.monday` is `today.plusDays(7).with(nextOrSame(MONDAY))`, which is 8 to 14 days out
+on six days of the week — **and exactly 7 days out when the run happens on a Monday.** On a Monday
+the target sits inside the `[today+1, today+7]` window the defect substitutes, so #17 is
+unreachable and the arm comes back near-perfect having measured nothing.
+
+**The calendar decides this one, not the fixture's author.** A run on a Monday is not a result.
+
+## A longer list is not a longer reach
+
+Measured 2026-09-11, fifty conversations per arm against a same-day control. The dated list in the
+system prompt was extended from seven days to fourteen, on the reasoning that a lookup rule pointed
+at a list which stops at day 7 has no answer for a target 10 days out. Shape and field order
+unchanged; only the reach.
+
+| | control | fourteen-day list |
+|---|---|---|
+| landed on the named date | 14/30 = 46.7% | **7/25 = 28.0%** |
+| `date_from` exactly on target | 11/50 = 22% | **2/50 = 4%** |
+| never wrote at all | 8/50 = 16% | **21/50 = 42%** |
+
+The fourteen-day list runs `09-12` to `09-25`, and **`2026-09-26` is a Saturday one day off the end
+of it**. The control's log mentions that date 12 times; the fourteen-day arm's mentions it **100**
+times, and nine of its twenty-one no-write trials searched it twice, were told CLOSED by a tool
+that was entirely right, and gave up. That is issue #13's original symptom, reintroduced at eight
+times the rate by making the list longer.
+
+**Every extra row is another row to take the wrong one of, and the row past the end is a
+Saturday.** The seven-day bound is load-bearing. The comment above the list defends it with a claim
+about how customers speak that #17's weekday arm contradicts — so note that a rationale can be
+poorly argued and the decision it defends still correct. Finding the hole is not evidence for the
+alternative.
+
 ## Phrasing is a variable, and a large one
 
 Same harness, same target date, same appointment, fifty conversations each — only the wording
@@ -138,3 +172,58 @@ State the phrasing beside the number, the way the weekday test states its weekda
 faithful eight-tool one scored 2 of 5 on. The model fills six arguments at once under a constrained
 decoder, and that is where it goes wrong — a probe without the real tools and `strict: true` is
 measuring a different system and will tell you a broken prompt is fine.
+
+## The helper is committed now, and it validates itself
+
+`stats.py` had been rewritten from scratch in three consecutive sessions. It is now in this
+directory, and running it re-checks both functions against every value this repository has
+recorded and published:
+
+```bash
+python3 stats.py
+```
+
+It exits non-zero if any of them has drifted. **The argument order is the trap it guards hardest**
+(T18): `fisher_one_sided(a, b)` tests whether *b* is better than *a*, and called backwards it
+returns a number near 1.000 for an arm that is dramatically worse.
+
+## A guard is only as good as the intent it is given
+
+Measured 2026-09-11, fifty conversations per arm against a same-day control, the arm after the one
+above. `reschedule_appointment` gained a **required** `requested_date` — the date the customer asked
+for — and refused any write that did not land on it. The shape was the one control in this codebase
+already proven against its counterfactual, applied one field over: an unverifiable intent becomes a
+declared parameter the server can cross-check.
+
+| | control | declared-date guard |
+|---|---|---|
+| **wrong writes** | 14/50 = 28.0% | **22/50 = 44.0%** |
+| strict landing | 22/36 = 61.1% | 18/40 = 45.0% |
+| never wrote | 6/50 = 12% | **4/50 = 8%** |
+
+**Never-wrote going down is the tell.** A guard working as a safety net catches wrong writes and
+converts them into refusals, so that number has to climb. It fell.
+
+Landings concentrated on `2026-09-18` — today+7, **the last row of the seven-day list** — 7 in the
+control against 18 here, p = 0.0099. The reading is that a required date makes the model commit
+early, it clamps into the list's reach, and the guard then enforces consistency with the wrong
+intent, refusing the correct slot it might otherwise have drifted into.
+
+**Cross-checking two model-authored fields proves they agree, not that either is right.** Where
+they agree on the wrong answer the check enforces it, and a soft error the model could still drift
+out of becomes a hard constraint holding it in place.
+
+### Score a guard on refusals, not on landings
+
+The endpoint here had to change before the arm ran, and the reason generalises: **a guard's success
+mode is refusing.** Scored on strict landing, a guard that eliminated every wrong write while
+recovering from none would read as no improvement at all. The primary became *wrong writes per 50
+trials* — and it replicated the previous session's control to within four points where strict
+landing drifted fourteen. Fix the endpoint to the candidate's mechanism, before the numbers exist.
+
+### And count what the mechanism is about
+
+`requested_date`'s values were never recorded, so **whether the guard ever fired is unknown** and
+everything above about the mechanism is an inference from the landing shift. The counter costs
+nothing to add and fifty conversations to add late. Same lesson as the window-covered count, one
+level further in.
