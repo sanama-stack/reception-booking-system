@@ -26,7 +26,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 class ToolSchemaTest extends IntegrationTest {
 
     /**
-     * The eight of docs/05-ai-architecture.md §3.
+     * The eight of docs/05-ai-architecture.md §3, plus {@code resolve_date} (#17).
      *
      * <p>Asserted by name and by count, so both halves of a mistake are caught: a tool quietly
      * removed, and a ninth quietly added. The second is the one that matters — a new capability
@@ -41,14 +41,18 @@ class ToolSchemaTest extends IntegrationTest {
             "create_appointment",
             "lookup_appointment",
             "cancel_appointment",
-            "reschedule_appointment");
+            "reschedule_appointment",
+            // The ninth, and it went through this test rather than around it -- which is what the
+            // count assertion is for. It reads nothing and writes nothing: it turns a weekday into
+            // a date, because the model doing that arithmetic is #17.
+            "resolve_date");
 
     @Autowired
     private ToolRegistry registry;
 
     @Test
-    @DisplayName("the registry publishes exactly the eight tools the design names")
-    void exactly_eight_tools_are_published() {
+    @DisplayName("the registry publishes exactly the nine tools the design names")
+    void exactly_nine_tools_are_published() {
         assertThat(registry.specs().stream().map(ToolSpec::name))
                 .containsExactlyInAnyOrderElementsOf(EXPECTED_TOOLS);
     }

@@ -10,6 +10,9 @@ stranger run and understand it.
 
 **In:** the complete tenant-isolation suite, the E2E flow, seed data, observability, security headers,
 secret-handling verification, performance sanity checks, README and demo script, one documented deploy path.
+**Added 2026-09-11 by principal decision** (see *Decisions folded in* below): a thin frontend test runner,
+`ai_message` retention, and the revenue remainder field from
+[ADR-0010](../adr/0010-revenue-reports-one-currency-and-names-the-remainder.md).
 
 **Out:** operating an internet-reachable instance (the MVP contract is local compose), monitoring
 infrastructure, backups.
@@ -23,6 +26,29 @@ Everything. This phase hardens what exists; it does not add features.
 Every phase shipped its own tests. What is left is the work that is only possible once the whole system
 exists: suites that enumerate *every* endpoint, an E2E that crosses every layer, and a seed that exercises
 the whole model at once.
+
+## Decisions folded in
+
+Four decisions were put to the principal on 2026-09-11 and answered. They are listed here because each
+adds work to this phase that its original scope did not name, and a reader comparing the checklist
+against the phase plan would otherwise find boxes with no source.
+
+| Decision | What it adds here |
+|---|---|
+| **Revenue currency** — [ADR-0010](../adr/0010-revenue-reports-one-currency-and-names-the-remainder.md) | `excluded` on the `revenue` object, the `/analytics` footnote that renders it, and the rewrite of the test that currently pins single-currency behaviour |
+| **A frontend test runner** | Vitest + Testing Library, thin and targeted. Scope growth, accepted deliberately: this is the complete-the-test-suites phase, and *no frontend test runner* has been carried as an open item since phase 02 |
+| **`ai_message` retention** | A documented window and a scheduled purge, under *Security completion*. Transcripts hold Customer names and phone numbers and nothing has ever deleted one |
+| **Performance honesty** | G15's calendar half and G16's cold-cache reading fold into *Performance sanity*, which was already going to run the queries they concern |
+
+**It contradicts a documented decision, deliberately.**
+[08-testing-strategy.md](../08-testing-strategy.md) §11 said the frontend is *type-checked and linted*
+with *E2E covering the critical path*, and phase 02 recorded the absence of a runner as by design rather
+than as a gap. That row has been widened rather than quietly ignored — the reasoning is at §11 itself.
+
+**The frontend runner is deliberately thin.** Its target is the phase-10 inventory rows that could only
+be *counted* rather than asserted — the business-timezone rendering, the empty/loading/error states, and
+the 360 px widths that were measured once by hand with `scrollWidth`. It is not an attempt to retrofit
+coverage across the whole app, and the E2E flow remains the check that proves the demo works.
 
 ## Technical work
 
@@ -74,6 +100,10 @@ Demo credentials printed at the end of the seed and listed in the README.
 - Security headers verified by an automated test against Caddy
 - Full-history secret scan before the first push
 - Confirm error responses leak no stack trace, SQL or class name
+- **`ai_message` retention** — a documented window and a scheduled purge. A transcript holds the
+  Customer's name and phone number as they typed them, and nothing in the system has ever deleted one.
+  Purge rather than redact: the owner's audit need is served by `/conversations`, which is read while
+  the conversation is recent, and a half-scrubbed transcript is harder to reason about than an absent one
 
 ### Observability
 
@@ -90,12 +120,68 @@ Not a load-testing programme — three checks against the NFRs in [01-prd.md](..
 - Appointment list at 10 000 rows for one tenant: p95 < 200 ms
 - Analytics summary over a 90-day range: p95 < 500 ms
 
-Any miss is fixed with an index in this phase.
+~~Any miss is fixed with an index in this phase.~~ **This sentence was wrong and is struck.** Phase 10
+hit two slow queries and neither was fixed with an index: the calendar's overlap query and the
+availability engine's read both needed a *bound* derived from a ceiling, plus a migration (`V8`, `V9`)
+holding the ceiling the bound depends on. In the calendar's case an index could not have helped, because
+the query had no lower bound on `starts_at` and its work was proportional to the tenant's whole history.
+Expect a miss to be a missing bound at least as often as a missing index.
+
+Two carried gaps fold in here, because this section runs the queries they concern anyway:
+
+- **G15's calendar half.** The calendar fix's 46x and 83x are hand-written-SQL numbers. Re-measure on
+  Hibernate's own generated statement under a generic plan, which is the recipe already run once for
+  `findByBusinessIdAndEmployeesOverlapping` — captured from the SQL log, `PREPARE`/`EXECUTE` past the
+  sixth execution, after `VACUUM (ANALYZE)`
+- **G16 — cold cache.** Every performance number in the project is `shared hit`. Take at least one cold
+  reading, so a p95 claim means something on a machine that has not just run the query
+
+**The dataset, and the fixture decision.** All of the above needs the shape T28 requires — ten thousand
+Appointments for the target Business *and* tens of thousands across other tenants, because with one
+Business in the table `business_id` matches every row, a sequential scan really is cheapest, and a green
+tick would say only that the table was small. The `reception_perf` scratch database has carried that
+shape on one machine for three sessions. **Commit its generator as a script, use it for the checks above,
+then drop the ad-hoc database** — the capability becomes reproducible from a clean clone instead of a
+local artifact each handoff has had to explain.
+
+### The frontend test runner
+
+Vitest + Testing Library, added to `frontend/`. There has never been one, and phase 10's sweep could only
+*count* what it checked — `scrollWidth` measured once by hand on eighteen routes, and the empty, loading
+and error states recorded as inventory rows rather than assertions.
+
+Targeted, not comprehensive. The cases worth having are the ones a person got wrong before:
+
+- Business-timezone rendering, against its counterfactual — a browser at `+04:00` must draw a UTC
+  Business's `09:00Z` booking at 09:00, not 13:00
+- Empty, loading and error states for each screen that has them, which rule 7 of the phase plan requires
+  every screen to ship and nothing has ever checked
+- The 360 px widths, asserted rather than eyeballed — the phase-10 sweep found a page-widening `sr-only`
+  label no screenshot could have shown
+
+Wired into CI's Frontend job beside the existing gates. **This does not replace the E2E flow**, which
+stays the check that proves the demo works end to end.
+
+### The revenue remainder
+
+[ADR-0010](../adr/0010-revenue-reports-one-currency-and-names-the-remainder.md), decided 2026-09-11.
+`GET /analytics/summary` gains `excluded` on its `revenue` object — one entry per other currency found
+among the same COMPLETED Appointments in the same range, each with its own sum, empty when there are
+none — and `/analytics` renders it as a footnote rather than a second headline.
+
+The existing test *"after a currency change, revenue reports the new currency only"* becomes wrong as
+written and is where the new behaviour gets asserted. It was a record of what the endpoint did, never an
+argument that it was right.
 
 ### Documentation
 
-- `README.md`: what it is, prerequisites, `make up`, seeded credentials, URLs (app `:8080`, Mailpit `:8025`,
-  API docs `/api/docs`), and a **step-by-step demo script** a stranger can follow
+- `README.md`: what it is, prerequisites, `make up`, seeded credentials, URLs (app `:9080`, Mailpit
+  `:9083`, API docs `/api/docs`), and a **step-by-step demo script** a stranger can follow.
+  **Corrected 2026-09-11**: this line said `:8080` and `:8025`, which are the *container-internal*
+  ports — what Caddy and Mailpit listen on inside the compose network, not what a browser can reach.
+  The published block is `9080`–`9085`, chosen deliberately away from the usual `3000`/`8080`/`5432`
+  range so this project can run beside another. A README written to the old numbers would have sent
+  every stranger it is written for to a dead port
 - `.env.example` complete and accurate
 - `docs/deployment.md`: one documented path (single VPS behind Caddy with TLS), including what would have to
   change first — externalised rate limiting, real SMTP, backups, secret rotation
@@ -112,6 +198,9 @@ Any miss is fixed with an index in this phase.
 - [ ] Log redaction test
 - [ ] `prod` profile refuses default secrets
 - [ ] The three performance checks
+- [ ] Frontend unit tests green in CI, including the timezone counterfactual
+- [ ] `ai_message` retention purges past the window and spares what is inside it
+- [ ] Revenue reports the remainder after a currency change
 - [ ] Full suite green from a clean clone
 
 ## Definition of Done
@@ -124,8 +213,17 @@ Any miss is fixed with an index in this phase.
 - [ ] All security items are implemented or explicitly listed as accepted risks
 - [ ] No secret is in the repository or its history
 - [ ] The three performance checks pass
+- [ ] Frontend unit tests run in CI's Frontend job
+- [ ] `revenue` names its remainder after a currency change, per ADR-0010
+- [ ] No `ai_message` outlives the documented retention window
 - [ ] `README.md`, `.env.example` and `docs/deployment.md` are complete
-- [ ] **Every box in [07-mvp-scope.md](../07-mvp-scope.md) § MVP Definition of Done is ticked**
+- [ ] **Every box in [07-mvp-scope.md](../07-mvp-scope.md) § MVP Definition of Done is ticked** — or the
+      defect it covers is carried under that document's *Accepted, measured, open defects*, which
+      requires a rate, a date and an issue. **Do not tick that list as found.** It was audited on
+      2026-09-11 and five rows were **weaker than decisions this project had already recorded**: as
+      written they would have ticked on a technicality over
+      [#17](https://github.com/sanama-stack/reception-booking-system/issues/17) — a defect the
+      principal had explicitly ruled on. The widened wording is what this box now means
 
 ## Checklist
 
@@ -142,6 +240,10 @@ Any miss is fixed with an index in this phase.
 - [ ] Rate-limit tests for every public endpoint
 - [ ] Security-header test
 - [ ] Log-redaction test
+- [ ] Vitest + Testing Library wired into the Frontend CI job
+- [ ] Timezone rendering test, proven against its counterfactual
+- [ ] Empty / loading / error state tests per screen
+- [ ] 360 px width assertions replacing the hand-run sweep
 
 ### Seed
 - [ ] `make seed`, `local`-profile-guarded
@@ -157,6 +259,7 @@ Any miss is fixed with an index in this phase.
 - [ ] Security headers in Caddy
 - [ ] Full-history secret scan
 - [ ] Error-response leakage review
+- [ ] `ai_message` retention window, documented and enforced by a scheduled purge
 
 ### Observability
 - [ ] JSON logging with request id and `business_id`
@@ -168,7 +271,10 @@ Any miss is fixed with an index in this phase.
 - [ ] Availability benchmark
 - [ ] Appointment list benchmark at 10 000 rows
 - [ ] Analytics benchmark
-- [ ] Add indexes for any miss
+- [ ] ~~Add indexes for any miss~~ — fix any miss at its cause, bound or index (see *Performance sanity*)
+- [ ] Perf dataset generator committed as a script, and `reception_perf` dropped
+- [ ] G15 — the calendar query re-measured on Hibernate's own statement
+- [ ] G16 — at least one cold-cache reading
 
 ### Documentation
 - [ ] `README.md` with prerequisites, commands, URLs and credentials

@@ -184,7 +184,13 @@ public class SystemPromptBuilder {
         // probe saturates here, 119 of 119 against this very prompt, and fifty conversations cannot
         // separate 96% from 100% at all (Fisher, one-sided, p = 0.25). WeekdayResolutionRateTest at
         // about a hundred and fifty per arm is the only instrument that can see this.
-        prompt.append("- The next seven days. Take a named day from this list; do not work a date out:\n");
+        // The list stops at seven days and the tool covers the rest, which is the whole of the
+        // fourth candidate for #17. Naming resolve_date HERE as well as in rule 11 is deliberate:
+        // the failure being attacked is the model reaching the end of this list and falling back to
+        // arithmetic, so the alternative belongs at the point where the list runs out — not only in
+        // a rule twenty lines further down. See docs/experiments/ for what was pre-registered.
+        prompt.append("- The next seven days. Take a named day from this list; do not work a date out.\n")
+                .append("  For a day further out than this list reaches, call resolve_date:\n");
         for (int ahead = 1; ahead <= 7; ahead++) {
             LocalDate day = today.plusDays(ahead);
             prompt.append("  - ").append(day).append(" is a ").append(day.getDayOfWeek()).append('\n');
@@ -327,7 +333,9 @@ public class SystemPromptBuilder {
                 10. When a tool result says an email will not be sent, say so — do not promise a \
                 confirmation email that is not coming.
                 11. When the customer names a day rather than a date — "Monday", "tomorrow", \
-                "the weekend" — take the date from the seven-day list above. Never calculate one, and \
+                "the weekend" — take the date from the seven-day list above. If the day they mean is \
+                further out than that list reaches — "the Monday after next", "a week on Thursday" — \
+                call resolve_date and use the date it gives you. Never calculate one either way, and \
                 never use a date from your own knowledge of the calendar.
                 12. Keep replies short. You are a receptionist, not a brochure: two or three \
                 sentences, and ask one question at a time.

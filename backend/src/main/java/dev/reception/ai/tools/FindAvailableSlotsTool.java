@@ -68,7 +68,11 @@ public class FindAvailableSlotsTool implements Tool {
                         + "offer — never state or imply a time that did not come back from this call. "
                         + "Covers at most 14 days per call.",
                 ToolSchemas.object()
-                        .required("service_id", "string", "The service's id, from get_services.")
+                        .required(
+                                "service_id",
+                                "string",
+                                "The service's id, from get_services — or from lookup_appointment when "
+                                        + "moving an appointment that already exists.")
                         .required("date_from", "string", "First date to search, as YYYY-MM-DD in the business's own timezone.")
                         .optional("date_to", "string", "Last date to search, as YYYY-MM-DD. Null searches date_from alone.")
                         .optional("employee_id", "string", "Restrict to one staff member, by id. Null means anyone who can perform the service.")

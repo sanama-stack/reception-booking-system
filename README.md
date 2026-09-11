@@ -8,17 +8,29 @@ Receptionist acts only through validated tools; those tools call the same endpoi
 calls; and the database makes double-booking structurally impossible regardless of what any layer above it
 believes.
 
-> **Build status: phase 09 of 11 complete.** An owner can configure a business and run its
-> calendar from the dashboard — booking, moving, cancelling and closing out appointments, and
-> seeing who has booked — with double booking made impossible by the database rather than by a
+> **Build status: phase 10 of 11 complete.** An owner can configure a business and run its
+> schedule from the dashboard — a real day and week **Calendar**, booking, moving, cancelling and
+> closing out appointments, seeing who has booked, and reading counts, revenue and top services
+> under **Analytics** — with double booking made impossible by the database rather than by a
 > check, and every one of those changes sends the customer a real email. A stranger can book
 > without an account at `/book/{slug}`, and manage that appointment from the link the email
-> carries. **They can also just ask.** The AI receptionist answers on the booking page, books
-> through the same endpoints the form uses, and cannot invent a slot, a price or a policy — its
-> confirmation card is rendered from the booking the server made, never from what it said. The
-> owner reads every conversation, and every tool call inside it, under **Conversations**. What
-> remains is the calendar and analytics screens, then hardening. See
-> [docs/09-phase-plan.md](docs/09-phase-plan.md) for the build order.
+> carries. **They can also just ask.** The AI receptionist answers on the booking page and books
+> through the same endpoints the form uses: every slot and price it quotes comes from a tool, and
+> its confirmation card is rendered from the booking the server made, never from what it said.
+> The owner reads every conversation, and every tool call inside it, under **Conversations**.
+> What remains is hardening. See [docs/09-phase-plan.md](docs/09-phase-plan.md) for the build
+> order.
+>
+> **One measured defect ships with it.** Asked to reschedule, the receptionist lands the write on
+> a date the customer did not name about **10.6%** of the time — rising to **55.2%** when the date
+> is phrased relatively ("the Monday after next") rather than read out — and has been recorded
+> stating a policy, to justify one, that came from no tool. Ownership is proven, the slot is real
+> and the engine returned it; the day is the part that is wrong, which is the part nothing
+> downstream can check. It is carried with its rate and its evidence in
+> [docs/07-mvp-scope.md](docs/07-mvp-scope.md) § *Accepted, measured, open defects*, and tracked
+> as [#17](https://github.com/sanama-stack/reception-booking-system/issues/17). This paragraph
+> used to say the receptionist "cannot invent a slot, a price or a policy"; the first two hold,
+> the third does not, and it is corrected here rather than quietly dropped.
 >
 > The receptionist needs an `OPENAI_API_KEY` in `.env`. Without one it degrades to the booking
 > form and says so — which is the ordinary state of a fresh clone, and deliberately not a startup

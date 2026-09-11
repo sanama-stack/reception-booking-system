@@ -213,4 +213,18 @@ gate — a coverage threshold rewards testing getters, which is exactly the beha
 | Tenant isolation | Every tenant-scoped endpoint probed |
 | AI tools | Every tool, including every authorization failure |
 | Controllers | Happy path plus each distinct error code |
-| Frontend | Type-checked and linted; E2E covers the critical path |
+| Frontend | Type-checked and linted; E2E covers the critical path; **plus targeted unit tests from phase 11** — see below |
+
+**The Frontend row changed on 2026-09-11.** It read *"type-checked and linted; E2E covers the critical
+path"* and nothing else, and that was a deliberate choice carried from phase 02, not an omission. It was
+reopened by the principal and widened, for a reason the original could not have known: phase 10's polish
+sweep could only *count* what it checked — `scrollWidth` measured by hand on eighteen routes, and the
+empty, loading and error states written down as inventory rows. Type-checking cannot see a timezone
+rendered in the browser's zone instead of the Business's, linting cannot see a missing empty state, and
+one E2E flow walks the critical path rather than the eighteen routes beside it.
+
+The widening is deliberately narrow: a thin Vitest + Testing Library suite aimed at those three classes,
+added in phase 11. **The E2E flow remains the check that proves the demo works**, and the original
+argument — that a large frontend unit suite buys less per hour than one honest end-to-end run — is not
+overturned.
+

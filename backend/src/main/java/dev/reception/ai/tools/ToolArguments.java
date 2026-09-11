@@ -3,10 +3,12 @@ package dev.reception.ai.tools;
 import com.fasterxml.jackson.databind.JsonNode;
 import dev.reception.common.error.ApiException;
 import dev.reception.common.error.ErrorCode;
+import java.time.DayOfWeek;
 import java.time.LocalDate;
 import java.time.LocalTime;
 import java.time.OffsetDateTime;
 import java.time.format.DateTimeParseException;
+import java.util.Locale;
 import java.util.UUID;
 
 /**
@@ -52,6 +54,41 @@ final class ToolArguments {
         return value.isBlank() ? null : value;
     }
 
+    /**
+     * A weekday the model named, as the {@link DayOfWeek} constant the prompt and the opening hours
+     * both already spell — so "MONDAY" is the same token in all three places.
+     */
+    static DayOfWeek dayOfWeek(JsonNode arguments, String field) {
+        String raw = requireText(arguments, field);
+        try {
+            return DayOfWeek.valueOf(raw.trim().toUpperCase(Locale.ROOT));
+        } catch (IllegalArgumentException e) {
+            throw invalid(field, "must be one of MONDAY, TUESDAY, WEDNESDAY, THURSDAY, FRIDAY, SATURDAY, SUNDAY");
+        }
+    }
+
+    /**
+     * A whole number inside a stated range.
+     *
+     * <p>The bound is part of the validation rather than checked by the caller, so the message the
+     * model reads names the range it violated — which is the difference between an argument it can
+     * repair and one it can only retry.
+     */
+    static int integer(JsonNode arguments, String field, int min, int max) {
+        if (isAbsent(arguments, field)) {
+            throw invalid(field, "is required");
+        }
+        JsonNode value = arguments.get(field);
+        if (!value.isIntegralNumber()) {
+            throw invalid(field, "must be a whole number");
+        }
+        int number = value.asInt();
+        if (number < min || number > max) {
+            throw invalid(field, "must be between " + min + " and " + max);
+        }
+        return number;
+    }
+
     static LocalDate date(JsonNode arguments, String field) {
         String raw = requireText(arguments, field);
         try {
@@ -60,8 +97,12 @@ final class ToolArguments {
             // The model has today's date from the system prompt and from get_business_info. This
             // message points at the resolution step rather than at the format, because the format
             // is rarely what it got wrong.
-            throw invalid(field, "must be a calendar date as YYYY-MM-DD — resolve 'tomorrow' or 'next "
-                    + "Tuesday' against today's date before calling");
+            // Points at the two places a date comes from, in the order they should be tried.
+            // It used to say "resolve it against today's date before calling", which is now exactly
+            // the wrong advice: resolving it is what the model is bad at, and what resolve_date is
+            // for.
+            throw invalid(field, "must be a calendar date as YYYY-MM-DD — take it from the seven-day "
+                    + "list in your instructions, or call resolve_date for a day further out");
         }
     }
 

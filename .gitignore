@@ -27,7 +27,21 @@ frontend/test-results/
 # IDE
 .idea/
 *.iml
-.vscode/
+
+# .vscode is deliberately NOT ignored. The README documents `F5` -> "Full stack" as the way to run
+# both applications, and launch.json is where that lives -- ignoring it makes the documented path
+# impossible on a clean clone and 404s the README's own link. All four files are project
+# configuration, not personal preference: no absolute paths, no secrets, ${workspaceFolder}
+# throughout.
+#
+# The `.vscode/*` + `!` form is load-bearing, exactly as it is for the Gradle wrapper above: git
+# does not descend into an excluded directory, so a negation under a bare `.vscode/` would never be
+# reached and the files would stay invisible while looking un-ignored.
+.vscode/*
+!.vscode/launch.json
+!.vscode/tasks.json
+!.vscode/settings.json
+!.vscode/extensions.json
 
 # OS
 .DS_Store
@@ -39,3 +53,7 @@ pnpm-debug.log*
 
 # Probe fixtures, written by ProbeFixtureDumpTest. Outputs, not sources.
 backend/tools/receptionist-probe/fixtures/
+
+# stats.py lives in the repo and is meant to be run; running it makes these.
+__pycache__/
+*.pyc

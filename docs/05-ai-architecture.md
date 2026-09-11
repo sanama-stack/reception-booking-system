@@ -30,7 +30,7 @@ runtime code.
 
 ## 3. Tools
 
-Eight tools. The model has no other way to affect or observe the world.
+Eight tools, **plus a ninth under test**. The model has no other way to affect or observe the world.
 
 | Tool | Reads/Writes | Purpose |
 |---|---|---|
@@ -42,6 +42,7 @@ Eight tools. The model has no other way to affect or observe the world.
 | `lookup_appointment` | R | Prove ownership via code + phone |
 | `cancel_appointment` | **W** | Cancel an authorised appointment |
 | `reschedule_appointment` | **W** | Move an authorised appointment |
+| `resolve_date` | – | Turn a named weekday into a calendar date — **candidate, see below** |
 
 ### Signatures
 
@@ -71,11 +72,27 @@ create_appointment {
     service_name, employee_name, price, currency }
 
 lookup_appointment { confirmation_code: string, phone: string }
-→ { appointment_id, starts_at, service_name, employee_name, status } | { error: "NOT_FOUND" }
+→ { appointment_id, confirmation_code, starts_at, ends_at,
+    service_id, service_name, employee_id, employee_name, status } | { error: "NOT_FOUND" }
+// The ids ship beside the names (#26). find_available_slots needs service_id, and returning the
+// name alone left the model to match it back through get_services -- a resolution it should never
+// have been asked to perform.
 
 cancel_appointment    { appointment_id: string, reason: string | null }
 reschedule_appointment{ appointment_id: string, new_starts_at: string, employee_id: string | null }
 ```
+
+```jsonc
+resolve_date { weekday: string, weeks_ahead: integer }   // MONDAY..SUNDAY, 0..8
+→ { date, day_of_week, days_from_today }
+```
+
+> **`resolve_date` is not an accepted part of the design yet.** It is the fourth candidate for
+> [#17](https://github.com/sanama-stack/reception-booking-system/issues/17), and its experiment is
+> **unfinished** — see `docs/experiments/2026-09-11-17-deterministic-date-resolution.md`. It reads
+> nothing and writes nothing; it exists because the model doing seven-day-plus date arithmetic is the
+> defect. Three earlier candidates were rejected and two made things measurably worse, so this table
+> row comes out again if the completed arm says so.
 
 **Absent from every signature: `business_id`.** It is structurally impossible for the model to name a
 tenant. This is the isolation property, and it is enforced by the shape of the schema rather than by a check.

@@ -111,6 +111,40 @@ class ConversationLoopTest extends IntegrationTest {
     }
 
     /**
+     * <strong>What the reschedule path actually needs from a lookup.</strong>
+     * {@code find_available_slots} requires a {@code service_id}. Before #26 the lookup returned
+     * {@code service_name} alone, so the model had to fetch the whole catalog and match the name
+     * back to an id — a resolution it should never have been asked to perform.
+     *
+     * <p><strong>The obvious assertion is not available here, and that is a property of level 2.</strong>
+     * "The model reaches {@code find_available_slots} without calling {@code get_services}" cannot
+     * fail against {@link ScriptedChatModel}, because the script chooses the tool calls — the test
+     * would be asserting its own arrangement. What *can* fail is whether the id survives the loop
+     * into the transcript the model reads next, which is the half this change depends on.
+     */
+    @Test
+    @DisplayName("a lookup puts the service id in front of the model, so no catalog round trip is needed")
+    void a_lookup_result_carries_the_service_id_into_the_next_turn() {
+        String appointmentId = aria.bookedAt(aria.at(aria.monday, 14, 0));
+        String code = jdbc.queryForObject(
+                "select confirmation_code from appointments where id = ?::uuid", String.class, appointmentId);
+
+        model.willCall(
+                        "lookup_appointment",
+                        "{\"confirmation_code\":\"" + code + "\",\"phone\":\"" + BookingScenario.CUSTOMER_PHONE
+                                + "\"}")
+                .willSay("Found it. When would suit you instead?");
+
+        respond(start(), "I need to move my appointment, my code is " + code);
+
+        List<ChatMessage> afterTheLookup = model.messagesOnCall(1);
+        assertThat(afterTheLookup)
+                .anyMatch(message -> message.role() == ChatRole.TOOL && message.content().contains(aria.serviceId));
+        assertThat(afterTheLookup)
+                .anyMatch(message -> message.role() == ChatRole.TOOL && message.content().contains(aria.employeeId));
+    }
+
+    /**
      * <strong>The confirmation card's source.</strong> {@code appointmentCreated} comes from the
      * tool result and not from anything the model wrote — which is what makes a claimed-but-unbooked
      * appointment produce a visible absence rather than a convincing lie.

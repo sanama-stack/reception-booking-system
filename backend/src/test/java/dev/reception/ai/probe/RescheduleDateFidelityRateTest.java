@@ -140,6 +140,16 @@ class RescheduleDateFidelityRateTest extends IntegrationTest {
         int otherReadingCount = 0;
         int searchedTheNamedDate = 0;
         int windowCoveredTheNamedDate = 0;
+
+        // G17. The previous arm logged find_available_slots and nothing else, so when seven writes
+        // landed one resolver-step past the target there was no way to say whether the model had
+        // ASKED for that date or had been given the right one and overshot anyway -- and those two
+        // have opposite meanings. The same blindness as G11, one candidate later.
+        int errored = 0;
+        int resolverWasCalled = 0;
+        int landedOnADateTheResolverGave = 0;
+        int landedOnADateTheResolverNeverGave = 0;
+        Map<String, Integer> resolverAsked = new LinkedHashMap<>();
         Map<String, Integer> landedOn = new LinkedHashMap<>();
         List<Integer> wrongTrials = new ArrayList<>();
 
@@ -164,7 +174,12 @@ class RescheduleDateFidelityRateTest extends IntegrationTest {
                 // the defect being measured.
                 conversations.respond(started.sessionToken(), "Yes — 15:00 please. Go ahead and move it.");
             } catch (RuntimeException e) {
-                System.out.printf("%3d  ERROR    %s%n", trial, e.getClass().getSimpleName());
+                // COUNTED, because an uncounted error is reported as "never wrote" and a provider
+                // outage then reads as the model refusing to act. That is exactly what happened on
+                // 2026-09-11: the API ran out of credits fifteen trials in, and the summary line
+                // said 35 of 50 never wrote -- a behavioural collapse that had not occurred.
+                errored++;
+                System.out.printf("%3d  ERROR    %s: %s%n", trial, e.getClass().getSimpleName(), e.getMessage());
                 continue;
             }
 
@@ -193,6 +208,33 @@ class RescheduleDateFidelityRateTest extends IntegrationTest {
                     String.class,
                     started.conversationId());
             calls.forEach(call -> System.out.printf("        %s%n", call));
+
+            // Every resolve_date call in this conversation, as "MONDAY+1 -> 2026-09-21". The
+            // arguments AND the answer, because the question the veto turns on is whether the two
+            // agree with what was finally written.
+            List<String> resolverCalls = jdbc.queryForList(
+                    "select concat(tool_arguments->>'weekday', '+', tool_arguments->>'weeks_ahead', "
+                            + "' -> ', coalesce(tool_result->>'date', concat('ERR ', tool_result->>'error'))) "
+                            + "from ai_messages where role = 'TOOL' and tool_name = 'resolve_date' "
+                            + "and conversation_id = ? order by created_at",
+                    String.class,
+                    started.conversationId());
+            resolverCalls.forEach(call -> {
+                System.out.printf("        resolve_date %s%n", call);
+                resolverAsked.merge(call, 1, Integer::sum);
+            });
+            if (!resolverCalls.isEmpty()) {
+                resolverWasCalled++;
+            }
+
+            // The dates the resolver actually handed back in this conversation.
+            List<String> resolverDates = jdbc.queryForList(
+                    "select tool_result->>'date' from ai_messages where role = 'TOOL' "
+                            + "and tool_name = 'resolve_date' and conversation_id = ? "
+                            + "and tool_result->>'date' is not null",
+                    String.class,
+                    started.conversationId());
+
             if (searches.contains(aria.monday.toString())) {
                 searchedTheNamedDate++;
             }
@@ -245,22 +287,39 @@ class RescheduleDateFidelityRateTest extends IntegrationTest {
                 System.out.printf("%3d  OTHER READING landed=%s searched=%s%n", trial, landed, searches);
             } else {
                 wrongTrials.add(trial);
-                System.out.printf("%3d  WRONG    landed=%s searched=%s%n", trial, landed, searches);
+                // THE VETO'S QUESTION, decided per trial rather than inferred from a histogram.
+                // GIVEN means the resolver returned this date and the model used it -- the residual
+                // interpretation the pre-registration said would remain. NEVER GIVEN means the model
+                // wrote a date no tool ever produced, which is #17's original defect intact.
+                String provenance;
+                if (resolverDates.contains(landed.substring(0, 10))) {
+                    landedOnADateTheResolverGave++;
+                    provenance = "GIVEN by resolve_date";
+                } else {
+                    landedOnADateTheResolverNeverGave++;
+                    provenance = resolverDates.isEmpty() ? "NEVER GIVEN (resolver not called)" : "NEVER GIVEN";
+                }
+                System.out.printf(
+                        "%3d  WRONG    landed=%s searched=%s resolver=%s [%s]%n",
+                        trial, landed, searches, resolverDates, provenance);
             }
         }
 
         System.out.printf(
-                "%n%d of %d writes landed on the named date (%d trials, %d never wrote)%n"
+                "%n%d of %d writes landed on the named date (%d trials, %d never wrote, %d ERRORED)%n"
                         + "of those writes, %d took the other reading of the phrase (%s)%n"
                         + "the search included the named date in %d of %d trials%n"
                         + "a search WINDOW covered the named date in %d of %d trials%n"
                         + "landed on: %s%n"
                         + "wrong at trials: %s%n"
+                        + "resolve_date was called in %d of %d trials; asked: %s%n"
+                        + "of the wrong writes, %d landed on a date resolve_date GAVE and %d on one it NEVER GAVE%n"
                         + "conditions: appointment %s, wanted %s, day named as \"%s\", style %s%n",
                 correct,
                 wrote,
                 CONVERSATIONS,
-                CONVERSATIONS - wrote,
+                CONVERSATIONS - wrote - errored,
+                errored,
                 otherReadingCount,
                 otherReading,
                 searchedTheNamedDate,
@@ -269,6 +328,11 @@ class RescheduleDateFidelityRateTest extends IntegrationTest {
                 CONVERSATIONS,
                 landedOn,
                 wrongTrials,
+                resolverWasCalled,
+                CONVERSATIONS,
+                resolverAsked,
+                landedOnADateTheResolverGave,
+                landedOnADateTheResolverNeverGave,
                 bookedAt,
                 wanted,
                 spokenDate,

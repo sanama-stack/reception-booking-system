@@ -103,7 +103,14 @@ public class LookupAppointmentTool implements Tool {
         result.put("confirmation_code", appointment.confirmationCode());
         result.put("starts_at", appointment.startsAt().atZone(zone).toOffsetDateTime().toString());
         result.put("ends_at", appointment.endsAt().atZone(zone).toOffsetDateTime().toString());
+        // The ids travel beside the names, because the next tool needs the id and the customer
+        // needs the name. Returning the name alone made the model recover the id from get_services
+        // by matching on it — an inference over a catalog a Business may fill with "Colour" and
+        // "Colour (long)", where picking the wrong one books the wrong duration and looks exactly
+        // like picking the right one (#26).
+        result.put("service_id", appointment.serviceId().toString());
         result.put("service_name", catalog.read(appointment.serviceId()).name());
+        result.put("employee_id", appointment.employeeId().toString());
         result.put("employee_name", employees.read(appointment.employeeId()).fullName());
         result.put("status", appointment.status().name());
         return result;

@@ -148,7 +148,11 @@ adds no privileged path.
       whose preferred Employee is busy offered as the other one rather than disappearing. That is
       the engine and the wire. **This box is under *Frontend testing* and stays unticked because no
       person has looked at the rendered page with two eligible Employees** — doing so needs a second
-      stylist in a real tenant, and the verification tenant was deliberately not altered for it
+      stylist in a real tenant, and the verification tenant was deliberately not altered for it.
+      **Decided 2026-09-11: verify it rather than strike it**, and it costs nothing to wait — phase
+      11's `make seed` builds Salon Aria with three Employees on differing schedules and one Service
+      deliberately unassigned from one of them, which *is* the fixture this box has been missing.
+      Tick it by looking at that grid, not by standing up a throwaway tenant
 - [x] The page is usable at 360 px
 
 ## Definition of Done

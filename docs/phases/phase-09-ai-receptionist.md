@@ -188,7 +188,22 @@ Assertions target tool sequences and database state, never the model's wording.
       **policy that came from no tool and is false** — and then wrote the appointment to that day.
       The first instance was a misattributed date; this one is an invented rule, which is the box's
       own words. **Left unticked deliberately**, and not waiting on #15: ticking it means deciding
-      that ~95% is the bar
+      that ~95% is the bar.
+      **Put to the principal on 2026-09-11 and answered: the box is not ticked at today's rates.**
+      ~95% was the wrong number to weigh it against — that is #15's named-weekday rate. #17's is
+      10.6% of writes landing on a date the customer never named, and **55.2% wrong** when the
+      customer phrases the date relatively rather than reading out an ISO date. A **fourth
+      candidate** is authorised and it is deliberately not a fourth prompt tweak: all three
+      rejections were prompt- or guard-side and all three implicated the seven-day clamp, so this
+      one takes the date arithmetic out of the model — see *Deterministic date resolution* below,
+      which records what the three rejections cost so a fifth candidate does not repeat them.
+      The threshold is pre-registered against the 44.8% relative-date arm before any live run, and
+      the ceiling it reaches for is the ISO-date arm's 89.4%, not 100%
+      **The MVP-level consequence was settled on 2026-09-11** and lives in
+      [07-mvp-scope.md](../07-mvp-scope.md) § *Accepted, measured, open defects*: this box does not
+      block the MVP, but [#17] is carried there with its rate so that it cannot be ticked by going
+      quiet. That document's Functional boxes 9, 10 and 11 were widened the same day, because as
+      originally written all three ticked while this one could not — the scaffold predates the defect
 - [x] The confirmation card renders from backend data, not from the reply text — measured against
       its counterfactual, not argued
 - [x] No tool accepts a tenant identifier
@@ -197,6 +212,45 @@ Assertions target tool sequences and database state, never the model's wording.
       server: `AI_UNAVAILABLE`, `AI_LIMIT_REACHED`, `NOT_FOUND`, and the disabled-business path
 - [x] Conversations are persisted and viewable by the owner
 - [x] Levels 1 and 2 pass in CI; level 3 passes locally
+
+## Deterministic date resolution — the fourth candidate for [#17]
+
+[#17]: https://github.com/sanama-stack/reception-booking-system/issues/17
+
+**Authorised 2026-09-11 by the principal.** Recorded here rather than only in the issue because the
+three rejected candidates are already recorded here, and a reader who finds this phase's hallucination
+box unticked needs to know which attempts have been paid for.
+
+The three rejections were an instruction at the constrained-decode point (44.4% against a 46.7%
+control, p = 0.666), a fourteen-day dated list (never-wrote 16% → 42%, and #13's original symptom back
+at eight times the rate), and a required `requested_date` on `reschedule_appointment` refusing any
+write that missed it (wrong writes 28% → 44%, p = 0.9700). **All three were prompt- or guard-side, and
+all three implicated the seven-day clamp** — which the second candidate proved is load-bearing rather
+than incidental.
+
+So this one is a different class: **the model stops doing the arithmetic.** The customer's date phrase
+is resolved to a calendar date in code rather than by the model picking a row off a dated list. What
+stays with the model is recognising that a phrase *is* a date — a far smaller surface than computing
+which date it is.
+
+The evidence this rests on: the compounding experiment measured **89.4%** correct when the customer
+read out an ISO date against **44.8%** for "the Monday after next", Fisher p = 3.9e-05. Getting a
+resolved date into the loop is worth about forty-five points on its own, and 89.4% — not 100% — is the
+ceiling this candidate is reaching for.
+
+**Pre-register the threshold against the 44.8% arm before any live call**, as the last three did.
+A candidate that is not measured against a control is not a candidate; two of the three rejections
+looked plausible and made things measurably worse.
+
+**One rider, decided at the same time: `lookup_appointment` should return `service_id`.** Unfiled for
+four handoffs, now [#26](https://github.com/sanama-stack/reception-booking-system/issues/26). The tool
+returns `service_name` while `find_available_slots` requires `service_id`, so every reschedule spends a
+`get_services` round trip and then has **the model** match a name back to an id — an inference on a
+catalog the Business can fill with near-identical names, where being wrong looks exactly like being
+right. It touches the same path this candidate does, so it rides along rather than waiting for a
+session of its own — but it is **not** part of the experiment and **must land outside the measured
+window**, or a tool-schema change confounds the arm.
+
 
 ## Checklist
 
@@ -239,13 +293,6 @@ Assertions target tool sequences and database state, never the model's wording.
 
 ### Frontend
 - [x] Chat panel with message list and typing indicator
-- [ ] Inline tool-activity indicator — **not built, and not an oversight.** `ChatReply` carries a
-      reply, a status, a count and an appointment; there is no tool activity on it, because a turn is
-      one non-streaming `POST` and streaming is out of scope for this phase (see *Scope*). Naming a
-      tool the panel never saw would be inventing a fact about the request, which is the same mistake
-      as reading a booking out of prose. The indicator says "Thinking", then "Still working" after
-      six seconds. **The tool calls themselves are visible, with their arguments and their results,
-      on `/conversations/[id]`** — which is where an owner needs them
 - [x] Confirmation card from `appointmentCreated` — and proven against its counterfactual: a reply
       claiming a booking with the field nulled renders a paragraph and no card
 - [x] Session persistence in `sessionStorage` — the transcript beside the token, because no public
@@ -254,6 +301,16 @@ Assertions target tool sequences and database state, never the model's wording.
 - [x] Persistent "book the classic way" affordance
 - [x] Mobile layout for the chat panel — full width at 375 px, flow first, no sideways scroll
 - [x] `/conversations` list and detail in the dashboard
+
+**Deferred to V1.1, not outstanding — the inline tool-activity indicator.** It was a checklist box
+until 2026-09-11 and is no longer one, because it cannot be built inside this phase's scope and an
+unticked box read as unfinished work for every session since. `ChatReply` carries a reply, a status,
+a count and an appointment; there is no tool activity on it, because a turn is one non-streaming `POST` and
+streaming is out (see *Scope*). Naming a tool the panel never saw would be inventing a fact about
+the request, which is the same mistake as reading a booking out of prose. The indicator says
+"Thinking", then "Still working" after six seconds. **The tool calls themselves are visible, with
+their arguments and their results, on `/conversations/[id]`** — which is where an owner needs them.
+It returns as a box when streaming does.
 
 ### Testing
 - [x] All level 1 tests

@@ -1,21 +1,23 @@
 # Session handoff — 2026-09-11 — the ceiling that was two ceilings
 
 > **Purpose.** Enough context to take phase 11, or the revenue-currency decision, without
-> re-reading anything. §1 is where things stand; §2 is [#22][#22] landing at last; §3 is [#23],
-> which is fixed; §4 is the correction that changed the migration's shape; §5 is what was measured
-> and how; §6 is what this session got wrong.
+> re-reading anything. §1 is where things stand; §2 is the two pull requests that landed; §3 is
+> [#23], which is fixed; §4 is the correction that changed the migration's shape; §5 is what was
+> measured and how; §6 is what this session got wrong.
 >
 > **Read §4 first if you read nothing else.** The constraint [#23] specified would not have made
 > the bound safe, and the difference is not cosmetic.
 >
-> **Phase 10 is merged.** `main` carries it. The build is **837 tests, 0 failures**, and `dev`
-> carries one unpushed commit.
+> **Phase 10 is merged, and so is [#23].** The build is **837 tests, 0 failures**. `dev` and
+> `main` are **identical and both pushed** — nothing is outstanding, which has not been true at the
+> end of a session since phase 07.
 
 [#15]: https://github.com/sanama-stack/reception-booking-system/issues/15
 [#17]: https://github.com/sanama-stack/reception-booking-system/issues/17
 [#23]: https://github.com/sanama-stack/reception-booking-system/issues/23
 [#22]: https://github.com/sanama-stack/reception-booking-system/pull/22
 [#24]: https://github.com/sanama-stack/reception-booking-system/pull/24
+[#25]: https://github.com/sanama-stack/reception-booking-system/pull/25
 [previous]: ./2026-09-11-the-fix-that-was-not-an-index.md
 
 ---
@@ -24,14 +26,14 @@
 
 | | |
 |---|---|
-| `origin/main` | **`3fbc1b6`** — [#24][#24] merged, six checks green. Phase 10 is on `main` |
-| `dev` | **`6466b13`**, **not pushed**. One commit ahead of `main`, one behind (the merge commit), so **T21 will fire on the next pull request** |
+| `origin/main` | **`7df76d3`** — [#25][#25] merged, six checks green. Both this session's pull requests are on `main` |
+| `dev` | **`ac8183c`**, pushed. Its tree is **byte-for-byte identical to `main`**, and `main` is an ancestor, so **T21 is already paid and the next pull request opens clean** |
 | Backend | **837 tests, 0 failures**, counted from the XML. Was 831; the six are §3.3 |
 | `./gradlew build` | green locally — the whole of what CI's Backend job runs |
 | Frontend | **untouched this session.** No gate was run, because nothing changed |
 | Migrations | **`V9__appointment_buffer_ceilings.sql`**, the sibling of `V8` |
 | New ADR | None |
-| Issues | **[#23] closed.** [#15] and [#17] open, neither touched |
+| Issues | **[#23] closed by [#25][#25]**, with the correction in §4 posted to it first. [#15] and [#17] open, neither touched |
 | Phase 10 | **complete and merged** |
 
 ### 1.1 The commits
@@ -41,11 +43,14 @@
 | `2e2a7b4` | merge `main` into `dev` — T21's fifth occurrence, and its second consecutive prediction |
 | `3fbc1b6` | **on `main`**: the merge of [#24][#24] |
 | `3fc2e63` | merge `main` into `dev` again, **before** starting work rather than at pull-request time |
-| `6466b13` | **the only new work**: the availability bound, `V9`, and six tests |
+| `6466b13` | **the only new product work**: the availability bound, `V9`, and six tests |
+| `8b5e688` | this handoff, as first written |
+| `7df76d3` | **on `main`**: the merge of [#25][#25] |
+| `ac8183c` | merge `main` into `dev` a third time, again up front — T21's sixth occurrence |
 
 ---
 
-## 2. [#24], which is what the last handoff asked for
+## 2. Two pull requests, both merged
 
 The [previous session][previous] ended with `dev` unpushed and a migration CI had never run. Merged
 `main` in (no content — `git diff HEAD^1 HEAD` was empty, exactly as T21 predicts), pushed, opened
@@ -59,11 +64,25 @@ against a container start rather than under the test harness.
 All six green. Merged with `--merge`. **`--admin` was offered a fifth time and declined a fifth
 time.**
 
-### 2.1 Merging `main` back in immediately
+### 2.1 [#25][#25], which landed [#23]
 
-`main` took the merge commit, so `dev` went one behind the moment [#24][#24] landed. This session
-merged it straight back in (`3fc2e63`) instead of waiting for the next pull request to discover it.
-T21 costs nothing when it is paid up front and a round trip when it is not.
+Opened after the work in §3, with the correction in §4 posted to [#23] first so the issue's own
+record does not outlive the session that found it wrong. Six checks green again — `V9` applied
+under the test harness **and** in a real container start, twice each, which is the whole reason to
+care about the Compose smoke test.
+
+Merged with `--merge`; [#23] closed automatically on the merge commit. **`--admin` was offered a
+sixth time and declined a sixth time.**
+
+### 2.2 Merging `main` back in immediately, twice
+
+`main` takes the merge commit, so `dev` goes one behind the moment a pull request lands. This
+session merged it straight back in both times — `3fc2e63` after [#24][#24], `ac8183c` after
+[#25][#25] — instead of waiting for the next pull request to discover it. Both merges brought **no
+content**, and after the second `dev` and `main` are byte-for-byte identical.
+
+T21 costs nothing when it is paid up front and a round trip when it is not. Six occurrences now,
+and the last three were predicted rather than discovered.
 
 ---
 
@@ -196,13 +215,16 @@ not of the thing this session built. §5.1.
 
 ## 7. What is NOT done
 
+**Nothing of this session's work is outstanding.** [#25][#25] is merged, `V9` has applied in CI
+under both the test harness and a real container start, and `dev` is level with `main`.
+
 | | |
 |---|---|
-| **`dev` is unpushed** | one commit, `6466b13`, carrying a **migration** CI has never run |
-| **The pull request** | not opened. T21 applies, though `3fc2e63` already paid it |
-| **The revenue currency** | still the principal's, still unchanged across four handoffs |
-| **The frontend** | untouched, no gate run |
+| **The revenue currency** | still the principal's, still unchanged across **five** handoffs. `/analytics` ships resting on it |
+| **Phase 11** | entirely unticked, and now the largest open thing in the project |
+| **The frontend** | untouched this session, no gate run |
 | **Cold cache** | G16 stands. Every buffer in §5 is `shared hit` |
+| **G15's calendar half** | narrowed but not closed — §8.2 |
 | **The scratch database** | `reception_perf` **still exists and was used again**. It has now earned its keep twice; the argument for dropping it is weaker than it was |
 
 ---
@@ -211,8 +233,15 @@ not of the thing this session built. §5.1.
 
 ### 8.1 Issues
 
-**[#23]** — closed. **[#17]** — open, parked by the principal after three rejected candidates.
-**[#15]** — open, unchanged.
+**[#23]** — **closed** by [#25][#25], with §4's correction posted to it first.
+
+**[#17]** and **[#15]** — open, neither touched. Both are AI-behaviour issues and both are parked
+for a reason worth carrying: [#17] after three rejected candidates, two of which made things
+measurably worse, and [#15] with a **known-wrong diagnosis in its own title** — a previous session
+established that the SATURDAY mode it names is not the dominant failure. Neither is a
+pick-up-and-fix.
+
+**The tracker is otherwise empty.** Nothing else is filed.
 
 ### 8.2 Gaps
 
@@ -239,6 +268,16 @@ while capturing the SQL log.
 while three jobs existed and a second workflow run was still being scheduled. `gh pr checks` is the
 honest read before saying what CI is doing.
 
+**T34 — a CI watch does not survive a session restart.** The background monitor on [#25][#25] was
+reported as *stopped, no completion record* when the session resumed, with the pull request already
+fully green and nobody watching. A watch is session-local; on resuming, re-read `gh pr checks`
+rather than waiting for a notification that can no longer arrive.
+
+**T35 — a poll loop that clobbers its seen-set re-reports what it already said.** The first watch
+emitted `Frontend: pass` twice: one poll returned an empty result, `prev` was overwritten with it,
+and the next poll saw every check as new. Guard the assignment (`if [ -n "$cur" ]`) or a transient
+API blip reads as a fresh event. Corrected in the second watch.
+
 ### 8.4 Security
 
 **S1 — the `OPENAI_API_KEY` is unchanged.** No model was called this session.
@@ -256,22 +295,35 @@ a customer's name and number; nothing deletes an `ai_message`; rate-limit bucket
 
 ## 9. Next steps, in order
 
-### P0
+**There is no P0 that is mine.** The tree is clean, both branches are level, and the only thing
+blocking is a decision.
 
-1. **Push `dev` and open the pull request.** One commit, carrying `V9`. The Compose smoke test is
-   the check that matters.
-2. **Decide the revenue currency** ([phase-10 backend handoff](./2026-09-11-phase-10-backend.md)
-   §3.5). Owned by the principal, and `/analytics` rests on it.
+### P0 — the principal's
+
+1. **Decide the revenue currency** ([phase-10 backend handoff](./2026-09-11-phase-10-backend.md)
+   §3.5). Five handoffs old. Revenue is reported in the Business's *current* currency alone, so
+   anything priced before a currency change silently leaves the figure, and the contract has one
+   `revenue` object with nowhere to report the remainder. Three ways out: widen the contract, report
+   in the currencies the rows carry, or accept the gap and record it. A test pins today's behaviour
+   either way — it is a record, not an argument that today is right.
 
 ### P1
 
-3. **Phase 11** — now the largest open thing, and entirely unticked.
-4. **Return `service_id` from `lookup_appointment`** — still unfiled, still one field.
-5. **A frontend test runner.**
+2. **Phase 11.** The reflection-driven isolation suite, the Playwright E2E, a real two-tenant
+   `make seed` (`make seed` is still a placeholder), observability, security completion, the three
+   performance benchmarks, and the documentation. It hardens rather than adds, and every box is
+   unticked.
 
 ### P2
 
-6. [#17] · [#15] · `ai_message` retention · **G15's calendar half** · G16.
+3. **Return `service_id` from `lookup_appointment`** — still unfiled, still one field, still a
+   wasted round trip on every reschedule conversation.
+4. **A frontend test runner**, which would turn the phase-10 frontend handoff's inventory rows into
+   assertions.
+5. **G15's calendar half** — §5's recipe applied to `findByBusinessIdAndOverlappingNoEarlierThan`.
+   Cheap now that it has been done once, and it is the last thing standing between the calendar fix
+   and a measurement of what actually ships.
+6. [#17] · [#15] · `ai_message` retention · G16.
 
 ---
 
@@ -307,9 +359,10 @@ dev server is up**.
 
 ## 11. Confidence
 
-**High — the fix is correct.** Both bounds are derived rather than chosen, both were shown to fail
-when narrowed, and the pre-existing suite was shown not to catch either. The query returns the same
-six rows before and after.
+**High — the fix is correct, and it has now run somewhere this machine did not build.** Both bounds
+are derived rather than chosen, both were shown to fail when narrowed, and the pre-existing suite was
+shown not to catch either. The query returns the same six rows before and after. `V9` applied in CI
+under the test harness and in a container start, twice each.
 
 **High — the fix is as fast as claimed.** Unlike the calendar's, this was measured on Hibernate's
 own statement under a generic plan. The numbers in §5 are of the thing that ships.
@@ -323,4 +376,4 @@ something else, nothing here would notice.
 
 **Low — anything about disk.** G16, unchanged. Every number is warm-cache.
 
-**None — the revenue currency.** Still nobody's decision, four handoffs running.
+**None — the revenue currency.** Still nobody's decision, **five** handoffs running.
