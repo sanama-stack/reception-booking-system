@@ -9,9 +9,11 @@
 > **Read §3.1 first if you read nothing else.** The suite was red on the tree the previous session
 > left, and it would have been red in CI for the same reason — not because of phase 10.
 >
-> **Phase 10 is complete apart from the index verification (G12).** Everything the previous
-> session left uncommitted is committed, and `dev` carries seven commits CI has not seen.
+> **Phase 10 is complete apart from the index verification (G12).** Everything the previous session
+> left uncommitted is committed, `dev` is pushed, **CI is green on all three jobs**, and
+> [pull request #22][pr] is open — so `pnpm build` has now run, in CI, which is what G9 asked for.
 
+[pr]: https://github.com/sanama-stack/reception-booking-system/pull/22
 [#15]: https://github.com/sanama-stack/reception-booking-system/issues/15
 [#17]: https://github.com/sanama-stack/reception-booking-system/issues/17
 [backend]: ./2026-09-11-phase-10-backend.md
@@ -22,10 +24,10 @@
 
 | | |
 |---|---|
-| `origin/main` | **`a80ffad`** — pull request #21 |
-| `dev` | **seven commits ahead and unpushed**; CI has seen none of them |
-| Backend | **827 tests, 0 failures**, counted from the XML |
-| Frontend gates | `pnpm lint`, `pnpm typecheck`, `pnpm format:check` all green. **`pnpm build` still unrun locally (G9)** — deliberately: the user's `next dev` is running on 9082, and a build clobbers its `.next`. CI runs `pnpm build`, so the pull request is what closes this |
+| `origin/main` | **`a80ffad`** — pull request #21. **Not yet moved**: [#22][pr] is open, not merged |
+| `dev` | **`e379dbf`**, pushed. Ten commits ahead of `main`, and **CI is green on every one of the three jobs** — Frontend in 1m9s, Backend, and the compose smoke test |
+| Backend | **827 tests, 0 failures**, counted from the XML locally and re-run by CI |
+| Frontend gates | `pnpm lint`, `pnpm typecheck`, `pnpm format:check` green locally; **`pnpm build` green in CI**. It was deliberately not run on this machine: the user's `next dev` is live on 9082 and a build clobbers its `.next`, so CI is the only place it could run without breaking their environment |
 | Migrations | **None**, this session or the last |
 | New ADR | None |
 | Issues | **#15 and #17 open**, neither touched |
@@ -43,6 +45,10 @@
 | `12b082b` | the dashboard home |
 | `9873432` | **the invisible label that widened the page** — §3.2 |
 | `9250a11` | the phase checklist |
+| `e379dbf` | this handoff |
+
+**[Pull request #22][pr]** carries all ten into `main`: 53 files, +5149 −86. It was opened only
+after the full run went green, not before.
 
 ---
 
@@ -207,11 +213,17 @@ Carried: **G1** (no inline tool activity), **G3** (phase-09 DoD box stays untick
 open), **G8** ("Any available" never rendered), **G10** (the weekday arm still has one phrasing),
 **G11** (`requested_date` never recorded), **G12** (indexes unverified at scale).
 
-**G9 is narrowed, not closed**: `pnpm build` has still never run on this machine, but lint,
-typecheck and format have, and CI runs the build.
+**G9 is closed** — by CI, not locally. `pnpm build` passed on `e379dbf` as part of the Frontend job.
+It has still never run on this machine and should not while `next dev` is up; the rule that closes
+it from now on is *the pull request runs the build*.
 
 New: **G13** — the keyboard-navigation standard is the one polish item with no evidence either way
 (§5).
+
+New, and small: **G14** — the backend build logs `serializable class ApiException has no definition
+of serialVersionUID`. A warning, not a failure, and it **predates this branch**; nobody has filed it
+and nobody has decided whether `ApiException` should be serializable at all. Named here so the next
+reader knows it is old news rather than something this phase introduced.
 
 ### 7.3 Traps
 
@@ -248,10 +260,14 @@ that a runner could take tomorrow.
 
 ### P0
 
-1. **Push and open the pull request.** Seven commits, two phases' worth of work, and CI has seen
-   none of it — including the backend half, which was written by a session that never committed it.
-2. **Decide [backend] §3.5**, the revenue currency. One question; the answer changes a response
-   shape.
+1. **Merge [#22][pr].** It is open and green on all three jobs. Nothing here is waiting on anything
+   else; `main` has not moved since #21 and two phases' worth of work is sitting in front of it,
+   including the backend half a previous session wrote and never committed.
+2. **Decide [backend] §3.5**, the revenue currency — **and it now has a screen resting on it.**
+   `/analytics` states the currency it counts and says nothing about the remainder: honest, but a
+   business that switched currency sees a number smaller than its real revenue with no explanation
+   of where the rest went. The three options are unchanged — report the remainder somewhere the
+   contract has no room for, report in the currencies the rows actually carry, or leave it.
 
 ### P1
 
@@ -299,6 +315,11 @@ grid that converted would have been visibly wrong rather than plausibly right.
 
 **High — §3.1.** The failure was reproduced, the mechanism read off the fixture's own opening hours,
 and the fix re-run against the full suite.
+
+**High, and no longer only mine — the build.** CI ran the backend suite, the three frontend gates,
+`pnpm build` and the compose smoke test against `e379dbf` and passed all four. Everything above this
+line was checked on one machine; that run is the independent second opinion, and it is what makes
+§4's numbers safe to quote without re-running them.
 
 **Medium — the four inventory rows in §4.** The implementations are shared, so the population is
 small; but "every list has an empty state" was counted, not exercised.
