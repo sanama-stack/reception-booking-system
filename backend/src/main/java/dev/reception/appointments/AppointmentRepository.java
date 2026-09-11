@@ -143,4 +143,26 @@ public interface AppointmentRepository extends JpaRepository<Appointment, UUID> 
 
         Instant getLastVisit();
     }
+
+    /**
+     * Everything a calendar view has to draw: the Appointments that <strong>overlap</strong> the
+     * range, not the ones that start inside it.
+     *
+     * <p><strong>The two are equivalent today, and the overlap form is still the right one.</strong>
+     * A booking cannot currently cross midnight — {@code AvailabilityEngine} requires the whole
+     * appointment to be contained in one of that date's opening intervals, and intervals do not span
+     * days — so nothing exists that starts before a day-aligned range and ends inside it. Written
+     * the other way this query would be correct by coincidence, and would start dropping blocks off
+     * the top of the view the day overnight hours become expressible. Getting it right costs one
+     * comparison.
+     *
+     * <p>Unpaged, deliberately, and the range is capped by the caller instead. A week for three
+     * employees is comfortably more than a page, and a calendar that silently rendered the first
+     * hundred would be wrong in exactly the way nobody notices: by leaving things out.
+     *
+     * <p>Ordered by start so the view can lay columns out in one pass.
+     */
+    List<Appointment> findByBusinessIdAndStartsAtLessThanAndEndsAtGreaterThanOrderByStartsAtAsc(
+            UUID businessId, Instant rangeEnd, Instant rangeStart);
+
 }

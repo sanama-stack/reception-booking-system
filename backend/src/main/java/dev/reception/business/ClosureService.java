@@ -62,6 +62,20 @@ public class ClosureService {
     }
 
     /**
+     * The Closures a calendar range touches (phase 10).
+     *
+     * <p>Separate from {@link #list()} rather than filtered by the caller: the settings screen wants
+     * every closure a business has ever recorded, and a calendar wants the two that overlap the week
+     * on screen. Filtering in Java would work today and become a full scan the year the business has
+     * a hundred of them.
+     */
+    @Transactional(readOnly = true)
+    public List<BusinessClosure> inRange(Instant from, Instant to) {
+        return closures.findByBusinessIdAndStartsAtLessThanAndEndsAtGreaterThanOrderByStartsAtAsc(
+                tenant.businessId(), to, from);
+    }
+
+    /**
      * Creates a closure from an inclusive range of business-local dates.
      *
      * <p>{@code endDate} is inclusive because that is what an owner means by "closed the 24th to the

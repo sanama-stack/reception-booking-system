@@ -89,20 +89,22 @@ fix is an index in this phase, not a new table.
 ## Testing
 
 ### Unit
-- [ ] Revenue sums only `COMPLETED`, using snapshotted prices
-- [ ] Rates are `null` when the denominator is zero
-- [ ] Period boundaries (today / this week / this month) computed in the business timezone
-- [ ] Top services ordered correctly, ties broken deterministically
+- [x] Revenue sums only `COMPLETED`, using snapshotted prices
+- [x] Rates are `null` when the denominator is zero
+- [x] Period boundaries (today / this week / this month) computed in the business timezone
+- [x] Top services ordered correctly, ties broken deterministically
 
 ### Integration
-- [ ] Summary counts are correct for a seeded range
-- [ ] Changing a service price afterwards does not change historical revenue
-- [ ] An empty range returns zeroes and `null` rates, not an error
-- [ ] Range over 366 days → `422`
-- [ ] A business in `Pacific/Auckland` gets different daily boundaries than one in `America/New_York` for
-      the same instants
-- [ ] The calendar range query returns everything the view needs in one call
-- [ ] Isolation probes for the analytics and calendar endpoints
+- [x] Summary counts are correct for a seeded range
+- [x] Changing a service price afterwards does not change historical revenue
+- [x] An empty range returns zeroes and `null` rates, not an error
+- [x] Range over 366 days → `422`
+- [x] A business in `Pacific/Auckland` gets different daily boundaries than one in `America/New_York` for
+      the same instants — **proven by moving one business rather than comparing two**: 16:00 in Tbilisi
+      is midnight the following day in Auckland, so the same instant changes date with no appointment
+      moving. Sharper than the two-business form, because a UTC-cut report answers identically twice
+- [x] The calendar range query returns everything the view needs in one call
+- [x] Isolation probes for the analytics and calendar endpoints
 
 ### Frontend
 - [ ] Appointment blocks are proportional to duration
@@ -125,11 +127,11 @@ fix is an index in this phase, not a new table.
 ## Checklist
 
 ### Backend
-- [ ] `AnalyticsService` with aggregate SQL
-- [ ] `AnalyticsController`
-- [ ] Range validation with business-timezone boundaries
-- [ ] Calendar-range appointment query
-- [ ] Closure and time-off range endpoints
+- [x] `AnalyticsService` with aggregate SQL
+- [x] `AnalyticsController`
+- [x] Range validation with business-timezone boundaries
+- [x] Calendar-range appointment query
+- [x] Closure and time-off range endpoints
 - [ ] Indexes verified against a 10 000-appointment dataset
 
 ### Frontend — calendar

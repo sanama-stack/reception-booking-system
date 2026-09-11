@@ -21,4 +21,9 @@ public interface BusinessClosureRepository extends JpaRepository<BusinessClosure
     Optional<BusinessClosure> findByBusinessIdAndId(UUID businessId, UUID id);
 
     long deleteByBusinessIdAndId(UUID businessId, UUID id);
+
+    /** The Closures a calendar range touches, by the overlap convention the rest of the system uses. */
+    List<BusinessClosure> findByBusinessIdAndStartsAtLessThanAndEndsAtGreaterThanOrderByStartsAtAsc(
+            UUID businessId, java.time.Instant rangeEnd, java.time.Instant rangeStart);
+
 }

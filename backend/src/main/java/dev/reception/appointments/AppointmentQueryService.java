@@ -83,6 +83,25 @@ public class AppointmentQueryService {
                 tenant.businessId(), from, to, status, employeeId, pageable));
     }
 
+    /**
+     * Every Appointment overlapping a calendar range, hydrated, unpaged and in start order.
+     *
+     * <p>Unpaged because a calendar draws a whole view or draws a lie; the range is what bounds the
+     * result, and the caller caps that. Cancelled ones are left out: the time was released the
+     * instant they were cancelled, and a block drawn over free time is how a double booking starts.
+     * The listing endpoint still has a status filter for anyone who wants to see them.
+     */
+    @Transactional(readOnly = true)
+    public List<AppointmentView> overlapping(Instant from, Instant to) {
+        return hydrate(
+                appointments
+                        .findByBusinessIdAndStartsAtLessThanAndEndsAtGreaterThanOrderByStartsAtAsc(
+                                tenant.businessId(), to, from)
+                        .stream()
+                        .filter(appointment -> appointment.status() != AppointmentStatus.CANCELLED)
+                        .toList());
+    }
+
     /** One Customer's history, newest first — the order a profile is read in. */
     @Transactional(readOnly = true)
     public Page<AppointmentView> historyFor(UUID customerId, int page, int size) {
