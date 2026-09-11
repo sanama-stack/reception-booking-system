@@ -1,0 +1,39 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "infra: up",
+      "detail": "Start Postgres, Mailpit and Caddy",
+      "type": "shell",
+      "command": "make up",
+      "options": { "cwd": "${workspaceFolder}" },
+      "problemMatcher": [],
+      "presentation": { "reveal": "silent", "panel": "shared" }
+    },
+    {
+      "label": "infra: down",
+      "detail": "Stop the infrastructure (keeps the database volume)",
+      "type": "shell",
+      "command": "make down",
+      "options": { "cwd": "${workspaceFolder}" },
+      "problemMatcher": []
+    },
+    {
+      "label": "backend: test",
+      "type": "shell",
+      "command": "./gradlew build",
+      "options": { "cwd": "${workspaceFolder}/backend" },
+      "group": "test",
+      "problemMatcher": []
+    },
+    {
+      "label": "frontend: check",
+      "detail": "lint, typecheck, format check and build",
+      "type": "shell",
+      "command": "pnpm lint && pnpm typecheck && pnpm format:check && pnpm build",
+      "options": { "cwd": "${workspaceFolder}/frontend" },
+      "group": "test",
+      "problemMatcher": []
+    }
+  ]
+}

@@ -29,6 +29,11 @@ authentication use httpOnly cookies with no token ever reaching JavaScript.
       └────────────────┘
 ```
 
+**Every port in that diagram is container-internal.** They are what each process listens on inside the
+compose network, and only Caddy's is published — the browser arrow reaches it at `localhost:9080`, not
+`:8080`, and Mailpit's UI is `localhost:9083`, not `:8025`. The published block is `9080`–`9085`; the
+README carries the full table.
+
 Five containers, no more. Nothing is present to make the diagram look impressive: Caddy exists because of
 the cookie decision, Mailpit because notifications must be demonstrable.
 

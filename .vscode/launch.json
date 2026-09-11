@@ -1,0 +1,53 @@
+{
+  // Run both applications from the IDE, against the infrastructure `make up` provides.
+  //
+  // Start the infrastructure first (task "infra: up", or `make up`), then press F5 and pick
+  // "Full stack". Both applications are reached through Caddy at http://localhost:9080 — going
+  // to the backend or frontend port directly puts them on different origins and breaks cookie
+  // auth.
+  //
+  // The backend does not depend on this file for its configuration. It imports the repository's
+  // .env itself (application-local.yml), so the Spring Boot Dashboard and the Run button above
+  // main() — neither of which reads launch.json — work identically.
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "type": "java",
+      "name": "Backend (Spring Boot)",
+      "request": "launch",
+      "mainClass": "dev.reception.ReceptionApplication",
+      // Deliberately no "projectName": Gradle calls the project "reception" and the VS Code Java
+      // extension calls it "backend". Pinning either one makes the config fail on the other.
+      "cwd": "${workspaceFolder}/backend",
+      "envFile": "${workspaceFolder}/.env",
+      "console": "internalConsole"
+    },
+    {
+      "type": "node-terminal",
+      "name": "Frontend (Next.js)",
+      "request": "launch",
+      "command": "pnpm dev",
+      "cwd": "${workspaceFolder}/frontend",
+      "serverReadyAction": {
+        "pattern": "Local:\\s+(https?://\\S+)",
+        "uriFormat": "http://localhost:9080",
+        "action": "openExternally"
+      }
+    },
+    {
+      "type": "chrome",
+      "name": "Browser (single origin)",
+      "request": "launch",
+      "url": "http://localhost:9080",
+      "webRoot": "${workspaceFolder}/frontend/src"
+    }
+  ],
+  "compounds": [
+    {
+      "name": "Full stack",
+      "configurations": ["Backend (Spring Boot)", "Frontend (Next.js)"],
+      "preLaunchTask": "infra: up",
+      "stopAll": true
+    }
+  ]
+}

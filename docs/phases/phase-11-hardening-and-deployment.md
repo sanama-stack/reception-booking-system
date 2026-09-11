@@ -175,8 +175,13 @@ argument that it was right.
 
 ### Documentation
 
-- `README.md`: what it is, prerequisites, `make up`, seeded credentials, URLs (app `:8080`, Mailpit `:8025`,
-  API docs `/api/docs`), and a **step-by-step demo script** a stranger can follow
+- `README.md`: what it is, prerequisites, `make up`, seeded credentials, URLs (app `:9080`, Mailpit
+  `:9083`, API docs `/api/docs`), and a **step-by-step demo script** a stranger can follow.
+  **Corrected 2026-09-11**: this line said `:8080` and `:8025`, which are the *container-internal*
+  ports — what Caddy and Mailpit listen on inside the compose network, not what a browser can reach.
+  The published block is `9080`–`9085`, chosen deliberately away from the usual `3000`/`8080`/`5432`
+  range so this project can run beside another. A README written to the old numbers would have sent
+  every stranger it is written for to a dead port
 - `.env.example` complete and accurate
 - `docs/deployment.md`: one documented path (single VPS behind Caddy with TLS), including what would have to
   change first — externalised rate limiting, real SMTP, backups, secret rotation

@@ -1,0 +1,17 @@
+{
+  "java.configuration.updateBuildConfiguration": "automatic",
+  "java.format.settings.profile": "GoogleStyle",
+  "files.exclude": {
+    "**/.gradle": true,
+    "**/build": true,
+    "**/.next": true,
+    "**/node_modules": true
+  },
+  "[typescript]": { "editor.defaultFormatter": "esbenp.prettier-vscode" },
+  "[typescriptreact]": { "editor.defaultFormatter": "esbenp.prettier-vscode" },
+  "editor.formatOnSave": true,
+  "eslint.workingDirectories": [
+    "frontend"
+  ],
+  "java.compile.nullAnalysis.mode": "automatic"
+}
