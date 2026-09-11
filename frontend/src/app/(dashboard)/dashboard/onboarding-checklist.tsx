@@ -57,6 +57,21 @@ export function OnboardingChecklist({ state }: { state: Onboarding }) {
   const nextIncomplete = STEPS.find((step) => !state[step.key]);
   const done = STEPS.filter((step) => state[step.key]).length;
 
+  // A checklist with five ticks on it is a to-do list about the past. Once the booking page can
+  // actually take an appointment it collapses to the one thing that stays useful — the address to
+  // give people — because the home screen's job from then on is today's work, not setup.
+  if (state.publicPageReady) {
+    return (
+      <Card>
+        <CardHeader
+          title="Your booking page is live"
+          description="Everything is configured, so this page can take appointments. Setup lives under Settings from here on."
+        />
+        <p className="text-ink font-mono text-sm">{state.bookingUrl}</p>
+      </Card>
+    );
+  }
+
   return (
     <Card>
       <CardHeader
