@@ -108,6 +108,21 @@ If no, it is in [future/future-features.md](./future/future-features.md).
 
 The MVP is complete when **all** of the following are true. Each line is verifiable by running the system.
 
+> **Audited and corrected on 2026-09-11.** Everything below this line was written in `aa84b19`, the
+> phase-01 commit, and was never opened again — before the availability engine existed, before the
+> Receptionist existed, before every ADR, and before the defects phases 09 and 10 measured. Five rows
+> turned out to be **weaker than a decision this project had already recorded**, so a defect the
+> principal had explicitly ruled on would have ticked them on a technicality. Those five are widened
+> in place below, each naming what it now rests on.
+>
+> This is the same treatment [08-testing-strategy.md](08-testing-strategy.md) §11's Frontend row got
+> on the same day, and for the same reason: a scaffold that contradicts a ruling is corrected with the
+> reasoning written beside it, not quietly satisfied.
+>
+> **A box is ticked against evidence, or the defect it covers is listed under *Accepted, measured,
+> open defects* with a rate, a date and an issue. There is no third state.** At the time of the audit
+> none of the thirty had ever been ticked, and the list had survived ten phases unread.
+
 ### Functional
 - [ ] A new owner registers and lands on a dashboard with an onboarding checklist
 - [ ] The owner configures profile, timezone, business hours and booking settings
@@ -117,13 +132,31 @@ The MVP is complete when **all** of the following are true. Each line is verifia
 - [ ] `/book/{slug}` is publicly reachable and shows the business, services, prices and durations
 - [ ] A customer completes a booking through the Classic Flow
 - [ ] A customer completes a booking by conversation with the Receptionist
-- [ ] The Receptionist answers a business question using only configured information, and says it does not know when the information is absent
-- [ ] The Receptionist offers only slots returned by the availability engine
-- [ ] The Receptionist reschedules and cancels an appointment after the customer proves ownership
-- [ ] Confirmation and reminder emails arrive in Mailpit with a working Manage Link
+- [ ] The Receptionist answers a business question using only configured information, and says it does
+      not know when the information is absent — **and states no slot, price or policy that did not come
+      from a tool.** *Widened 2026-09-11.* The original reaches answers to questions; [#17] is an
+      **unprompted** assertion made mid-reschedule — *"the earliest I can reschedule your appointment
+      for is tomorrow"* — which is false, came from no tool, and the original wording does not cover.
+      That clause is phase 09's own Definition-of-Done box, which the principal ruled **not ticked at
+      today's rates**
+- [ ] The Receptionist offers only slots returned by the availability engine — **for the date the
+      customer actually named.** *Widened 2026-09-11.* Under [#17] every offered slot does come from the
+      engine; the engine was asked about the wrong date. The original ticks on that, which is exactly
+      why it is no longer the whole test
+- [ ] The Receptionist reschedules and cancels an appointment after the customer proves ownership —
+      **and the write lands on the date the customer named.** *Widened 2026-09-11.* Ownership proof was
+      never what [#17] breaks: the writes that land on a date nobody said had ownership correctly proven
+      first, which is what makes a wrong one indistinguishable from a right one
+- [ ] Confirmation and reminder emails arrive in Mailpit with a working Manage Link — **or the response
+      says one was not sent, per [ADR-0007](adr/0007-booking-response-says-whether-a-confirmation-was-sent.md).**
+      *Widened 2026-09-11.* A booking with no address on file sends nothing, by design; a flat "arrive"
+      makes the correct behaviour look like a failed box
 - [ ] The appointment appears in the owner's dashboard list and calendar, marked as AI-sourced
 - [ ] The owner changes an appointment to `COMPLETED` and to `NO_SHOW`
-- [ ] The analytics summary reports counts, revenue from completed appointments, and top services
+- [ ] The analytics summary reports counts, revenue from completed appointments, and top services —
+      **and names its excluded remainder, per [ADR-0010](adr/0010-revenue-reports-one-currency-and-names-the-remainder.md).**
+      *Widened 2026-09-11.* Revenue is filtered to one currency, so a business that switched sees a
+      number smaller than its real revenue; ADR-0010 decided the remainder is reported, not dropped
 
 ### Correctness
 - [ ] Availability excludes: past slots, slots inside the lead time, slots beyond the horizon, slots overlapping existing appointments or buffers, closures, time off, and any slot the service duration does not fully fit inside
@@ -145,3 +178,39 @@ The MVP is complete when **all** of the following are true. Each line is verifia
 - [ ] One Playwright E2E run covers chat → booking → dashboard
 - [ ] `.env.example` documents every configuration variable
 - [ ] `README.md` contains a demo script a stranger can follow
+
+---
+
+## Accepted, measured, open defects
+
+A box above is ticked against evidence, or the defect it covers is named here with a **rate**, a
+**date** and an **issue**. A defect that is in neither place is not accepted — it is unnoticed, which
+is the state this section exists to make impossible.
+
+Carried by the principal's ruling of **2026-09-11**: the alternative was to gate the MVP on an
+unfinished experiment, and the ruling was that a measured defect shipped knowingly beats a box that
+went quiet. The rate is part of the entry precisely so that shipping stays a decision somebody made.
+
+### [#17] — the Receptionist writes a reschedule to a date the customer did not name
+
+| | |
+|---|---|
+| **Rate** | **10.6%** of writes land on a date the customer never named — 5 of 47, CI [3.5%, 23.1%] |
+| **Worst case** | **55.2% wrong** when the customer phrases the date relatively ("the Monday after next") rather than reading out an ISO date — against 10.6% when they read one out, Fisher p = 3.9e-05 |
+| **Measured** | 2026-09-11 — [the experiment record](experiments/2026-09-11-17-deterministic-date-resolution.md) |
+| **Ruling** | 2026-09-11 — phase 09's hallucination box is **not ticked at today's rates**, and a fourth candidate was authorised |
+| **Status** | **Open.** Three candidates rejected, two of them measurably harmful. The fourth, `resolve_date`, moved the primary measure from 18% to 58% (p = 3.5e-05) and is **one arm short of a verdict** — the deciding run stopped at fifteen trials of fifty when the OpenAI account ran out of credits |
+| **Issue** | [#17](https://github.com/sanama-stack/reception-booking-system/issues/17) |
+
+**This is what Functional boxes 9, 10 and 11 rest on**, and it is why all three were widened rather
+than left to tick on wording written before the defect class was known. The customer-visible shape is
+not a crash: ownership is proven, a real slot is returned by the real engine, a real appointment is
+written, and the only thing wrong is the day — which is the one part nothing downstream can check.
+
+**[#15]** ([issue](https://github.com/sanama-stack/reception-booking-system/issues/15)) is related and
+also open. It is **not** listed as accepted here, because its title still names a diagnosis a later
+session disproved and it therefore has no trustworthy rate to carry. Fixing the title is a
+prerequisite to accepting it, not a formality.
+
+[#15]: https://github.com/sanama-stack/reception-booking-system/issues/15
+[#17]: https://github.com/sanama-stack/reception-booking-system/issues/17

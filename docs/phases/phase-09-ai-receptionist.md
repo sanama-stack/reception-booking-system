@@ -199,6 +199,11 @@ Assertions target tool sequences and database state, never the model's wording.
       which records what the three rejections cost so a fifth candidate does not repeat them.
       The threshold is pre-registered against the 44.8% relative-date arm before any live run, and
       the ceiling it reaches for is the ISO-date arm's 89.4%, not 100%
+      **The MVP-level consequence was settled on 2026-09-11** and lives in
+      [07-mvp-scope.md](../07-mvp-scope.md) § *Accepted, measured, open defects*: this box does not
+      block the MVP, but [#17] is carried there with its rate so that it cannot be ticked by going
+      quiet. That document's Functional boxes 9, 10 and 11 were widened the same day, because as
+      originally written all three ticked while this one could not — the scaffold predates the defect
 - [x] The confirmation card renders from backend data, not from the reply text — measured against
       its counterfactual, not argued
 - [x] No tool accepts a tenant identifier

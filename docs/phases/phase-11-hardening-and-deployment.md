@@ -212,7 +212,13 @@ argument that it was right.
 - [ ] `revenue` names its remainder after a currency change, per ADR-0010
 - [ ] No `ai_message` outlives the documented retention window
 - [ ] `README.md`, `.env.example` and `docs/deployment.md` are complete
-- [ ] **Every box in [07-mvp-scope.md](../07-mvp-scope.md) § MVP Definition of Done is ticked**
+- [ ] **Every box in [07-mvp-scope.md](../07-mvp-scope.md) § MVP Definition of Done is ticked** — or the
+      defect it covers is carried under that document's *Accepted, measured, open defects*, which
+      requires a rate, a date and an issue. **Do not tick that list as found.** It was audited on
+      2026-09-11 and five rows were **weaker than decisions this project had already recorded**: as
+      written they would have ticked on a technicality over
+      [#17](https://github.com/sanama-stack/reception-booking-system/issues/17) — a defect the
+      principal had explicitly ruled on. The widened wording is what this box now means
 
 ## Checklist
 
