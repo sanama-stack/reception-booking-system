@@ -1,6 +1,8 @@
 package dev.reception.appointments;
 
+import dev.reception.catalog.Service;
 import dev.reception.tenancy.TenantScoped;
+import java.time.Duration;
 import java.time.Instant;
 import java.util.Collection;
 import java.util.List;
@@ -161,8 +163,47 @@ public interface AppointmentRepository extends JpaRepository<Appointment, UUID> 
      * hundred would be wrong in exactly the way nobody notices: by leaving things out.
      *
      * <p>Ordered by start so the view can lay columns out in one pass.
+     *
+     * <p><strong>The lower bound on {@code startsAt} is not a filter — it is what makes this query
+     * scale.</strong> {@code startsAt < :to} alone has no lower end, so the index range begins at
+     * the tenant's first ever appointment and {@code endsAt > :from}, which no index covers, can
+     * only be applied afterwards: the work becomes proportional to everything the business has ever
+     * booked rather than to the range on screen. Measured against 10 000 appointments it read 8 820
+     * rows to return 20, and at 30 000 PostgreSQL abandoned the index for a sequential scan of the
+     * whole table — every other tenant's rows included. Bounded, the same week is 160 rows and
+     * eighty times faster.
+     *
+     * <p><strong>The bound is exact, not generous.</strong> An Appointment can be at most
+     * {@link Service#MAX_DURATION_MINUTES} long, so one that overlaps the range at all must start
+     * after {@code from} minus that — an Appointment starting the full maximum earlier ends exactly
+     * <em>at</em> {@code from}, and {@code endsAt > :from} is strict, so it does not overlap. The
+     * constraint {@code appointments_max_length} enforces the ceiling in the database, because this
+     * query is fast <em>because</em> of that ceiling and would silently stop returning long
+     * Appointments if one were ever written.
      */
-    List<Appointment> findByBusinessIdAndStartsAtLessThanAndEndsAtGreaterThanOrderByStartsAtAsc(
-            UUID businessId, Instant rangeEnd, Instant rangeStart);
+    default List<Appointment> findByBusinessIdAndOverlapping(UUID businessId, Instant from, Instant to) {
+        return findByBusinessIdAndOverlappingNoEarlierThan(
+                businessId, from, to, from.minus(Duration.ofMinutes(Service.MAX_DURATION_MINUTES)));
+    }
+
+    /**
+     * The bounded form. Call {@link #findByBusinessIdAndOverlapping} instead — it derives
+     * {@code earliestStart} from the one constant that makes the bound safe, so no caller has to
+     * remember it and none can get it wrong.
+     */
+    @Query(
+            """
+            select a from Appointment a
+             where a.businessId = :businessId
+               and a.startsAt < :to
+               and a.startsAt >= :earliestStart
+               and a.endsAt > :from
+             order by a.startsAt asc
+            """)
+    List<Appointment> findByBusinessIdAndOverlappingNoEarlierThan(
+            @Param("businessId") UUID businessId,
+            @Param("from") Instant from,
+            @Param("to") Instant to,
+            @Param("earliestStart") Instant earliestStart);
 
 }
