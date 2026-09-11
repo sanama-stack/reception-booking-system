@@ -168,9 +168,34 @@ correctness does not depend on every call site remembering.
 - `SameSite=Lax` cookies plus a same-origin-only API removes classic CSRF for the cookie-authenticated
   surface; state-changing requests additionally require `Content-Type: application/json`, which blocks the
   form-post CSRF shape.
-- Security headers via Caddy: `Strict-Transport-Security` (non-local), `X-Content-Type-Options: nosniff`,
+- Security headers via Caddy: `Strict-Transport-Security`, `X-Content-Type-Options: nosniff`,
   `Referrer-Policy: strict-origin-when-cross-origin`, `X-Frame-Options: DENY`, and a Content-Security-Policy
-  with no `unsafe-eval`.
+  with no `unsafe-eval`. `Server` is removed.
+- **The Content-Security-Policy, exactly.** `default-src 'self'` with `base-uri 'self'`,
+  `form-action 'self'`, `frame-ancestors 'none'` and `object-src 'none'`; `img-src` and `font-src`
+  additionally allow `data:`; `style-src` and `script-src` additionally allow `'unsafe-inline'`.
+  **`'unsafe-inline'` on `script-src` is a concession and is named here rather than buried**: the App
+  Router serves its hydration payload as inline `<script>` elements, and the alternative — a
+  per-request nonce — has to be issued where the HTML is rendered, which is Next's middleware and not
+  a reverse proxy. `'unsafe-eval'` is absent, which is the part that stops a reflected string from
+  becoming code without a tag to carry it.
+- **One seam, and it is visible.** `CSP_SCRIPT_EXTRA` is appended to `script-src`. `next dev` compiles
+  modules through `eval`, so the development topology sets it to `'unsafe-eval'` in `.env`;
+  `docker-compose.apps.yml` — the five-container shape CI smoke-tests and the one that deploys —
+  empties it, and the Caddyfile's own default is empty, so a topology that forgets the variable gets
+  the strict policy rather than the lenient one.
+- **`Strict-Transport-Security` is `max-age=0` locally, and that is not a stub.** A browser honours
+  HSTS only on a response that arrived over HTTPS, so on a plain-HTTP origin the header is inert
+  whatever it says; `max-age=0` is the value that means "remember no policy for this host", which is
+  correct for an origin that will never be HTTPS. A TLS deployment sets `HSTS` to
+  `max-age=31536000; includeSubDomains` (docs/deployment.md).
+
+> **Added in phase 11, and until then this section described two controls that did not exist.** The
+> `Strict-Transport-Security` and Content-Security-Policy lines above were written in the design phase
+> and no file ever set either header; a grep for both across `backend/src`, `frontend/src`,
+> `next.config.*` and `infra` returned one hit, and it was `frameOptions().deny()`. The gap survived
+> because the natural way to write the header test is to read the Caddyfile and assert what is there —
+> which would have gone green and certified the absence. The order has to be *decide, then assert*.
 
 ## 14. Auditability
 
@@ -192,3 +217,4 @@ Stated rather than silently carried:
 | No key rotation scheme | Single-secret; rotation requires a re-login of all users, acceptable at this stage |
 | No backups | Local-only deployment; would be mandatory before any real tenant |
 | No 2FA | Out of MVP scope; the account model supports adding it without migration |
+| The API documentation is unauthenticated in every profile | `/docs`, `/openapi` and `/swagger-ui` are permitted to everyone, `prod` included ([SecurityConfig](../backend/src/main/java/dev/reception/common/config/SecurityConfig.java)). Correct against the MVP's local-compose contract, where the origin is a developer's own machine — and **the first thing to change on an internet-reachable host**, because it publishes the entire endpoint surface to anyone who asks. Recorded here in phase 11 because it was in neither this table nor the deployment notes, which is the state this table exists to make impossible |

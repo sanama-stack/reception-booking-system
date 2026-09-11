@@ -121,6 +121,14 @@ jobs:
           echo "--- / ---"
           curl -fsS -o /dev/null -w '%{http_code}\n' "${ORIGIN}/" | grep -q 200
 
+      # Against the running origin, not against the Caddyfile. A test written from the
+      # implementation would have gone green for ten phases while docs/06-security.md §13
+      # described a CSP and an HSTS header that no file set (T42) — and this is the only topology
+      # whose Content-Security-Policy is the one that ships: `make up` deliberately relaxes
+      # script-src for `next dev`, and docker-compose.apps.yml empties that again.
+      - name: Security headers
+        run: make check-headers
+
       - name: Container logs on failure
         if: failure()
         run: docker compose -f docker-compose.yml -f docker-compose.apps.yml logs --no-color
