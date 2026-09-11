@@ -1,10 +1,11 @@
 # Session handoff — 2026-09-11 — the seed, and the headers that exist at last
 
-> **Purpose.** Phase 11 started. Two of its items are done and one of its documents is no longer
+> **Purpose.** Phase 11 started. Three of its items are done and one of its documents is no longer
 > false. §2 is the two-tenant seed and the decisions inside it; §3 is the demo script, **walked
 > rather than written**, and the defect walking it found; §4 is **G20 closed** — the CSP and HSTS
 > that `06-security.md` §13 has described since the design phase now exist, and the header test
-> that would have certified their absence is written the other way round.
+> that would have certified their absence is written the other way round; §5 is the performance
+> dataset, which closes **G18, G15 and G16** and corrects a number this project has been quoting.
 >
 > **Read §4.2 before touching `.env`.** `CSP_SCRIPT_EXTRA` needs double quotes around its single
 > quotes. Written the obvious way it reaches Caddy as a bare token, and the policy then names a
@@ -32,7 +33,8 @@
 | Migrations | **none.** The seed writes through the application; it adds no column and no table |
 | New ADR | none |
 | Issues | [#17] and [#15] open, untouched. No model was called: the account is **still out of credits**, re-checked this session (`429 credit_balance_exhausted`) |
-| Phase 11 | **started.** Seed done; security headers done; ten checklist boxes ticked |
+| Perf fixture | `backend/tools/perf-dataset/` — committed, migrates rather than clones. The ad-hoc `reception_perf` is **dropped** |
+| Phase 11 | **started.** Seed, security headers and the three performance checks done; seventeen checklist boxes ticked |
 
 ---
 
@@ -206,7 +208,82 @@ risk is low — but it is a real gap and the phase-11 Playwright flow is where i
 
 ---
 
-## 5. Four documentation drifts closed
+## 5. The performance dataset — **G18, G15 and G16 closed**
+
+`backend/tools/perf-dataset/generate.sh` builds a database of 31 600 Appointments from nothing:
+create, **migrate**, load, `VACUUM (ANALYZE)`. The ad-hoc `reception_perf` three sessions measured
+against has been dropped.
+
+### 5.1 Migrated, not cloned — and the check was made to fail first
+
+The old scratch database was a `pg_dump --schema-only` clone taken before `V8` and `V9`, so it was
+missing `appointments_max_length`, `appointments_buffer_before_max` and
+`appointments_buffer_after_max` — **the three CHECK constraints the bounded queries depend on**. Its
+`flyway_schema_history` also existed and was empty, which is worse than absent.
+
+The script therefore asserts those three constraints are present after migrating and before loading
+a row. **That assertion was run against the old clone before it was deleted, and it named all
+three**; against the migrated database it passes. A fixture that cannot enforce the ceiling a fast
+query assumes will return a fast, wrong answer — from the instrument that was supposed to be
+checking.
+
+### 5.2 The three NFR checks pass
+
+`NfrBenchmarkTest`, tagged `perf`, twenty runs after five discarded:
+
+| Check | Threshold | p50 | **p95** |
+|---|---|---|---|
+| Availability, 7 days, **five** employees (the NFR says three) | < 300 ms | 87.64 ms | **103.20 ms** |
+| Appointment list, first page, 10 000 rows | < 200 ms | 16.67 ms | **20.93 ms** |
+| Analytics summary, 90 days | < 500 ms | 25.32 ms | **32.40 ms** |
+| Calendar, one week (no NFR) | — | 33.89 ms | **42.64 ms** |
+
+**It goes through the services rather than through `psql`, and that is the point.** The statement is
+Hibernate's because Hibernate wrote it; the parameters are bound because JDBC bound them; and the
+driver switches to a server-side prepared statement after five executions, so the twenty measured
+runs are on the **generic plan** that the `PREPARE`/`EXECUTE`-six-times recipe existed to reach
+(T30). Three sessions solved those two problems by hand. It also measures the operation, hydration
+included, which is what the NFR is about.
+
+**Nothing was missing and nothing was added.** The interesting part is the distance from phase 10's
+query times for the same operations — 0.019 ms to 1.4 ms. **The query was never the cost.**
+
+### 5.3 G15, and the number it corrects — 46x is 1.2x
+
+Phase 10 recorded **46x** for the calendar's lower bound, from hand-written SQL on literals. G15
+asked for it on Hibernate's own statement. It is **1.2x** — 7.55 ms against 8.95 ms at p95.
+
+Both are right, and the gap between them is the finding: 46x was a ratio of *queries*, 1.2x is a
+ratio of *operations*, and hydrating a week of Appointments costs the same on both sides. Measured
+separately on this dataset the query alone is **0.26 ms against 3.64 ms, 30 buffers against 841** —
+14x and 28x.
+
+**Neither ratio is why the bound exists**, and quoting 1.2x on its own would be the worse mistake of
+the two. The unbounded query reads 8 800 rows to return 140, and 8 800 is every Appointment this
+tenant has ever had: it is a slope, not a factor. At 30 000 rows phase 10 watched the same plan
+abandon the index and scan the whole table. **No measurement at one table size can show a cliff** —
+which is why the committed test asserts only that removing the bound is worse, and records the ratio
+instead of gating on it (**T45**).
+
+### 5.4 G16 — the first cold reading in this project
+
+Every performance number here has been `shared hit`. The 366-day status count, first execution after
+a PostgreSQL restart: **`shared read=31`, 1.931 ms**, against **`shared hit=31`, 1.026 ms** warm.
+
+**Be exact about what that is.** A restart empties PostgreSQL's buffer pool and not the operating
+system's page cache, so it is a cold *database*, not a cold *disk*. The number is quoted with that
+attached, and the recipe is in the tool's README. It is also not a large finding, and says so: 31
+pages is nothing, and a query that touches 31 pages cannot be slow however cold they are.
+
+### 5.5 What the fixture deliberately does not have
+
+No users and no memberships. Nothing in it can be signed into and no password hash is committed; the
+benchmark adopts the tenant directly, the way `TenantContextFilter` would. Everything is placed
+relative to midnight UTC on the day it is generated, so **a dataset more than a few days old should
+be rebuilt** — the NFR ranges are anchored to today and a stale one quietly moves its history out
+from under them.
+
+## 6. Four documentation drifts closed
 
 | | |
 |---|---|
@@ -217,9 +294,9 @@ risk is low — but it is a real gap and the phase-11 Playwright flow is where i
 
 ---
 
-## 6. Every open item
+## 7. Every open item
 
-### 6.1 Issues
+### 7.1 Issues
 
 **[#17]** — open, unchanged. Still carried as an accepted, measured defect at 10.6%, rising to 55.2%
 on relative phrasing. Its deciding arm is still fifteen trials of fifty short and **still unfunded**:
@@ -227,16 +304,15 @@ the credit check was re-run this session and returned `429 credit_balance_exhaus
 
 **[#15]** — open, untouched. Its title still names a diagnosis a later session disproved.
 
-### 6.2 Gaps
+### 7.2 Gaps
 
-Carried: **G1**, **G3**, **G8**, **G9**, **G10**, **G11**, **G13**, **G14**, **G15**, **G16**,
-**G18**, **G19**.
+Carried: **G1**, **G3**, **G8**, **G9**, **G10**, **G11**, **G13**, **G14**, **G19**.
 
-**G20 is closed** (§4).
+**Closed this session: G15, G16, G18** (§5) and **G20** (§4).
 
 New: **G21 — the strict CSP has not been exercised by a browser against a production build.** §4.4.
 
-### 6.3 Traps
+### 7.3 Traps
 
 Carried T1–T42. New:
 
@@ -246,7 +322,12 @@ resulting policy names a host where a keyword was meant. §4.2.
 **T44 — a demo script has to be walked, not written.** §3. Its default path was the one that fails,
 and every feature it touches works.
 
-### 6.4 Security
+**T45 — a ratio measured at one table size cannot see a cliff.** §5.3. The calendar bound is 46x, or
+14x, or 1.2x, depending entirely on what is being divided by what; none of those is the reason it is
+there, which is that the unbounded query's cost grows with the tenant's whole history and eventually
+stops using the index at all. Record such a ratio; do not gate on it.
+
+### 7.4 Security
 
 **S1 — no model was called. Zero API requests, zero tokens, zero cost.** The one credit check is a
 request that costs nothing when it fails, and it failed.
@@ -256,7 +337,7 @@ request that costs nothing when it fails, and it failed.
 `local`-profile-guarded fixture for accounts that exist only in a developer's own database, and the
 seed refuses to run anywhere else.
 
-### 6.5 Carried
+### 7.5 Carried
 
 Unchanged: the advisory lock's cost is unmeasured; no "find my booking" page; `sessionStorage` holds
 a customer's name and number; **nothing deletes an `ai_message`**; rate-limit buckets are in memory;
@@ -264,23 +345,20 @@ no frontend test runner; no `docs/deployment.md`; no Playwright.
 
 ---
 
-## 7. Next steps, in order
+## 8. Next steps, in order
 
-1. **The perf generator (G18)** — migrating rather than cloning, before any perf work rests on
-   `reception_perf` again. Its `flyway_schema_history` exists and is empty, which is worse than
-   absent.
-2. **The E2E's model strategy (G19)** — a stub at `OPENAI_BASE_URL` keeps `OpenAiChatModel` on the
+1. **The E2E's model strategy (G19)** — a stub at `OPENAI_BASE_URL` keeps `OpenAiChatModel` on the
    path. Decide it before writing the flow. The seed is now in place, which was its prerequisite.
-3. **The isolation suite**, built as classify-or-fail. The seed gives it two real tenants to probe
+2. **The isolation suite**, built as classify-or-fail. The seed gives it two real tenants to probe
    across, which was the other prerequisite.
-4. **The frontend test runner**, independent of all of the above.
-5. `docs/deployment.md`, which now has three things waiting for it: HSTS, `CSP_SCRIPT_EXTRA`, and the
+3. **The frontend test runner**, independent of all of the above.
+4. `docs/deployment.md`, which now has three things waiting for it: HSTS, `CSP_SCRIPT_EXTRA`, and the
    unauthenticated API documentation.
-6. **The principal's**: add credits and finish the [#17] arm; [#15]'s title.
+5. **The principal's**: add credits and finish the [#17] arm; [#15]'s title.
 
 ---
 
-## 8. Commands
+## 9. Commands
 
 ```bash
 # The demo dataset. Repeatable; replaces only the two demo tenants.
@@ -289,6 +367,11 @@ make seed
 # The security headers, against the running origin. Expects the up-all topology: under `make up`
 # it fails on 'unsafe-eval', and that failure is the check working (§4.3).
 make check-headers
+
+# The performance dataset, then the three NFR checks against it. Rebuild it if it is stale — every
+# range in it is anchored to the day it was generated.
+backend/tools/perf-dataset/generate.sh
+cd backend && JAVA_HOME=$(/usr/libexec/java_home -v 21) ./gradlew test -PincludeTags=perf --rerun
 
 # The seed's own tests, without the rest of the suite.
 cd backend && JAVA_HOME=$(/usr/libexec/java_home -v 21) ./gradlew test --tests '*BlueprintCheckTest' --tests '*DemoSeedTest' --rerun
@@ -305,7 +388,7 @@ curl -s -o /dev/null -w '%{http_code}\n' -X POST https://api.openai.com/v1/chat/
 
 ---
 
-## 9. Confidence
+## 10. Confidence
 
 **High — the seed.** Written, run four times, and read back out of the database twice: once by hand
 in `psql` and once by `DemoSeedTest` in SQL. Both tenants were then opened in a browser — dashboard,
@@ -322,5 +405,13 @@ accumulates and a stale error is indistinguishable from a current one.
 **Medium — that the strict policy is complete.** `default-src 'self'` is safe because the frontend
 loads nothing external — no `next/font`, no `<link>` to a CDN, no absolute URL in `src/` that is not
 a comment. That was established by grep, not by watching a production build run under it (**G21**).
+
+**High — §5's dataset.** Built four times from scratch, and the ceiling assertion that guards it was
+run against the old clone, where it named all three missing constraints, before that clone was
+deleted.
+
+**Medium — the NFR numbers.** They are real and repeatable on this machine and they pass with room
+to spare, but they are one laptop, warm, with no HTTP layer and no concurrency. What they establish
+is that no query is pathological at 31 600 rows; they are not a statement about a server under load.
 
 **None — [#17]'s verdict.** Unchanged. No model was called.
