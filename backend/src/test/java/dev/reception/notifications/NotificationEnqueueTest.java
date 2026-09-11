@@ -8,6 +8,7 @@ import dev.reception.support.DatabaseCleaner;
 import dev.reception.support.IntegrationTest;
 import java.time.Clock;
 import java.time.OffsetDateTime;
+import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -95,10 +96,10 @@ class NotificationEnqueueTest extends IntegrationTest {
     @Test
     @DisplayName("an appointment less than 24 hours away gets a confirmation and no reminder")
     void no_reminder_is_scheduled_when_it_would_already_be_due() {
-        // The fixture's business opens at 09:00 and the suite runs at an arbitrary hour, so the
-        // appointment is placed on the next open day rather than today: what is being tested is the
-        // lead-time branch, not whether the clock happens to be inside opening hours right now.
-        OffsetDateTime soon = nextOpeningWithinADay();
+        // The fixture opens itself around a time a few hours out, because what is being tested is
+        // the lead-time branch and not whether the suite happens to be running inside the business's
+        // opening hours — or on one of the days it opens at all.
+        OffsetDateTime soon = aStartInsideTwentyFourHours();
         String id = bookAt(soon);
 
         assertThat(typesFor(id)).containsExactly("BOOKING_CONFIRMATION");
@@ -297,29 +298,53 @@ class NotificationEnqueueTest extends IntegrationTest {
     }
 
     /**
-     * The first slot on the fixture's calendar that is inside twenty-four hours from now.
+     * A bookable start inside twenty-four hours — <strong>made, not found</strong>.
      *
-     * <p>The business opens 09:00–17:00 Monday to Friday, and the suite runs at whatever hour CI
-     * starts it. Searching forward is what keeps this test from passing only between 09:00 and 16:00
-     * on a weekday.
+     * <p>This used to search the fixture's calendar forward an hour at a time, which cannot reach
+     * Monday from a Friday afternoon: the business opens 09:00–17:00 Monday to Friday, so from
+     * 15:00 on a Friday there is no bookable start in the next twenty-four hours at all, and the
+     * test threw. Red every Friday after 15:00 and all weekend, for a branch that has nothing to do
+     * with which day it is. The old version fixed the same failure one axis short — it survived any
+     * hour of the day, and then met the week.
+     *
+     * <p>So the hours are moved to the appointment instead of the appointment to the hours: pick a
+     * time two to three hours out and open the business, and the employee, across it. Replacing the
+     * week leaves this business open on one day only, which is exactly as much calendar as the one
+     * booking in this test needs.
+     *
+     * <p>The step past 22:00 is the one edge: an opening interval cannot span midnight, so a
+     * candidate late enough for a sixty-minute appointment to cross it is moved to the next
+     * morning — still comfortably inside the day this test is about.
      */
-    private OffsetDateTime nextOpeningWithinADay() {
+    private OffsetDateTime aStartInsideTwentyFourHours() {
         OffsetDateTime now = OffsetDateTime.now(clock.withZone(BookingScenario.TBILISI));
-        for (int hoursAhead = 2; hoursAhead <= 24; hoursAhead++) {
-            OffsetDateTime candidate =
-                    now.plusHours(hoursAhead).withMinute(0).withSecond(0).withNano(0);
-            ResponseEntity<String> probe = aria.book(
-                    candidate, aria.employeeId, "Probe", BookingScenario.CUSTOMER_PHONE, CUSTOMER_EMAIL);
-            if (probe.getStatusCode().is2xxSuccessful()) {
-                String id = JsonPath.read(probe.getBody(), "$.appointment.id");
-                aria.owner.post("/appointments/" + id + "/cancel", Map.of("reason", "probe"));
-                jdbc.update("delete from notifications where appointment_id = ?::uuid", id);
-                jdbc.update("delete from appointment_events where appointment_id = ?::uuid", id);
-                jdbc.update("delete from appointments where id = ?::uuid", id);
-                return candidate;
-            }
+        // Truncate first, then add: three whole hours from the top of this hour is never less than
+        // the two the minimum lead time needs, whatever the minute hand says.
+        OffsetDateTime candidate = now.truncatedTo(ChronoUnit.HOURS).plusHours(3);
+        if (candidate.getHour() >= 22) {
+            candidate = candidate.plusDays(1).withHour(9);
         }
-        throw new IllegalStateException("No bookable slot inside 24 hours; the fixture's hours changed");
+        openAcross(candidate);
+        return candidate;
+    }
+
+    /** The business and the one employee, open for the two hours around a candidate start. */
+    private void openAcross(OffsetDateTime candidate) {
+        int dayOfWeek = candidate.getDayOfWeek().getValue();
+        String opensAt = "%02d:00".formatted(candidate.getHour());
+        String closesAt = "%02d:00".formatted(candidate.getHour() + 2);
+
+        ResponseEntity<String> hours = aria.owner.put(
+                "/business/hours",
+                Map.of("hours", List.of(Map.of("dayOfWeek", dayOfWeek, "opensAt", opensAt, "closesAt", closesAt))));
+        ResponseEntity<String> schedule = aria.owner.put(
+                "/employees/" + aria.employeeId + "/schedule",
+                Map.of("schedule", List.of(Map.of("dayOfWeek", dayOfWeek, "startsAt", opensAt, "endsAt", closesAt))));
+
+        if (!hours.getStatusCode().is2xxSuccessful() || !schedule.getStatusCode().is2xxSuccessful()) {
+            throw new IllegalStateException(
+                    "Fixture could not open the business: " + hours.getBody() + " / " + schedule.getBody());
+        }
     }
 
     private List<String> typesFor(String appointmentId) {

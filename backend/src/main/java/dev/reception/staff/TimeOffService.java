@@ -55,6 +55,19 @@ public class TimeOffService {
     }
 
     /**
+     * Every Employee's absences across a calendar range (phase 10).
+     *
+     * <p>No employee is named and none is checked, because there is no id here to get wrong — the
+     * tenant filter is the whole of the scoping, exactly as it is for the appointments the same
+     * view draws beside these.
+     */
+    @Transactional(readOnly = true)
+    public List<EmployeeTimeOff> inRange(Instant from, Instant to) {
+        return timeOff.findByBusinessIdAndStartsAtLessThanAndEndsAtGreaterThanOrderByStartsAtAsc(
+                tenant.businessId(), to, from);
+    }
+
+    /**
      * Creates an absence from an inclusive range of business-local dates.
      *
      * <p>{@code endDate} is inclusive because "off from the 24th to the 26th" includes the 26th;

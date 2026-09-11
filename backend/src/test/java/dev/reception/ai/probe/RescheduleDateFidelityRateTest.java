@@ -139,6 +139,7 @@ class RescheduleDateFidelityRateTest extends IntegrationTest {
         int correct = 0;
         int otherReadingCount = 0;
         int searchedTheNamedDate = 0;
+        int windowCoveredTheNamedDate = 0;
         Map<String, Integer> landedOn = new LinkedHashMap<>();
         List<Integer> wrongTrials = new ArrayList<>();
 
@@ -196,6 +197,36 @@ class RescheduleDateFidelityRateTest extends IntegrationTest {
                 searchedTheNamedDate++;
             }
 
+            // WHETHER ANY SEARCH WINDOW CONTAINED THE TARGET, which is a different question from
+            // whether date_from was aimed at it, and the smoke run is why it is counted. One trial
+            // searched [2026-09-18, 2026-09-21]: date_from is not the target, the window contains
+            // it, and the write landed correctly. So date_from-exactness is a LOSSY PROXY for the
+            // mechanism — a fix could work by widening the window instead of moving date_from, and
+            // on the exact-match count alone that fix would look like no improvement at all.
+            List<Map<String, Object>> windows = jdbc.queryForList(
+                    "select tool_arguments->>'date_from' as f, tool_arguments->>'date_to' as t "
+                            + "from ai_messages where role = 'TOOL' and tool_name = 'find_available_slots' "
+                            + "and conversation_id = ? and tool_result->>'error' is null order by created_at",
+                    started.conversationId());
+            boolean covered = false;
+            for (Map<String, Object> window : windows) {
+                try {
+                    java.time.LocalDate f = java.time.LocalDate.parse((String) window.get("f"));
+                    java.time.LocalDate t =
+                            window.get("t") == null ? f : java.time.LocalDate.parse((String) window.get("t"));
+                    if (!f.isAfter(aria.monday) && !t.isBefore(aria.monday)) {
+                        covered = true;
+                        break;
+                    }
+                } catch (RuntimeException malformed) {
+                    // A succeeded call whose dates will not parse is not a window. Swallowed
+                    // deliberately: this is instrumentation, and it must never fail a trial.
+                }
+            }
+            if (covered) {
+                windowCoveredTheNamedDate++;
+            }
+
             if (bookedAt.equals(landed)) {
                 // Never moved. Not a wrong write, and not evidence either way about the date.
                 System.out.printf("%3d  NO WRITE searched=%s%n", trial, searches);
@@ -222,6 +253,7 @@ class RescheduleDateFidelityRateTest extends IntegrationTest {
                 "%n%d of %d writes landed on the named date (%d trials, %d never wrote)%n"
                         + "of those writes, %d took the other reading of the phrase (%s)%n"
                         + "the search included the named date in %d of %d trials%n"
+                        + "a search WINDOW covered the named date in %d of %d trials%n"
                         + "landed on: %s%n"
                         + "wrong at trials: %s%n"
                         + "conditions: appointment %s, wanted %s, day named as \"%s\", style %s%n",
@@ -232,6 +264,8 @@ class RescheduleDateFidelityRateTest extends IntegrationTest {
                 otherReadingCount,
                 otherReading,
                 searchedTheNamedDate,
+                CONVERSATIONS,
+                windowCoveredTheNamedDate,
                 CONVERSATIONS,
                 landedOn,
                 wrongTrials,

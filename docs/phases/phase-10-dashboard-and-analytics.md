@@ -89,77 +89,86 @@ fix is an index in this phase, not a new table.
 ## Testing
 
 ### Unit
-- [ ] Revenue sums only `COMPLETED`, using snapshotted prices
-- [ ] Rates are `null` when the denominator is zero
-- [ ] Period boundaries (today / this week / this month) computed in the business timezone
-- [ ] Top services ordered correctly, ties broken deterministically
+- [x] Revenue sums only `COMPLETED`, using snapshotted prices
+- [x] Rates are `null` when the denominator is zero
+- [x] Period boundaries (today / this week / this month) computed in the business timezone
+- [x] Top services ordered correctly, ties broken deterministically
 
 ### Integration
-- [ ] Summary counts are correct for a seeded range
-- [ ] Changing a service price afterwards does not change historical revenue
-- [ ] An empty range returns zeroes and `null` rates, not an error
-- [ ] Range over 366 days → `422`
-- [ ] A business in `Pacific/Auckland` gets different daily boundaries than one in `America/New_York` for
-      the same instants
-- [ ] The calendar range query returns everything the view needs in one call
-- [ ] Isolation probes for the analytics and calendar endpoints
+- [x] Summary counts are correct for a seeded range
+- [x] Changing a service price afterwards does not change historical revenue
+- [x] An empty range returns zeroes and `null` rates, not an error
+- [x] Range over 366 days → `422`
+- [x] A business in `Pacific/Auckland` gets different daily boundaries than one in `America/New_York` for
+      the same instants — **proven by moving one business rather than comparing two**: 16:00 in Tbilisi
+      is midnight the following day in Auckland, so the same instant changes date with no appointment
+      moving. Sharper than the two-business form, because a UTC-cut report answers identically twice
+- [x] The calendar range query returns everything the view needs in one call
+- [x] Isolation probes for the analytics and calendar endpoints
 
 ### Frontend
-- [ ] Appointment blocks are proportional to duration
-- [ ] Times render in the business timezone with the browser set to a different one
-- [ ] Every list has an empty state
-- [ ] Every mutation has loading and error states
-- [ ] Calendar and analytics are usable at 360 px
+- [x] Appointment blocks are proportional to duration — verified in a browser against 30, 60 and 150
+      minute bookings in one column, where the longest is five times the shortest
+- [x] Times render in the business timezone with the browser set to a different one — **proven against
+      its counterfactual**: a browser in `Asia/Tbilisi` (+04:00) drawing a UTC business's 09:00Z
+      appointment puts it at 09:00, not 13:00
+- [x] Every list has an empty state
+- [x] Every mutation has loading and error states — both **by inventory across every route** rather than
+      by driving each mutation by hand: `ResourceGate` supplies loading and error in one place, and the
+      per-route audit is in the phase-10 frontend handoff §4
+- [x] Calendar and analytics are usable at 360 px — and every other route with them, measured as
+      `scrollWidth === clientWidth` rather than eyeballed; it found one real defect
 
 ## Definition of Done
 
-- [ ] Day and week calendar views render appointments sized by real duration
-- [ ] AI-created appointments are visibly badged
-- [ ] Closures and time off are visible as non-bookable regions
-- [ ] Analytics reports counts, periods, revenue, rates and top services correctly
-- [ ] Revenue is immune to later price changes
-- [ ] Every screen in the product has empty, loading and error states
-- [ ] Every screen is usable at 360 px
-- [ ] All times everywhere display in the business timezone
+- [x] Day and week calendar views render appointments sized by real duration
+- [x] AI-created appointments are visibly badged
+- [x] Closures and time off are visible as non-bookable regions
+- [x] Analytics reports counts, periods, revenue, rates and top services correctly
+- [x] Revenue is immune to later price changes
+- [x] Every screen in the product has empty, loading and error states
+- [x] Every screen is usable at 360 px
+- [x] All times everywhere display in the business timezone — audited across every call site; the rule
+      is *enforced* by ESLint rather than remembered, and no site passes anything but a business zone
 
 ## Checklist
 
 ### Backend
-- [ ] `AnalyticsService` with aggregate SQL
-- [ ] `AnalyticsController`
-- [ ] Range validation with business-timezone boundaries
-- [ ] Calendar-range appointment query
-- [ ] Closure and time-off range endpoints
+- [x] `AnalyticsService` with aggregate SQL
+- [x] `AnalyticsController`
+- [x] Range validation with business-timezone boundaries
+- [x] Calendar-range appointment query
+- [x] Closure and time-off range endpoints
 - [ ] Indexes verified against a 10 000-appointment dataset
 
 ### Frontend — calendar
-- [ ] Day view with employee columns
-- [ ] Week view
-- [ ] Duration-proportional blocks
-- [ ] Current-time indicator
-- [ ] Detail drawer
-- [ ] Click-empty-region to create
-- [ ] Closure and time-off regions
-- [ ] AI source badge
+- [x] Day view with employee columns
+- [x] Week view
+- [x] Duration-proportional blocks
+- [x] Current-time indicator
+- [x] Detail drawer
+- [x] Click-empty-region to create — carrying the day and the person, deliberately not the minute
+- [x] Closure and time-off regions
+- [x] AI source badge
 
 ### Frontend — analytics
-- [ ] Range picker with sensible presets
-- [ ] Metric cards
-- [ ] Status breakdown
-- [ ] Top services table
-- [ ] Empty state for ranges with no data
+- [x] Range picker with sensible presets
+- [x] Metric cards
+- [x] Status breakdown
+- [x] Top services table
+- [x] Empty state for ranges with no data
 
 ### Frontend — home and polish
-- [ ] Dashboard home with today's appointments and quick stats
-- [ ] Onboarding checklist while incomplete
-- [ ] Empty-state sweep
-- [ ] Loading-state sweep
-- [ ] Error-state sweep
-- [ ] Confirmation dialogs on destructive actions
-- [ ] Responsive sweep at 360 px
-- [ ] Timezone-formatting audit across every screen
+- [x] Dashboard home with today's appointments and quick stats
+- [x] Onboarding checklist while incomplete — it stands down to the booking address once it is done
+- [x] Empty-state sweep — by inventory, see the handoff §4
+- [x] Loading-state sweep — `ResourceGate` is the single implementation; every async region goes through it
+- [x] Error-state sweep — likewise, and it renders the server's own message rather than inventing one
+- [x] Confirmation dialogs on destructive actions — by inventory: every destructive call site has one
+- [x] Responsive sweep at 360 px
+- [x] Timezone-formatting audit across every screen
 
 ### Testing
-- [ ] All unit tests above
-- [ ] All integration tests above
-- [ ] Isolation probes for new endpoints
+- [x] All unit tests above
+- [x] All integration tests above
+- [x] Isolation probes for new endpoints

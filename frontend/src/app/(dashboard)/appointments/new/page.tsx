@@ -1,8 +1,8 @@
 'use client';
 
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
-import { useState } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
+import { Suspense, useState } from 'react';
 import { SlotPicker } from '@/components/slot-picker';
 import {
   Button,
@@ -13,6 +13,7 @@ import {
   Input,
   ResourceGate,
   Select,
+  Spinner,
   Textarea,
   useToast,
 } from '@/components/ui';
@@ -23,7 +24,7 @@ import { useSession } from '@/lib/auth';
 import { formatDuration, type ServiceDetail, type ServiceList } from '@/lib/catalog';
 import { availabilityPath, isStaleSlot, type AvailableSlot } from '@/lib/scheduling';
 import type { EmployeeList } from '@/lib/staff';
-import { formatMoney, formatTime, toBusinessDate, type Timezone } from '@/lib/time';
+import { formatMoney, formatTime, toBusinessDate, type IsoDate, type Timezone } from '@/lib/time';
 
 interface Selection {
   startsAt: string;
@@ -47,11 +48,45 @@ interface Selection {
  * own would be a second opinion about a question already answered.
  */
 export default function NewAppointmentPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="flex justify-center py-16" aria-busy="true">
+          <Spinner className="text-ink-muted size-6" />
+          <span className="sr-only">Loading</span>
+        </div>
+      }
+    >
+      <NewAppointment />
+    </Suspense>
+  );
+}
+
+/**
+ * Split out because `useSearchParams` makes a statically rendered page fail `next build` unless a
+ * Suspense boundary sits above it — the same requirement `GuestGuard` carries, kept beside the
+ * component that creates it rather than in a layout.
+ */
+function NewAppointment() {
   const router = useRouter();
   const toast = useToast();
   const { session } = useSession();
   const services = useResource<ServiceList>('/services');
   const employees = useResource<EmployeeList>('/employees');
+
+  /**
+   * What the calendar's empty-space click carries: a day, and sometimes a person.
+   *
+   * **No time**, deliberately. Which times exist is the availability engine's answer, not a grid's
+   * — see the calendar screen's `book`. Both are hints for the pickers below and neither is
+   * trusted: the day is a value in a date field the owner can change, and the person is resolved
+   * against the chosen service's eligible list on every render, so a link naming somebody who
+   * cannot perform the default service falls back to "anyone who can" rather than offering a
+   * booking the server would refuse.
+   */
+  const params = useSearchParams();
+  const prefilledDate = params.get('date');
+  const prefilledEmployeeId = params.get('employeeId');
 
   if (!session) return null;
 
@@ -85,6 +120,8 @@ export default function NewAppointmentPage() {
                   services={catalogue.services}
                   employees={staff}
                   timezone={session.business.timezone}
+                  {...(prefilledDate ? { initialDate: prefilledDate } : {})}
+                  {...(prefilledEmployeeId ? { initialEmployeeId: prefilledEmployeeId } : {})}
                   onBooked={(id, name) => {
                     toast(`Booked for ${name}.`, 'success');
                     router.push(`/appointments/${id}`);
@@ -104,18 +141,24 @@ function BookingFlow({
   services,
   employees,
   timezone,
+  initialDate,
+  initialEmployeeId,
   onBooked,
   onFailed,
 }: {
   services: ServiceDetail[];
   employees: EmployeeList;
   timezone: Timezone;
+  /** From the calendar, when the owner clicked a day rather than coming here cold. */
+  initialDate?: IsoDate;
+  initialEmployeeId?: string;
   onBooked: (id: string, customerName: string) => void;
   onFailed: (message: string) => void;
 }) {
   const [serviceId, setServiceId] = useState('');
-  const [employeeId, setEmployeeId] = useState('');
-  const [date, setDate] = useState(() => toBusinessDate(new Date(), timezone));
+  const [employeeId, setEmployeeId] = useState(initialEmployeeId ?? '');
+  // Today in the business's zone when nothing was carried in — never the browser's (ADR-0003).
+  const [date, setDate] = useState(initialDate ?? (() => toBusinessDate(new Date(), timezone)));
   const [selection, setSelection] = useState<Selection | null>(null);
   const [refreshes, setRefreshes] = useState(0);
 
