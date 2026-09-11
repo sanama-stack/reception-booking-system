@@ -79,6 +79,88 @@ class ToolExecutionTest extends IntegrationTest {
 
     // ---------------------------------------------------------------- reads
 
+    /**
+     * <strong>resolve_date, the fourth candidate for #17.</strong> The model supplies the weekday it
+     * heard and how far out the Customer meant; the counting happens here. These assert the
+     * arithmetic against {@link java.time.temporal.TemporalAdjusters}, which is what the tool uses —
+     * so they are a guard against the contract changing, not an independent derivation of it. What
+     * they really pin is the <em>boundary</em>: that 0 means the coming one rather than today, and
+     * that each step is exactly seven days.
+     */
+    @Test
+    @DisplayName("resolve_date with weeks_ahead 0 is the next such weekday, never today")
+    void the_next_weekday_is_strictly_after_today() {
+        java.time.LocalDate today = java.time.LocalDate.now(clock.withZone(BookingScenario.TBILISI));
+
+        for (java.time.DayOfWeek day : java.time.DayOfWeek.values()) {
+            ObjectNode result = call("resolve_date", "{\"weekday\":\"" + day + "\",\"weeks_ahead\":0}");
+            java.time.LocalDate resolved = java.time.LocalDate.parse(result.path("date").asText());
+
+            assertThat(resolved).isAfter(today);
+            assertThat(resolved.getDayOfWeek()).isEqualTo(day);
+            // The reach is never more than a week, which is what "the next one" means and what a
+            // customer saying a bare weekday can be assuming.
+            assertThat(java.time.temporal.ChronoUnit.DAYS.between(today, resolved)).isBetween(1L, 7L);
+            assertThat(result.path("day_of_week").asText()).isEqualTo(day.name());
+        }
+    }
+
+    @Test
+    @DisplayName("each step of weeks_ahead is exactly seven days, and the weekday never drifts")
+    void weeks_ahead_steps_by_whole_weeks() {
+        java.time.LocalDate previous = null;
+        for (int weeks = 0; weeks <= 8; weeks++) {
+            ObjectNode result = call("resolve_date", "{\"weekday\":\"MONDAY\",\"weeks_ahead\":" + weeks + "}");
+            java.time.LocalDate resolved = java.time.LocalDate.parse(result.path("date").asText());
+
+            assertThat(resolved.getDayOfWeek()).isEqualTo(java.time.DayOfWeek.MONDAY);
+            if (previous != null) {
+                assertThat(java.time.temporal.ChronoUnit.DAYS.between(previous, resolved)).isEqualTo(7L);
+            }
+            previous = resolved;
+        }
+    }
+
+    /**
+     * The reach beyond the seven-day list is the whole point of the tool, so it is asserted rather
+     * than assumed: {@code weeks_ahead = 1} always lands outside the list the prompt carries, which
+     * is the range for which the model previously had nothing to look up.
+     */
+    @Test
+    @DisplayName("weeks_ahead of 1 always lands beyond the seven-day list the prompt carries")
+    void one_week_ahead_is_outside_the_list() {
+        java.time.LocalDate today = java.time.LocalDate.now(clock.withZone(BookingScenario.TBILISI));
+
+        for (java.time.DayOfWeek day : java.time.DayOfWeek.values()) {
+            ObjectNode result = call("resolve_date", "{\"weekday\":\"" + day + "\",\"weeks_ahead\":1}");
+            java.time.LocalDate resolved = java.time.LocalDate.parse(result.path("date").asText());
+
+            assertThat(java.time.temporal.ChronoUnit.DAYS.between(today, resolved)).isGreaterThan(7L);
+        }
+    }
+
+    @Test
+    @DisplayName("a weekday that is not a weekday is a validation refusal naming the argument")
+    void an_unknown_weekday_is_refused() {
+        ObjectNode result = call("resolve_date", "{\"weekday\":\"MONDY\",\"weeks_ahead\":0}");
+
+        assertThat(result.path("error").asText()).isEqualTo("VALIDATION_FAILED");
+        // ToolArguments puts the argument's name in the message rather than in `fields`, which only
+        // the domain's own validation populates. Asserting on `fields` here would have passed
+        // vacuously -- path() on an absent key returns a missing node, not a failure.
+        assertThat(result.path("message").asText()).startsWith("weekday must be one of");
+    }
+
+    @Test
+    @DisplayName("weeks_ahead past the cap is refused, and the message names the range")
+    void a_weeks_ahead_beyond_the_cap_is_refused() {
+        ObjectNode result = call("resolve_date", "{\"weekday\":\"MONDAY\",\"weeks_ahead\":52}");
+
+        assertThat(result.path("error").asText()).isEqualTo("VALIDATION_FAILED");
+        assertThat(result.path("message").asText()).isEqualTo("weeks_ahead must be between 0 and 8.");
+    }
+
+
     @Test
     @DisplayName("get_business_info returns the configured business, with today's date in its own timezone")
     void business_info_is_returned_for_a_valid_context() {

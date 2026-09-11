@@ -39,3 +39,7 @@ pnpm-debug.log*
 
 # Probe fixtures, written by ProbeFixtureDumpTest. Outputs, not sources.
 backend/tools/receptionist-probe/fixtures/
+
+# stats.py lives in the repo and is meant to be run; running it makes these.
+__pycache__/
+*.pyc
