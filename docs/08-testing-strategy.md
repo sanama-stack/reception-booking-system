@@ -201,8 +201,31 @@ GitHub Actions on every push and pull request:
 4. report:   JaCoCo coverage summary
 ```
 
-`@Tag("llm")` tests are excluded. The build fails on any test failure; coverage is reported but is not a
+**Three tags are excluded from that build, for three different reasons**, and the distinction matters
+because two of them look like a test that has been switched off:
+
+| Tag | Why it is out of CI |
+|---|---|
+| `llm` | Costs money and is non-deterministic. Run by hand before a release and after any change to the system prompt or a tool description — the two things a scripted model cannot evaluate, because it reads neither |
+| `probe` | **Not tests.** They assert nothing, they write files, and one holds fifty live conversations. Instruments, and `backend/tools/receptionist-probe/README.md` says which of them may be quoted as a rate |
+| `perf` | Real thresholds, and worth gating on — but they need a 31 600-row database that only `backend/tools/perf-dataset/generate.sh` builds. On a machine that has not built it they fail on the connection, which says nothing about the code |
+
+The build fails on any test failure; coverage is reported but is not a
 gate — a coverage threshold rewards testing getters, which is exactly the behaviour this strategy avoids.
+
+### The performance checks
+
+`NfrBenchmarkTest` runs the three NFRs of [01-prd.md](./01-prd.md) §5 **through the application
+services** rather than through `psql`, which removes the two things that made every earlier reading
+in this project hard to trust: the statement is Hibernate's own because Hibernate wrote it, and the
+parameters are bound because JDBC bound them — so the plan is not one PostgreSQL only produces for
+a hand-written literal (T30). The driver goes to a server-side prepared statement after five
+executions, which is why five runs are discarded before twenty are measured: those twenty are on the
+generic plan.
+
+It measures the operation, entity hydration included. It does not measure HTTP, JSON or a network
+hop, and its buffers are warm — `backend/tools/perf-dataset/README.md` carries the recipe for a cold
+reading and says exactly how cold it is.
 
 ## 11. Coverage expectations
 
