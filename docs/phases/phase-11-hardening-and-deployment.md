@@ -194,7 +194,7 @@ argument that it was right.
 - [ ] Full E2E flow green in CI against the scripted model
 - [ ] 360 px public-page run
 - [ ] Rate limits verified for every public endpoint
-- [ ] Security-header test
+- [x] Security-header test
 - [ ] Log redaction test
 - [ ] `prod` profile refuses default secrets
 - [ ] The three performance checks
@@ -238,7 +238,7 @@ argument that it was right.
 - [ ] Mailpit API assertions inside E2E
 - [ ] Mobile-viewport E2E run
 - [ ] Rate-limit tests for every public endpoint
-- [ ] Security-header test
+- [x] Security-header test
 - [ ] Log-redaction test
 - [ ] Vitest + Testing Library wired into the Frontend CI job
 - [ ] Timezone rendering test, proven against its counterfactual
@@ -246,17 +246,17 @@ argument that it was right.
 - [ ] 360 px width assertions replacing the hand-run sweep
 
 ### Seed
-- [ ] `make seed`, `local`-profile-guarded
-- [ ] Salon Aria with services, employees, schedules, time off, FAQs, appointments
-- [ ] Dato's Auto in a different timezone and currency, with a closure and a buffered long service
-- [ ] Past and future appointments in mixed statuses
-- [ ] Credentials printed and documented
+- [x] `make seed`, `local`-profile-guarded
+- [x] Salon Aria with services, employees, schedules, time off, FAQs, appointments
+- [x] Dato's Auto in a different timezone and currency, with a closure and a buffered long service
+- [x] Past and future appointments in mixed statuses
+- [x] Credentials printed and documented
 
 ### Security
 - [ ] Walk [06-security.md](../06-security.md) and verify each control
 - [ ] Redaction filter verified across appenders
 - [ ] `prod` default-secret refusal
-- [ ] Security headers in Caddy
+- [x] Security headers in Caddy
 - [ ] Full-history secret scan
 - [ ] Error-response leakage review
 - [ ] `ai_message` retention window, documented and enforced by a scheduled purge
@@ -277,8 +277,8 @@ argument that it was right.
 - [ ] G16 — at least one cold-cache reading
 
 ### Documentation
-- [ ] `README.md` with prerequisites, commands, URLs and credentials
-- [ ] Demo script
+- [x] `README.md` with prerequisites, commands, URLs and credentials
+- [x] Demo script
 - [ ] `.env.example` audited against the compose file
 - [ ] `docs/deployment.md`
 - [ ] Final consistency pass over `/docs` and `CONTEXT.md`
