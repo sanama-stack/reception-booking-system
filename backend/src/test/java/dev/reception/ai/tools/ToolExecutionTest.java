@@ -275,6 +275,31 @@ class ToolExecutionTest extends IntegrationTest {
         assertThat(context.authorized().contains(UUID.fromString(appointmentId))).isTrue();
     }
 
+    /**
+     * <strong>The ids, not just the names.</strong> {@code find_available_slots} requires a
+     * {@code service_id}, so a lookup that returned only {@code service_name} left the model to
+     * recover the id from {@code get_services} by matching on the name — over a catalog a Business
+     * may fill with "Colour" and "Colour (long)". A wrong match is a valid id for the wrong Service,
+     * which books the wrong duration and is indistinguishable downstream from a right one (#26).
+     */
+    @Test
+    @DisplayName("lookup_appointment returns the ids the next tool needs, beside the names the customer hears")
+    void a_lookup_returns_service_and_employee_ids() {
+        String appointmentId = aria.bookedAt(aria.at(aria.monday, 12, 0));
+
+        ObjectNode result = call(
+                "lookup_appointment",
+                args("confirmation_code", confirmationCodeOf(appointmentId), "phone", BookingScenario.CUSTOMER_PHONE));
+
+        assertThat(result.path("service_id").asText()).isEqualTo(aria.serviceId);
+        assertThat(result.path("employee_id").asText()).isEqualTo(aria.employeeId);
+
+        // The names stay. They are what the Receptionist says out loud; the ids are what it passes
+        // to the next tool, and neither substitutes for the other.
+        assertThat(result.path("service_name").asText()).isNotBlank();
+        assertThat(result.path("employee_name").asText()).isNotBlank();
+    }
+
     @Test
     @DisplayName("lookup_appointment with the right code and the wrong phone finds nothing")
     void a_wrong_phone_proves_nothing() {
