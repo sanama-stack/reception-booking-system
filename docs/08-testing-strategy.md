@@ -121,7 +121,8 @@ Three levels, only the third of which touches a network.
 
 ### Level 1 — tools, without any model
 
-Each of the eight tools is called directly with a `ToolContext`. No LLM involved.
+Each tool is called directly with a `ToolContext` — the eight, and the ninth that is under test. No LLM
+involved.
 
 - Correct arguments produce correct results
 - A `service_id` from another business → not found
