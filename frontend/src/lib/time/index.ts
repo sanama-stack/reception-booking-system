@@ -196,3 +196,25 @@ export function isValidTimezone(timezone: string): boolean {
 export function formatMoney(amount: string, currency: string): string {
   return `${amount} ${currency}`;
 }
+
+/**
+ * How many minutes past midnight an instant falls, **in the business timezone**.
+ *
+ * This is the calendar grid's whole geometry: a block's top edge and its height are both this
+ * number, and a block positioned from the browser's reading of the same instant sits in the wrong
+ * row for every owner whose laptop is not set to the business's zone.
+ *
+ * Read back through the formatter rather than from the digits of the ISO string. The server does
+ * send every calendar time already at the Business's offset, so slicing `"…T10:00:00+04:00"` would
+ * usually agree — but it would agree by relying on the producer, and the one endpoint that does
+ * not shift its instants (`HistoryEntry.payload`, which is UTC) is exactly where that habit would
+ * be wrong. There is one way to ask what o'clock something is here, and this is it.
+ */
+export function minutesOfDay(instant: IsoInstant | Date, timezone: Timezone): number {
+  const [hour, minute] = format(instant, timezone, {
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+  }).split(':');
+  return Number(hour) * 60 + Number(minute);
+}
