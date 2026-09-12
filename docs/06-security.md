@@ -168,6 +168,17 @@ Customer identifiers appear in logs only as `customer_id`. Log entries for AI tu
 latency, tool names and outcomes — not message content. A redaction filter is applied at the appender, so
 correctness does not depend on every call site remembering.
 
+Those AI entries were a specification and nothing else until phase 11: the orchestration loop carried no log
+statement about a model call at all, and the cost `CostTracker` computed for the daily cap was discarded
+after it was checked. `AiCallLoggingTest` now runs real turns through the loop and asserts both halves — the
+line carries the model, the latency, both token counts, the cost the cap was charged and each tool's name and
+outcome, as structured fields rather than prose; and the customer's own words appear in no line anywhere,
+proven against two plants that deliberately leak them. Tool *arguments* are never logged, because they are
+where a customer's name and number arrive.
+
+`RequestLoggingTest` covers the first sentence of this section the same way — real HTTP, and the MDC read off
+the events the application logged, for both the token's business and the slug's.
+
 **Both appenders, and checked at both.** `PiiValueMasker` holds the rules; the JSON appender applies it as
 the encoder's masking decorator and the console applies it through the `%m` / `%wEx` conversion rules.
 `AppenderRedactionTest` drives secrets through the encoder the real configuration builds and reads the

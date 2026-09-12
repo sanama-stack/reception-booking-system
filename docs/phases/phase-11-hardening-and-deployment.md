@@ -528,10 +528,19 @@ argument that it was right.
       §11, whose "the purge job itself is V1.1" this closes
 
 ### Observability
-- [ ] JSON logging with request id and `business_id`
-- [ ] LLM call metrics without content
-- [ ] Health endpoint covering database and mail
-- [ ] Slow-query logging in `local`
+- [x] JSON logging with request id and `business_id` — `RequestLoggingTest`, which drives real
+      HTTP and reads the MDC off the events the application logged. Both tenant filters covered:
+      the token's business and the slug's. Shown red five ways
+- [x] LLM call metrics without content — `AiCallLoggingTest`. The loop contained **no log
+      statement at all** about a model call before this; model, latency, tokens, cost and tool
+      outcomes now emit as structured fields, and every test asserts the customer's words reach no
+      line. Shown red five ways, two of them deliberate content leaks
+- [x] Health endpoint covering database and mail — `HealthEndpointTest`, now on both sides of
+      every check against real refused connections. Each failing case asserts the *other*
+      component is still `UP`. Shown red four ways
+- [x] Slow-query logging in `local` — `hibernate.log_slow_query: 100`, plus `SlowQueryLoggingTest`
+      proving Hibernate still emits on `org.hibernate.SQL_SLOW` and that the statement carries
+      placeholders, not bound values. Shown red three ways
 
 ### Performance
 - [x] Availability benchmark
