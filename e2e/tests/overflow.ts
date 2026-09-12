@@ -43,6 +43,10 @@ export async function measureOverflow(page: Page): Promise<Overflow> {
  *   is the easiest possible pass.
  * - **Nothing is still loading.** A screen measured mid-spinner is a screen whose widest element
  *   has not been drawn yet — the table, which is the thing most likely to be too wide.
+ *
+ * Returns what it measured, so the caller can put the numbers in the log. A sweep whose only output
+ * is a green tick cannot be told apart from a sweep that visited nothing — which is exactly the
+ * question its first CI run raised, at 3.9s for twenty-one routes.
  */
 export async function expectNoSidewaysScroll(
   page: Page,
@@ -53,7 +57,7 @@ export async function expectNoSidewaysScroll(
    * so the check still catches a bounce nobody intended.
    */
   lands = route,
-): Promise<void> {
+): Promise<Overflow> {
   await page.goto(route);
 
   await page.waitForURL((url) => new URL(url).pathname === lands, { timeout: 30_000 });
@@ -72,4 +76,6 @@ export async function expectNoSidewaysScroll(
     overflow.scrollWidth,
     `${route} is wider than the viewport (${overflow.scrollWidth} > ${overflow.clientWidth}). Widest: ${JSON.stringify(overflow.widest)}`,
   ).toBeLessThanOrEqual(overflow.clientWidth);
+
+  return overflow;
 }

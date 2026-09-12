@@ -52,6 +52,19 @@ const DASHBOARD_ROUTES: Array<{ route: string; lands?: string }> = [
 
 test('no screen scrolls sideways at 360 px', async ({ page }) => {
   /**
+   * Every route measured, with its numbers, printed at the end.
+   *
+   * **Its first CI run passed in 3.9 seconds** — for a registration and twenty-one page loads — and
+   * nothing in the log could say whether it had swept anything, because the `list` reporter prints
+   * the test and not its steps. A green tick is not evidence that a sweep swept. These lines are.
+   */
+  const measured: Array<{ route: string; scrollWidth: number; clientWidth: number }> = [];
+
+  function record(route: string, overflow: { scrollWidth: number; clientWidth: number }) {
+    measured.push({ route, scrollWidth: overflow.scrollWidth, clientWidth: overflow.clientWidth });
+  }
+
+  /**
    * The measurement, proven live before it is trusted.
    *
    * Every assertion below is an *absence* — nothing was too wide — and an absence is what a broken
@@ -84,14 +97,16 @@ test('no screen scrolls sideways at 360 px', async ({ page }) => {
   });
 
   for (const route of PUBLIC_ROUTES) {
-    await test.step(`signed out: ${route}`, () => expectNoSidewaysScroll(page, route));
+    await test.step(`signed out: ${route}`, async () =>
+      record(route, await expectNoSidewaysScroll(page, route)));
   }
 
   const tenant = freshTenant();
   const slug = await registerBusiness(page, tenant);
 
   for (const { route, lands } of DASHBOARD_ROUTES) {
-    await test.step(`signed in: ${route}`, () => expectNoSidewaysScroll(page, route, lands));
+    await test.step(`signed in: ${route}`, async () =>
+      record(route, await expectNoSidewaysScroll(page, route, lands)));
   }
 
   await test.step(`public booking page: /book/${slug}`, async () => {
@@ -105,5 +120,19 @@ test('no screen scrolls sideways at 360 px', async ({ page }) => {
       overflow.scrollWidth,
       `the booking page is wider than the viewport. Widest: ${JSON.stringify(overflow.widest)}`,
     ).toBeLessThanOrEqual(overflow.clientWidth);
+    record(`/book/${slug}`, overflow);
   });
+
+  // The count is asserted, not just printed. A loop that silently visited nothing would otherwise
+  // produce an empty table and a green tick.
+  const expected = PUBLIC_ROUTES.length + DASHBOARD_ROUTES.length + 1;
+  expect(measured.length, 'routes measured').toBe(expected);
+
+  // eslint-disable-next-line no-console -- this is the evidence the run leaves behind
+  console.log(
+    `\n360px sweep — ${measured.length} routes measured at ${measured[0]?.clientWidth}px:\n` +
+      measured
+        .map(({ route, scrollWidth, clientWidth }) => `  ${scrollWidth}/${clientWidth}  ${route}`)
+        .join('\n'),
+  );
 });
