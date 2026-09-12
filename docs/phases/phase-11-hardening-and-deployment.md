@@ -238,9 +238,15 @@ argument that it was right.
 
 ## Testing
 
-- [ ] Reflection-driven isolation suite over every tenant-scoped endpoint
-- [ ] Cross-tenant native-insert rejection
-- [ ] AI tool schemas contain no tenant parameter
+- [ ] Reflection-driven isolation suite over every tenant-scoped endpoint — **the owner-session
+      half is done**: every endpoint is classified, every id endpoint is probed, every read is
+      offered a foreign `businessId`. The seven `PUBLIC_SLUG` and five `PUBLIC_MANAGE_TOKEN`
+      endpoints are classified but not yet swept; `PublicIsolationTest` covers five cases of
+      the twelve by hand
+- [x] Cross-tenant native-insert rejection — `CrossTenantAssignmentTest`, with a same-tenant
+      control so the three refusals cannot be passing against an unwritable table
+- [x] AI tool schemas contain no tenant parameter — `ToolSchemaTest`, over every published schema
+      at any depth, in both spellings
 - [x] Full E2E flow green in CI against the fake provider (ADR-0011)
 - [x] 360 px public-page run
 - [ ] Rate limits verified for every public endpoint
@@ -257,7 +263,8 @@ argument that it was right.
 
 - [ ] `git clone && make up && make seed` produces a fully working, populated system
 - [ ] The demo script in the README runs end to end without deviation
-- [ ] Every tenant-scoped endpoint is probed by the isolation suite
+- [ ] Every tenant-scoped endpoint is probed by the isolation suite — not yet: the public
+      surface is classified but unswept (see the Testing checklist)
 - [x] The E2E flow passes in CI
 - [ ] The concurrency test passes repeatedly
 - [ ] All security items are implemented or explicitly listed as accepted risks
@@ -278,12 +285,15 @@ argument that it was right.
 ## Checklist
 
 ### Testing
-- [ ] Reflection-based endpoint discovery for the isolation suite
-- [ ] Isolation probe per endpoint asserting `404`
-- [ ] `business_id`-in-request rejection tests
+- [x] Reflection-based endpoint discovery for the isolation suite — `EndpointCoverageTest` over
+      `RequestMappingHandlerMapping`, failing in both directions
+- [x] Isolation probe per endpoint asserting `404` — `TenantIsolationSweepTest`, 27 probes, each
+      preceded by a control with the caller's own id
+- [x] `business_id`-in-request rejection tests — `SmuggledBusinessIdTest` for the runtime half,
+      `TenantRepositoryShapeTest` for the compile-time half
 - [ ] Public cross-tenant leakage tests
-- [ ] Native cross-tenant insert test
-- [ ] AI schema tenant-parameter assertion
+- [x] Native cross-tenant insert test — `CrossTenantAssignmentTest`
+- [x] AI schema tenant-parameter assertion — `ToolSchemaTest`
 - [x] Playwright E2E flow
 - [x] Mailpit API assertions inside E2E
 - [x] Mobile-viewport E2E run
