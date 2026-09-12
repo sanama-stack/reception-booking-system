@@ -150,6 +150,18 @@ deliberately.
 
 - Bean Validation on every DTO for shape, length and format; domain rules in the domain layer.
 - Every string field has a maximum length. Unbounded text is a denial-of-service vector.
+  `RequestFieldLengthTest` derives the request bodies from `RequestMappingHandlerMapping` and walks
+  nested records and collection elements, so a DTO is covered the moment a controller takes it. There
+  is no global request-size cap to fall back on — `max-http-form-post-size` does not apply to a JSON
+  body and nothing else sets one, so the per-field bound is the only bound.
+
+> **Added in phase 11, and it found three.** `PublicRequests.Authority` carried `manageToken`,
+> `confirmationCode` and `phone` as bare strings on the two **unauthenticated** customer-authority
+> endpoints, each with a bounded twin a few lines away: `Lookup` bounds the same code at 16 and the
+> same number at 30, and `StartSession` bounds the same token at 500. The record's comment explains
+> why none of them is `@NotBlank` — "exactly one of these" is not expressible as a field annotation —
+> and that argument is sound, is about *presence*, and quietly took the length bound with it. They
+> now carry their twins' maxima.
 - Phone numbers normalised to E.164 using the business's country; unparseable input is rejected at entry.
 - Timezone strings validated against the IANA database.
 - UUIDs parsed, never interpolated.

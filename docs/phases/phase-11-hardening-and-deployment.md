@@ -521,7 +521,18 @@ argument that it was right.
       authentication so the refusal is about the request's shape and not its credentials;
       `FormPostRejectionTest` derives all 36 writes from `RequestMappingHandlerMapping`. **Shown red
       four ways**, and the fourth is the control: a filter that refuses *every* content type passes
-      the main assertion and is caught only by sending the same endpoints JSON
+      the main assertion and is caught only by sending the same endpoints JSON. **§7 done 2026-09-13**, derived the
+      same way and it found three: `PublicRequests.Authority`'s `manageToken`, `confirmationCode`
+      and `phone` were bare strings on the two **unauthenticated** endpoints, each with a bounded
+      twin a few lines away (16, 30, 500). The record's own comment says why none is `@NotBlank` —
+      *"exactly one of these" is not a field annotation* — and that argument is about **presence**
+      and took the length bound with it. No global request-size cap exists to fall back on.
+      `RequestFieldLengthTest`, **shown red three ways**, and **two of the three were caught only
+      after the control was strengthened**: reading `@Size` off the `RecordComponent` (its `@Target`
+      has no `RECORD_COMPONENT`, so every field reads as unbounded — and read the other way round it
+      would have passed forever), and a walk that stops at nested records, which silently drops the
+      one record the class exists to catch. Naming a nested field in the bounded set is what closes
+      both
 - [x] Redaction filter verified across appenders — **2026-09-12.** Three tests already covered this
       ground and **none could catch the failure that matters**: deleting the `<jsonGeneratorDecorator>`
       from the appender that runs in production left `PiiValueMaskerTest`, `ConsoleRedactionTest` and
