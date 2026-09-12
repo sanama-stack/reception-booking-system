@@ -195,6 +195,13 @@ jobs:
       - name: Security headers
         run: make check-headers
 
+      # docs/06-security.md §12, against the merged compose configuration. It needs no containers
+      # and `make up-all` already depends on it, so this step is a second place it runs rather than
+      # its only one — but the job that proves the deployment topology is where a reader looks for
+      # it. G26: the claim it checks went ten phases described and unimplemented.
+      - name: Published bindings
+        run: make check-bindings
+
       # The E2E's model double (ADR-0011), checked on its own before anything is built on it.
       # It needs no containers, and it runs here rather than in the Frontend job because the
       # fake provider is compose infrastructure rather than application code. Its own README

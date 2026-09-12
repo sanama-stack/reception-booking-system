@@ -7,6 +7,37 @@
 # `make up` instead and runs both applications from the IDE.
 
 services:
+  # The host mappings this topology does not need, removed rather than left to be noticed.
+  #
+  # TWO DIFFERENT TAGS, and they are not interchangeable. Compose MERGES sequences by appending,
+  # so a plain `ports: []` in an overlay leaves the base file's mappings exactly where they were —
+  # which is the silent version of this file not working.
+  #
+  #   !reset    discards the key. Its payload is IGNORED, so `ports: !reset` followed by a list
+  #             publishes NOTHING — verified against `docker compose config`, not assumed.
+  #   !override replaces the key with what follows it, which is what "keep one of the two" needs.
+  #
+  # Both fail loudly on a Compose older than v2.24 rather than silently publishing the database,
+  # which is the right way round for this particular file to break.
+  postgres:
+    # Nothing on the host reaches the database here: the backend is a container and resolves
+    # `postgres:5432` on the compose network. This is what makes docs/06-security.md §12 true —
+    # the database port is published in the local IDE topology and in no other.
+    #
+    # `make migrate`, `make seed` and `make psql` are unaffected: the first two run against the
+    # base file alone, and psql goes through `docker compose exec`.
+    ports: !reset []
+
+  mailpit:
+    # SMTP goes for the same reason — only a backend on the host would dial it, and there is not
+    # one here. The UI stays, on loopback, because a developer reads it after `make up-all` and
+    # the E2E flow asserts every confirmation email against it (e2e/tests/support.ts).
+    #
+    # Mailpit CAPTURES mail and delivers none, so it is a laptop service in every topology this
+    # project has. docs/deployment.md §3 says a real host must replace it rather than expose it.
+    ports: !override
+      - "127.0.0.1:${MAILPIT_UI_PORT:-9083}:8025"
+
   backend:
     build:
       context: ./backend

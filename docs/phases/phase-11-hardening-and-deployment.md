@@ -469,7 +469,14 @@ argument that it was right.
 - [x] Credentials printed and documented
 
 ### Security
-- [ ] Walk [06-security.md](../06-security.md) and verify each control
+- [ ] Walk [06-security.md](../06-security.md) and verify each control — **§12 done 2026-09-12**,
+      and it is the shape to expect from the rest of this walk. Its claim that the database port is
+      exposed *"only in the `local` compose profile"* was implemented by **no file**; the principal's
+      call was that the file moves rather than the sentence. Both compose topologies now bind to
+      loopback, the deployed one publishes no database port at all, and `make check-bindings` holds
+      it there in CI and on both `up` targets — shown red three ways, including against the
+      `ports: []` that *looks* like it removes a mapping and, because Compose appends sequences,
+      does not
 - [ ] Redaction filter verified across appenders
 - [ ] `prod` default-secret refusal
 - [x] Security headers in Caddy

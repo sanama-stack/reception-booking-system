@@ -159,7 +159,22 @@ correctness does not depend on every call site remembering.
 - The application connects as a role with `DML` and no `DDL` rights outside migrations; Flyway uses a
   separate role.
 - No superuser in any application connection string.
-- The database port is exposed to the host only in the `local` compose profile.
+- **The database port is published only in the local IDE topology, and only to loopback.**
+  `docker-compose.yml` binds it `127.0.0.1:${POSTGRES_PORT}:5432` so the backend running in an IDE
+  can reach it; `docker-compose.apps.yml` removes the mapping outright, because a containerised
+  backend resolves `postgres:5432` on the compose network and nothing on the host needs it. Mailpit
+  is bound the same way — SMTP only in the IDE topology, the UI on loopback in all of them, because
+  the E2E flow asserts against it.
+- **`127.0.0.1` and not an unqualified mapping, because a host firewall does not cover the
+  difference.** Docker writes its own rules in the `DOCKER-USER` chain, consulted below `ufw`, so an
+  unqualified published port is reachable from the network while `ufw status` reads as though it is
+  not. Measured on 2026-09-12 with the two bindings side by side on one machine: unqualified, the
+  Mailpit UI answered `200` and Postgres accepted a connection on the host's LAN address; bound to
+  loopback, both refused.
+- **`make check-bindings` asserts this, and CI runs it.** Until 2026-09-12 the line above described
+  a conditionality **no file implemented** — the second instance of the shape §13 records about the
+  security headers, which were documented for ten phases before anything set them. The sentence was
+  not weakened to match the files; the files were changed and a gate now holds them there.
 - Backups are out of scope for MVP and stated as such rather than assumed.
 
 ## 13. Transport and browser

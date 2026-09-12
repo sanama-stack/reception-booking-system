@@ -22,8 +22,18 @@ services:
       - postgres-data:/var/lib/postgresql/data
       - ./infra/postgres/init.sql:/docker-entrypoint-initdb.d/00-init.sql:ro
     ports:
-      # Published so the backend can reach it from the host (docs/06-security.md §12 — local only).
-      - "${POSTGRES_PORT:-9085}:5432"
+      # LOOPBACK, and the prefix is the whole point of the line.
+      #
+      # Published at all only so the backend running in your IDE can reach it — which is this
+      # topology and no other: docker-compose.apps.yml removes this mapping outright, because a
+      # backend in a container reaches postgres at `postgres:5432` and nothing on the host needs
+      # the database. That is docs/06-security.md §12 being true rather than described.
+      #
+      # Bound to 127.0.0.1 because "0.0.0.0" is what Docker assumes when no host is given, and
+      # A HOST FIREWALL DOES NOT COVER IT: Docker writes its own rules in the DOCKER-USER chain,
+      # which is consulted below ufw. An unqualified mapping on a public host publishes the
+      # database to the internet while `ufw status` still reads as though it does not.
+      - "127.0.0.1:${POSTGRES_PORT:-9085}:5432"
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-reception} -d ${POSTGRES_DB:-reception}"]
       interval: 5s
@@ -37,8 +47,15 @@ services:
       MP_SMTP_AUTH_ACCEPT_ANY: "true"
       MP_SMTP_AUTH_ALLOW_INSECURE: "true"
     ports:
-      - "${MAILPIT_SMTP_PORT:-9084}:1025"
-      - "${MAILPIT_UI_PORT:-9083}:8025"
+      # Loopback, for the reason postgres carries above — and it matters more here, not less. The
+      # UI holds every email this system has ever sent, in full, with no authentication in front
+      # of it.
+      #
+      # SMTP is removed again by docker-compose.apps.yml: only a backend on the host sends through
+      # this port. The UI is kept in every topology, because a developer reads it and the E2E flow
+      # asserts against it (e2e/tests/support.ts).
+      - "127.0.0.1:${MAILPIT_SMTP_PORT:-9084}:1025"
+      - "127.0.0.1:${MAILPIT_UI_PORT:-9083}:8025"
     healthcheck:
       test: ["CMD", "/mailpit", "readyz"]
       interval: 5s
@@ -67,6 +84,9 @@ services:
       - caddy-data:/data
       - caddy-config:/config
     ports:
+      # NOT loopback, and deliberately unlike the two above: this is the origin. Every browser
+      # that reaches this system arrives here, and on a deployed host that has to include browsers
+      # that are not on the host.
       - "${APP_PORT:-9080}:8080"
 
 volumes:
