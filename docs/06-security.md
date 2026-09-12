@@ -133,7 +133,11 @@ Covered fully in [05-ai-architecture.md](./05-ai-architecture.md) §7. The secur
 - Secrets in MVP: database password, JWT signing secret, Manage Link HMAC secret, OpenAI API key, SMTP
   credentials.
 - Local defaults are obviously non-production values (`local-dev-only-…`), and the application **refuses to
-  start** in the `prod` profile if any secret still holds its local default.
+  start** in the `prod` profile while **`JWT_SECRET`, `MANAGE_LINK_SECRET` or `DB_PASSWORD`** still holds its
+  local default — blank, prefixed `local-dev-only-`, or (for the two signing secrets) under 32 characters.
+  `MAIL_PASSWORD` and `OPENAI_API_KEY` are **deliberately not checked**: an empty SMTP password is legitimate,
+  so the guard cannot tell "no auth needed" from "forgot it", and a placeholder OpenAI key is a working
+  application — the Receptionist degrades to the Classic Flow. `SecretsGuardTest` holds all of this.
 - Rotation: JWT and HMAC secrets are single values in MVP; a versioned-key scheme is a documented V1.1 item.
 
 ## 10. Logging and PII

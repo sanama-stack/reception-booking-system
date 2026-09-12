@@ -386,7 +386,9 @@ argument that it was right.
 - [ ] Rate limits verified for every public endpoint
 - [x] Security-header test
 - [ ] Log redaction test
-- [ ] `prod` profile refuses default secrets
+- [x] `prod` profile refuses default secrets — `SecretsGuardTest`, twelve tests, each starting a
+      real context rather than calling the guard, so the `@Profile("prod")` wiring is under test
+      too. Shown red six ways
 - [x] The three performance checks
 - [x] Frontend unit tests green in CI, including the timezone counterfactual — and the runner is
       UTC, so the counterfactual assertion is what proves `TZ` reached the worker
@@ -478,7 +480,14 @@ argument that it was right.
       `ports: []` that *looks* like it removes a mapping and, because Compose appends sequences,
       does not
 - [ ] Redaction filter verified across appenders
-- [ ] `prod` default-secret refusal
+- [x] `prod` default-secret refusal — **2026-09-12.** The guard was written in phase 01 and had
+      never been executed by anything: it is `@Profile("prod")`, and no test in the suite starts
+      that profile. `SecretsGuardTest` starts it, twelve tests, **shown red six ways** — including
+      against a local default in `application.yml` that loses its `local-dev-only-` prefix, which
+      is the one way the guard can stop protecting with every other test still green. The walk
+      also found the audit's correction had been applied to **one file of five**: `.env.example`
+      said three secrets, while §9 itself, the guard's own javadoc, `application-prod.yml` and
+      phase 01 all still said *any secret*. All four corrected
 - [x] Security headers in Caddy
 - [ ] Full-history secret scan
 - [ ] Error-response leakage review
