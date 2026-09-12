@@ -23,6 +23,14 @@ Not a compliance programme.
 - **Rotation with replay detection:** each refresh issues a new token and revokes the old. Presenting an
   already-used token revokes the entire `family_id` — the standard response to a stolen refresh token.
 - Both delivered as `httpOnly; SameSite=Lax; Path=/`, `Secure` outside the `local` profile.
+  `RegistrationTest` asserts the first three over real HTTP and **structurally cannot assert the
+  fourth**: the suite runs the `test` profile, where `secure` is `false` because the origin is plain
+  http, so every assertion about these cookies was made at the one setting where the attribute is
+  meant to be missing. `AuthCookieSecurityTest` reads the value that ships — `application-prod.yml`
+  resolved through Boot's own config loading rather than a regex over the file — and pins that a
+  profile with no file of its own gets `Secure` by omission. Note that *unset* is not that case:
+  `spring.profiles.default: local` means an empty profile list resolves to `local`, and therefore to
+  a plain cookie.
 - Login failures return one message for both "no such user" and "wrong password".
 - No account lockout in MVP (it is a denial-of-service vector against a known email); rate limiting on
   `/auth/login` by IP instead.

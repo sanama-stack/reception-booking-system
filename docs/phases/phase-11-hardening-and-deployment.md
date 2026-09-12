@@ -504,7 +504,15 @@ argument that it was right.
       looked complete against a healthy stack and leaked every token the moment the backend was
       down. `make check-access-log` holds both, shown red three ways — and **its own first control
       was defective**, satisfied by a stale `/api/health` line from a previous container because
-      `docker compose logs --tail` spans restarts. Both sentinels are now unique per run
+      `docker compose logs --tail` spans restarts. Both sentinels are now unique per run. **§2 done 2026-09-13**, and its
+      cookie sentence had the same gap one layer down: `RegistrationTest` asserts `httpOnly`,
+      `SameSite=Lax` and `Path=/` over real HTTP and cannot assert `Secure`, because the suite runs
+      the `test` profile where it is deliberately off. `AuthCookieSecurityTest`, seven tests,
+      **shown red three ways** — `application-prod.yml` set to `secure: false`, the `.secure(...)`
+      call deleted from the builder, and the `@Value` default flipped. The third is caught by one
+      test only, and writing it surfaced a wrong premise: *unset* does not reach the `@Value`
+      fallback, because `spring.profiles.default: local`. The assertion that fails safe is about a
+      profile with no file of its own, which is the next environment somebody adds
 - [x] Redaction filter verified across appenders — **2026-09-12.** Three tests already covered this
       ground and **none could catch the failure that matters**: deleting the `<jsonGeneratorDecorator>`
       from the appender that runs in production left `PiiValueMaskerTest`, `ConsoleRedactionTest` and
