@@ -12,8 +12,14 @@ concurrency:
 jobs:
   # Its own job, and a fast one: it needs a checkout and Python, no containers and no build. It runs
   # beside the others rather than gating them, because a renumbered section should not hold up a
-  # test suite — but it is a required check, because the alternative is the state phase 11 found
-  # twice, where a document described a control that no file implemented.
+  # test suite.
+  #
+  # IT IS NOT IN main's REQUIRED-CHECKS SET, which is Backend, Frontend, Compose smoke test and
+  # End-to-end. A red run here is visible on the pull request and does not block a merge. Said
+  # plainly because the first version of this comment claimed the opposite, and a comment asserting
+  # a control that is not configured is G26 written into the file that would have to enforce it —
+  # in the same session that filed G26. Making it required is a branch-protection change and a
+  # decision for the principal, not something this file can do.
   docs:
     name: Documentation consistency
     runs-on: ubuntu-latest
