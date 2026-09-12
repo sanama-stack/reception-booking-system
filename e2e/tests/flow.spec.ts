@@ -1,0 +1,181 @@
+import { test, expect } from '@playwright/test';
+import {
+  freshTenant,
+  registerBusiness,
+  signIn,
+  waitForMail,
+  manageLinkFrom,
+  RECEPTIONIST_CUSTOMER,
+} from './support';
+
+/**
+ * The single end-to-end flow — docs/08-testing-strategy.md §8.
+ *
+ * One test, not eight. Every step depends on the state the one before it left, and splitting them
+ * would either re-run the setup eight times or leave seven tests that cannot be run on their own
+ * anyway. `test.step` is what makes the output readable.
+ *
+ * The Receptionist leg runs against the fake provider (ADR-0011), so it is deterministic and calls
+ * no model. Everything else is the application exactly as it ships.
+ */
+test('a business is configured, booked twice, managed, cancelled and reported on', async ({
+  page,
+  request,
+}) => {
+  const tenant = freshTenant();
+  let slug = '';
+  let classicCode = '';
+  let receptionistCode = '';
+
+  await test.step('register an owner', async () => {
+    slug = await registerBusiness(page, tenant);
+    await expect(page.getByRole('heading', { name: tenant.businessName })).toBeVisible();
+  });
+
+  await test.step('add an employee and give them a working schedule', async () => {
+    await page.goto('/employees/new');
+    await page.getByLabel('Full name').fill(tenant.employeeName);
+    await page.getByRole('button', { name: 'Add employee' }).click();
+
+    // The detail page is where a schedule is set, and registration leaves every day closed.
+    await page.waitForURL(/\/employees\/[0-9a-f-]{36}$/i, { timeout: 30_000 });
+
+    // One day opened, then copied across — the control's own default interval is 09:00-17:00,
+    // which is also BusinessDefaults' opening hours, so nothing has to be typed.
+    await page.getByRole('button', { name: 'Add a working day' }).first().click();
+    await page.getByRole('button', { name: 'Copy to all days' }).first().click();
+    await page.getByRole('button', { name: 'Save working schedule' }).click();
+    await expect(page.getByText(/working schedule.*saved/i)).toBeVisible();
+  });
+
+  await test.step('add a service the employee can perform', async () => {
+    await page.goto('/services/new');
+    await page.getByLabel('Name').fill(tenant.serviceName);
+    await page.getByLabel('Length (minutes)').fill('30');
+    await page.getByLabel(/^Price/).fill('40');
+    // Assigned here rather than afterwards: a service nobody can perform cannot be booked, and the
+    // public page would show an empty grid instead of failing usefully.
+    await page.getByText(tenant.employeeName).click();
+    await page.getByRole('button', { name: 'Add service' }).click();
+    await page.waitForURL('**/services', { timeout: 30_000 });
+    await expect(page.getByText(tenant.serviceName)).toBeVisible();
+  });
+
+  await test.step('a stranger books through the Classic Flow', async () => {
+    // A fresh context: the owner's session must have nothing to do with this.
+    const publicPage = await page.context().browser()!.newContext();
+    const book = await publicPage.newPage();
+    await book.goto(`${test.info().project.use.baseURL}/book/${slug}`);
+
+    await book.getByRole('button', { name: new RegExp(tenant.serviceName) }).click();
+
+    // Two days out, for the same reason the fake provider searches from there: the nearest slot is
+    // inside the 24-hour Cancellation Window, and this booking is the one that gets cancelled
+    // through the Manage Link later (T44).
+    const day = book.getByRole('button', { name: /^(Mon|Tue|Wed|Thu|Fri)/ });
+    await expect(day.first()).toBeVisible({ timeout: 30_000 });
+    const dayCount = await day.count();
+    await day.nth(Math.min(2, dayCount - 1)).click();
+
+    const slot = book.getByRole('button', { name: /^\d{2}:\d{2}$/ });
+    await expect(slot.first()).toBeVisible({ timeout: 30_000 });
+    await slot.first().click();
+
+    await book.getByLabel('Full name').fill(tenant.customerName);
+    await book.getByLabel('Phone').fill(tenant.customerPhone);
+    await book.getByLabel('Email').fill(tenant.customerEmail);
+    await book.getByRole('button', { name: 'Confirm booking' }).click();
+
+    await expect(book.getByText('Booked')).toBeVisible({ timeout: 30_000 });
+    classicCode = (await book.getByText(/^[A-Z0-9]{6,10}$/).first().innerText()).trim();
+    expect(classicCode, 'the Classic Flow shows a Confirmation Code').not.toBe('');
+    await publicPage.close();
+  });
+
+  await test.step('a stranger books by talking to the Receptionist', async () => {
+    const chatContext = await page.context().browser()!.newContext();
+    const chat = await chatContext.newPage();
+    await chat.goto(`${test.info().project.use.baseURL}/book/${slug}`);
+
+    await chat
+      .getByLabel('Message the receptionist')
+      .fill(`Hi, I would like a ${tenant.serviceName} please.`);
+    await chat.getByRole('button', { name: 'Send' }).click();
+
+    // The fake provider needs three tool round trips before it answers, so this is slower than a
+    // form post and deliberately gets its own timeout.
+    await expect(chat.getByText('Booked')).toBeVisible({ timeout: 60_000 });
+    receptionistCode = (await chat.getByText(/^[A-Z0-9]{6,10}$/).first().innerText()).trim();
+    expect(receptionistCode, 'the Receptionist shows a Confirmation Code').not.toBe('');
+    expect(receptionistCode, 'the two bookings are different appointments').not.toBe(classicCode);
+    await chatContext.close();
+  });
+
+  await test.step('both confirmations arrive, and the Manage Link resolves', async () => {
+    const mail = await waitForMail(request, tenant.customerEmail);
+    expect(mail.Subject.toLowerCase()).toContain('confirm');
+
+    const link = await manageLinkFrom(request, mail.ID);
+    const manageContext = await page.context().browser()!.newContext();
+    const manage = await manageContext.newPage();
+    await manage.goto(link);
+
+    await expect(manage.getByText(tenant.serviceName)).toBeVisible({ timeout: 30_000 });
+    await expect(manage.getByText(classicCode)).toBeVisible();
+
+    await test.step('and the customer cancels with it', async () => {
+      await manage.getByRole('button', { name: 'Cancel appointment' }).click();
+      // The dialog's confirm carries the same words as the button that opened it, so this is
+      // scoped to the dialog rather than matching the page's first hit.
+      await manage
+        .getByRole('dialog')
+        .getByRole('button', { name: 'Cancel appointment' })
+        .click();
+      await expect(manage.getByText(/cancelled/i).first()).toBeVisible({ timeout: 30_000 });
+    });
+    await manageContext.close();
+  });
+
+  await test.step('the owner sees both bookings, one badged AI and one cancelled', async () => {
+    await signIn(page, tenant.email, tenant.password);
+
+    await page.goto('/appointments');
+    await expect(page.getByText(tenant.customerName)).toBeVisible({ timeout: 30_000 });
+    await expect(page.getByText(RECEPTIONIST_CUSTOMER)).toBeVisible();
+    await expect(page.getByText(/cancelled/i).first()).toBeVisible();
+
+    // The AI badge lives on the calendar, not on the list — see §4 of the handoff.
+    await page.goto('/calendar');
+    await expect(page.getByTitle('Booked by the AI receptionist').first()).toBeVisible({
+      timeout: 30_000,
+    });
+  });
+
+  await test.step('marking one completed moves analytics revenue', async () => {
+    await page.goto('/analytics');
+    const before = await revenue(page);
+
+    await page.goto('/appointments');
+    await page.getByText(RECEPTIONIST_CUSTOMER).click();
+    await page.waitForURL(/\/appointments\/[0-9a-f-]{36}$/i, { timeout: 30_000 });
+    await expect(page.getByText('Booked with the receptionist')).toBeVisible();
+
+    await page.getByRole('button', { name: 'Mark completed' }).click();
+    await page.getByRole('dialog').getByRole('button', { name: 'Mark completed' }).click();
+    await expect(page.getByText(/completed/i).first()).toBeVisible({ timeout: 30_000 });
+
+    await page.goto('/analytics');
+    await expect
+      .poll(async () => revenue(page), { timeout: 30_000 })
+      .toBeGreaterThan(before);
+  });
+});
+
+/** The Revenue tile's number, as a number. */
+async function revenue(page: import('@playwright/test').Page): Promise<number> {
+  const tile = page.getByText('Revenue', { exact: true }).locator('..');
+  await expect(tile).toBeVisible({ timeout: 30_000 });
+  const text = await tile.innerText();
+  const match = text.match(/([\d,]+\.\d{2})/);
+  return match ? Number(match[1].replace(/,/g, '')) : 0;
+}

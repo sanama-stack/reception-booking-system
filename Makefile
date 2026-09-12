@@ -7,9 +7,19 @@ COMPOSE := docker compose
 APPS := -f docker-compose.yml -f docker-compose.apps.yml
 # The same system with the provider replaced by a fake one, for the E2E flow (ADR-0011).
 E2E := $(APPS) -f docker-compose.e2e.yml
+# ...in its own compose project, on its own ports, with its own database volume. An E2E that shared
+# a database with your development work would register businesses and book appointments into it,
+# and `down -v` would then take your work with it. Named volumes are project-scoped, so the project
+# name is what buys the isolation; the ports only keep the two stacks from colliding on the host.
+# Internal ports (SERVER_PORT, FRONTEND_PORT) are deliberately NOT overridden — they are the ports
+# inside the network, and Caddy's upstreams are written to them.
+E2E_ENV := COMPOSE_PROJECT_NAME=reception-e2e \
+           APP_PORT=9180 MAILPIT_UI_PORT=9183 MAILPIT_SMTP_PORT=9184 POSTGRES_PORT=9185 \
+           APP_PUBLIC_URL=http://localhost:9180
 
 .DEFAULT_GOAL := help
-.PHONY: help up up-all up-e2e down logs test migrate seed rebuild ps psql check-ports \
+.PHONY: help up up-all up-e2e down down-e2e logs logs-e2e test e2e migrate seed rebuild ps psql \
+        check-ports \
         check-headers check-fake-provider
 
 help: ## Show this help
@@ -59,14 +69,20 @@ up-all: .env ## Start everything in containers, including both applications
 
 # Everything up-all starts, plus the fake provider, with the backend pointed at it. The
 # application images are the ones that ship; only app.ai.base-url differs.
-up-e2e: .env ## Start the E2E topology — everything, with a fake AI provider
-	$(COMPOSE) $(E2E) up -d --build
-	@app=$$(grep -E '^APP_PORT=' .env | cut -d= -f2); \
-	 echo ""; \
-	 echo "  App           http://localhost:$$app"; \
+up-e2e: .env ## Start the E2E topology — isolated project, own database, fake AI provider
+	$(E2E_ENV) $(COMPOSE) $(E2E) up -d --build
+	@echo ""; \
+	 echo "  App           http://localhost:9180   ← the E2E origin, not 9080"; \
+	 echo "  Mailpit       http://localhost:9183"; \
 	 echo "  AI provider   fake-provider:8090 (in-network; see ADR-0011)"; \
 	 echo ""; \
-	 echo "  Seed it before booking by chat:  make seed"
+	 echo "  Its own database. Your 'make up' stack and its data are untouched."
+
+down-e2e: ## Stop the E2E topology and delete its database
+	$(E2E_ENV) $(COMPOSE) $(E2E) down -v
+
+logs-e2e: ## Dump the E2E topology's container logs (what a CI failure needs)
+	$(E2E_ENV) $(COMPOSE) $(E2E) logs --no-color
 
 # The double's own check. It plants nothing, but it asserts the property that makes the double
 # usable — that it answers from the transcript rather than counting turns — and that property
@@ -74,8 +90,19 @@ up-e2e: .env ## Start the E2E topology — everything, with a fake AI provider
 check-fake-provider: ## Run the fake AI provider's self-test (no containers needed)
 	node infra/fake-provider/selftest.js
 
+# Expects `make up-e2e` to be running. It is deliberately not a dependency of this target: bringing
+# the stack up takes minutes and rebuilds images, and a test target that silently does that is a
+# test target nobody runs twice.
+e2e: ## Run the end-to-end flow against the E2E topology (needs `make up-e2e`)
+	@curl -fsS -o /dev/null --max-time 3 http://localhost:9180/api/health \
+	  || { echo "Nothing is answering on http://localhost:9180 — run 'make up-e2e' first."; exit 1; }
+# `--with-deps` is deliberately absent: it installs OS packages, which is a Linux runner's
+# problem and not something a developer's machine should be asked to do by `make`. CI
+# installs the browser in its own step.
+	cd e2e && pnpm install --frozen-lockfile && pnpm exec playwright install chromium && pnpm test
+
 down: ## Stop everything (keeps the database volume)
-	$(COMPOSE) $(E2E) down
+	$(COMPOSE) $(APPS) down
 
 rebuild: .env ## Rebuild the application images from scratch and restart
 	$(COMPOSE) $(APPS) build --no-cache
