@@ -10,7 +10,10 @@
 > a control no file implemented, and the call was that the file moves.** §9 is that — the compose
 > tightening, the measurement that made it more than a guess, and the gate that now holds it.
 >
-> **Five commits on `dev`, pushed. PR [#34] open.**
+> **§11 is the third piece: phase 11's last Documentation row, done as a target rather than as an
+> event — and what it found.**
+>
+> **Seven commits on `dev`. PR [#34] open.**
 
 [previous]: ./2026-09-12-the-audit-that-found-nothing-in-the-file.md
 
@@ -26,7 +29,7 @@
 | Frontend | **23 files, 80 tests** — was 22/76. One new file, four new tests |
 | Migrations | **`V10__ai_message_retention.sql`.** New ADR: none |
 | Issues | [#17] and [#15] open, untouched. **No model was called** |
-| Phase 11 | **46 boxes ticked, 26 open.** Three ticked here. *Walk 06-security.md* is still open but §12 of it is now done and gated (§9) |
+| Phase 11 | **47 boxes ticked, 25 open.** Four ticked here, and the **Documentation section is closed** — zero open rows. *Walk 06-security.md* is still open but §12 of it is done and gated (§9) |
 
 [#15]: https://github.com/sanama-stack/reception-booking-system/issues/15
 [#17]: https://github.com/sanama-stack/reception-booking-system/issues/17
@@ -176,7 +179,19 @@ address at the same moment. This is T64 again — the rate-limit probe that need
 client — in a different costume, and it will keep recurring: **an assertion that something is
 unreachable needs a control that is reachable.**
 
-**Carried T1–T68. New: T69–T76.**
+**T77 — a checker's own false positive looks exactly like a finding, and the tempting fix is to
+edit the corpus.** The heading regex required a period after the section number, so `### 5.5 X`
+was invisible and a valid reference was reported dangling. **Validate the matcher against known
+input before acting on what it says** — and note that a plant proving it *fires* says nothing about
+whether it *misfires*. Those are two different controls.
+
+**T78 — a gate over documentation will eventually be tripped by documentation about the gate.** The
+consistency tool's README failed the consistency tool, for a broken-link example and a deliberately
+dangling reference. The fix belongs in the checker, not in the prose: fenced blocks are stripped now.
+A gate that forces people to write worse documentation to keep it quiet is a gate that will be
+switched off.
+
+**Carried T1–T68. New: T69–T78.**
 
 ---
 
@@ -229,9 +244,8 @@ touched Java. It has now been touched. That stack's database has no `messages_pu
 
 1. **Push and open the PR.** Nothing else in this session is unfinished, and the two jobs a local
    run cannot stand in for are the compose smoke test and E2E.
-2. **The final `/docs` consistency pass**, which closes phase 11's Documentation section. **It is
-   no longer blocked**: the `06-security.md` §12 mismatch that needed a decision got one and is
-   built (§9). What remains is the pass itself, with G26's third instance (§6.2) as an input.
+2. ~~**The final `/docs` consistency pass.**~~ **Done (§10) — phase 11's Documentation section is
+   closed, zero open rows.**
 3. **The security block**: rate limits per public endpoint, log redaction, the `prod`
    default-secret refusal test, the full-history secret scan, error-response leakage.
 4. **Observability**, all four rows — and the health-endpoint row that [the previous
@@ -255,6 +269,16 @@ cd backend && JAVA_HOME=/Users/sanama/Library/Java/JavaVirtualMachines/jdk-21.0.
 ```bash
 # The frontend suite. About five seconds, no Docker, no network.
 cd frontend && pnpm test
+```
+
+```bash
+# The documentation's consistency. No containers, no build — a checkout and Python.
+make check-docs
+```
+
+```bash
+# The published bindings, all three topologies. Also no containers.
+make check-bindings
 ```
 
 ---
@@ -319,7 +343,72 @@ five-container topology still comes up"* is CI's Compose smoke test to prove, no
 
 ---
 
-## 10. Confidence
+## 10. The documentation consistency pass
+
+Phase 11's last Documentation row. **Most of the work is `docs/tools/consistency` rather than the
+edits**, because a pass run once is stale the next time somebody renumbers a section. `make
+check-docs`, four checks, its own CI job, no containers and no build.
+
+### 10.1 What the checks are, and what they refuse to do
+
+None reads prose, and **none checks a document against itself** — each compares one document against
+something capable of contradicting it.
+
+| Check | Population |
+|---|---|
+| Relative links resolve | 269 |
+| `<doc> §N` points at a section that exists | 265 |
+| `docs/adr/` matches the list in `docs/agents/domain.md` | 11 |
+| `db/migration/` matches the table in `03-data-model.md` | 10 |
+
+**The section check is the one that earns its place.** This repo cites sections *by number from
+code* — `application.yml`, `V7__ai.sql` and a dozen Java classes all carry
+`docs/06-security.md §N` — so renumbering a document invalidates references living in files its
+author never opens. Nothing else would find those.
+
+### 10.2 Every check prints its population, and zero is a failure
+
+Not a flourish. **An anchor-link check was written first and deleted.** It reported that every
+anchor link resolved. That was true, and meaningless: this corpus contains **zero** anchor links
+across ninety files, because it cross-references by `§N` instead. A check that has quietly lost its
+subject reports exactly what a passing check reports — so an empty population now fails.
+
+### 10.3 What the pass actually found
+
+Three things, and the first is the one that matters:
+
+- **`GET /calendar` was absent from [04-api-overview.md](../04-api-overview.md) entirely** — not in
+  §1's surface table, not in §5. Phase 10 shipped the endpoint and the document never learned about
+  it. Found by diffing the controllers' mappings against the document, which also surfaced
+  `/health` — genuinely outside all three surfaces, now named as such with a pointer to phase 01.
+- **[02-product-architecture.md](../02-product-architecture.md) §1 contradicted itself in one
+  paragraph**: *"only Caddy's is published"* followed immediately by Mailpit's published port, plus
+  a `9080`–`9085` published block for a topology that now publishes two ports. §9 made the first
+  half true and the rest wrong.
+- **[CONTEXT.md](../../CONTEXT.md) defined none of Conversation, Transcript, Business FAQ or
+  Outbox.** The design documents use those four about **220 times between them**, three back tables
+  that have existed since phase 06 or 07, and `CLAUDE.md` calls that file binding on class, table
+  and endpoint names. Established by diffing the schema's table list against the glossary's terms,
+  not by taste.
+
+### 10.4 Two false positives, both mine, both worth keeping
+
+**The first heading regex required a period after the number**, so `### 5.5 Configuration…` did not
+register and a valid reference into a phase-01 session doc was reported dangling. **The checker was
+wrong, not the corpus** — and I nearly edited a correct file to satisfy it. Validating a matcher
+against known input is not optional, and the plant that proves it fires is not the same as the
+control that proves it does not misfire.
+
+**The tool's own README then failed the tool**, twice: it documented a broken-link example and a
+deliberately-dangling section reference. That is the checker working, and the fix was in the
+checker — fenced code blocks are now stripped before either scan, because a document explaining
+link syntax must be able to show link syntax. Inline code spans are deliberately **not** stripped:
+most real references here backtick the filename and leave the number outside, and stripping those
+would shrink the population silently.
+
+---
+
+## 11. Confidence
 
 **High — that the purge deletes what is past the window and spares what is inside it.** Nine tests,
 each deletion paired with a survival, and three planted breakages that each went red naming the
@@ -350,6 +439,15 @@ containers on this machine, with the old binding answering on the same address a
 **Medium — that `make up` and `make up-all` still come up.** The base topology's images were
 started from this file during the measurement and were healthy; the five-container topology was
 not run here (§9.4). CI's Compose smoke test is what settles it.
+
+**High — that the documentation's links, section references and two inventories are consistent.**
+Four checks over populations of 269, 265, 11 and 10, each shown red against a plant, each failing
+if its population ever reaches zero.
+
+**Low — that the documentation is *correct*.** Nothing in §10 reads a sentence. `make check-docs`
+establishes that what a document points at exists, and says nothing about whether what it claims is
+true. **G26 is exactly that gap, it is open, and both instances of it so far were found by a person
+reading prose beside a file.**
 
 **None — the CI result.** Pushed, running at the time of writing. The handoff is deliberately not
 claiming a colour it has not seen.
