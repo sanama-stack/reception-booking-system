@@ -79,15 +79,18 @@ test('a business is configured, booked twice, managed, cancelled and reported on
 
     await book.getByRole('button', { name: new RegExp(tenant.serviceName) }).click();
 
-    // Two days out, for the same reason the fake provider searches from there: the nearest slot is
-    // inside the 24-hour Cancellation Window, and this booking is the one that gets cancelled
-    // through the Manage Link later (T44).
-    const day = book.getByRole('button', { name: /^(Mon|Tue|Wed|Thu|Fri)/ });
+    // The day strip sets an explicit aria-label — "<date>, N times" — so the accessible name is
+    // never the visible "Tue 9". Requiring a DIGIT before "times" is what separates a bookable day
+    // from one labelled "no times", which also ends in that word.
+    const day = book.getByRole('button', { name: /,\s\d+\stimes?$/ });
     await expect(day.first()).toBeVisible({ timeout: 30_000 });
-    const dayCount = await day.count();
-    await day.nth(Math.min(2, dayCount - 1)).click();
 
-    const slot = book.getByRole('button', { name: /^\d{2}:\d{2}$/ });
+    // The LAST bookable day in the fortnight, not the first. The soonest slot can be inside the
+    // 24-hour Cancellation Window, and this is the booking the flow later cancels through the
+    // Manage Link — the trap the demo script hit as T44.
+    await day.last().click();
+
+    const slot = book.getByRole('button', { name: /^\d{1,2}:\d{2}/ });
     await expect(slot.first()).toBeVisible({ timeout: 30_000 });
     await slot.first().click();
 
