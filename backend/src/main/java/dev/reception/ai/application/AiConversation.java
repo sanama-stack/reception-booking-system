@@ -74,6 +74,18 @@ public class AiConversation extends BaseEntity {
     @Column(name = "last_message_at", nullable = false)
     private Instant lastMessageAt;
 
+    /**
+     * When the retention purge deleted this conversation's messages, or null if it has not.
+     *
+     * <p>A fact rather than an inference. {@code messageCount} is not decremented by the purge, so
+     * "count above zero, transcript empty" does identify a purged conversation — and reads as a
+     * broken foreign key to anyone who meets it without knowing the purge exists. The screen that
+     * renders a transcript has to tell those two apart to say anything true, and it can only do
+     * that if the API can name the state.
+     */
+    @Column(name = "messages_purged_at")
+    private Instant messagesPurgedAt;
+
     protected AiConversation() {
         // JPA.
     }
@@ -160,5 +172,14 @@ public class AiConversation extends BaseEntity {
 
     public Instant lastMessageAt() {
         return lastMessageAt;
+    }
+
+    public Instant messagesPurgedAt() {
+        return messagesPurgedAt;
+    }
+
+    /** True once the retention purge has taken this conversation's transcript. */
+    public boolean messagesPurged() {
+        return messagesPurgedAt != null;
     }
 }
