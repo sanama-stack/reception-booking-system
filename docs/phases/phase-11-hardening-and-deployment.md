@@ -447,5 +447,11 @@ argument that it was right.
 - [x] `README.md` with prerequisites, commands, URLs and credentials
 - [x] Demo script
 - [ ] `.env.example` audited against the compose file
-- [ ] `docs/deployment.md`
+- [x] `docs/deployment.md` — the single-VPS-behind-Caddy-with-TLS path, **written and not walked**:
+      no host has run it, and the document says so at the top rather than reading as a report. It
+      names three files that cannot deploy as committed — the Caddyfile disables certificate
+      issuance and has no domain to request one for, `docker-compose.yml` publishes Postgres and
+      Mailpit on `0.0.0.0`, and Mailpit delivers no mail — and it records a measurement taken while
+      writing it: the per-IP rate limits key on the real client behind the proxy, shown by a
+      different real source getting its own bucket, which a forged `X-Forwarded-For` does not
 - [ ] Final consistency pass over `/docs` and `CONTEXT.md`
