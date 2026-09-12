@@ -5,12 +5,17 @@ SHELL := /bin/bash
 COMPOSE := docker compose
 # Layers the two applications back in as containers (deployment topology, and what CI smoke-tests).
 APPS := -f docker-compose.yml -f docker-compose.apps.yml
+# The same system with the provider replaced by a fake one, for the E2E flow (ADR-0011).
+E2E := $(APPS) -f docker-compose.e2e.yml
 
 .DEFAULT_GOAL := help
-.PHONY: help up up-all down logs test migrate seed rebuild ps psql check-ports check-headers
+.PHONY: help up up-all up-e2e down logs test migrate seed rebuild ps psql check-ports \
+        check-headers check-fake-provider
 
 help: ## Show this help
-	@grep -hE '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) \
+# [0-9] in the class, because without it a target with a digit in its name — up-e2e — is
+# silently absent from this list rather than listed wrongly.
+	@grep -hE '^[a-zA-Z0-9_-]+:.*?## ' $(MAKEFILE_LIST) \
 		| awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-14s\033[0m %s\n", $$1, $$2}'
 
 .env:
@@ -52,8 +57,25 @@ up-all: .env ## Start everything in containers, including both applications
 	 echo "  App      http://localhost:$$app"; \
 	 echo "  Mailpit  http://localhost:$$mail"
 
+# Everything up-all starts, plus the fake provider, with the backend pointed at it. The
+# application images are the ones that ship; only app.ai.base-url differs.
+up-e2e: .env ## Start the E2E topology — everything, with a fake AI provider
+	$(COMPOSE) $(E2E) up -d --build
+	@app=$$(grep -E '^APP_PORT=' .env | cut -d= -f2); \
+	 echo ""; \
+	 echo "  App           http://localhost:$$app"; \
+	 echo "  AI provider   fake-provider:8090 (in-network; see ADR-0011)"; \
+	 echo ""; \
+	 echo "  Seed it before booking by chat:  make seed"
+
+# The double's own check. It plants nothing, but it asserts the property that makes the double
+# usable — that it answers from the transcript rather than counting turns — and that property
+# has been shown to fail when the policy is replaced by a counter.
+check-fake-provider: ## Run the fake AI provider's self-test (no containers needed)
+	node infra/fake-provider/selftest.js
+
 down: ## Stop everything (keeps the database volume)
-	$(COMPOSE) $(APPS) down
+	$(COMPOSE) $(E2E) down
 
 rebuild: .env ## Rebuild the application images from scratch and restart
 	$(COMPOSE) $(APPS) build --no-cache

@@ -129,6 +129,14 @@ jobs:
       - name: Security headers
         run: make check-headers
 
+      # The E2E's model double (ADR-0011), checked on its own before anything is built on it.
+      # It needs no containers, and it runs here rather than in the Frontend job because the
+      # fake provider is compose infrastructure rather than application code. Its own README
+      # records that the transcript-reading property has been shown to fail when the policy is
+      # replaced by a turn counter.
+      - name: The fake AI provider answers from the transcript
+        run: make check-fake-provider
+
       - name: Container logs on failure
         if: failure()
         run: docker compose -f docker-compose.yml -f docker-compose.apps.yml logs --no-color

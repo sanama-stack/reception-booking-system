@@ -1,0 +1,50 @@
+# The E2E topology: the shipping system, with the provider replaced.
+#
+# ADR-0011. Layered on top of docker-compose.yml + docker-compose.apps.yml, so the application
+# images, Caddy, Postgres and Mailpit are exactly the ones the Compose smoke test and the deploy
+# path use. The only difference is which host `app.ai.base-url` resolves to.
+#
+#   docker compose -f docker-compose.yml -f docker-compose.apps.yml -f docker-compose.e2e.yml up -d
+#
+# or `make up-e2e`.
+
+services:
+  fake-provider:
+    image: node:22-alpine
+    # No build and no lockfile: server.js has no dependencies, so the stock image runs it directly.
+    # A Dockerfile here would be a second thing to rebuild every time the policy changes.
+    command: node /srv/server.js
+    working_dir: /srv
+    volumes:
+      - ./infra/fake-provider:/srv:ro
+    environment:
+      PORT: 8090
+    healthcheck:
+      # A POST, because the only route is a POST — a GET returns the 404 it should, which would
+      # make a GET-based healthcheck report a healthy container as unhealthy.
+      test:
+        [
+          "CMD",
+          "wget",
+          "-qO-",
+          "--post-data",
+          '{"messages":[]}',
+          "--header",
+          "Content-Type: application/json",
+          "http://localhost:8090/v1/chat/completions",
+        ]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 5s
+
+  backend:
+    environment:
+      OPENAI_BASE_URL: http://fake-provider:8090/v1
+      # Required, and not decoration. OpenAiChatModel.complete() throws before it opens a socket
+      # when no key is configured, and the Receptionist's answer to that is to degrade to the
+      # Classic Flow — so an E2E with a fake provider and no key would quietly test the wrong door.
+      OPENAI_API_KEY: e2e-fake-provider-key-not-a-secret
+    depends_on:
+      fake-provider:
+        condition: service_healthy

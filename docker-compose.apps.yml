@@ -28,6 +28,10 @@ services:
       MANAGE_LINK_SECRET: ${MANAGE_LINK_SECRET:?MANAGE_LINK_SECRET is required}
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
       OPENAI_MODEL: ${OPENAI_MODEL:-gpt-4o-mini}
+      # Passed through so the container can be pointed somewhere else — which is what
+      # docker-compose.e2e.yml does (ADR-0011). Until this line existed the variable was in
+      # .env.example and read by application.yml, but no container ever received it.
+      OPENAI_BASE_URL: ${OPENAI_BASE_URL:-https://api.openai.com/v1}
       # 9080, not 8080: this is the origin a Manage Link is written with, and 8080 is what
       # Caddy listens on *inside* the network — a port no customer's browser can reach.
       APP_PUBLIC_URL: ${APP_PUBLIC_URL:-http://localhost:9080}

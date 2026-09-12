@@ -41,7 +41,10 @@ if one appears later, read it instead of the root glossary alone.
 │   ├── 0005-database-outbox-instead-of-queue.md
 │   ├── 0006-employee-separated-from-user.md
 │   ├── 0007-booking-response-says-whether-a-confirmation-was-sent.md
-│   └── 0008-the-manage-page-says-whether-an-address-is-on-file.md
+│   ├── 0008-the-manage-page-says-whether-an-address-is-on-file.md
+│   ├── 0009-a-hand-written-rest-client-instead-of-an-sdk.md
+│   ├── 0010-revenue-reports-one-currency-and-names-the-remainder.md
+│   └── 0011-the-e2e-fake-provider-lives-behind-the-base-url.md
 ├── backend/
 └── frontend/
 ```

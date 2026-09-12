@@ -15,6 +15,12 @@
 > tree is clean, and CI is green — but `main` has not moved, and whether these seven commits go into
 > it now or wait for more of phase 11 is §8's opening item rather than something this session took.
 >
+> **Resolved 2026-09-12, by the principal: merge.** Opened as [#28] and merged as **`34c454e`**,
+> three checks green. `dev` was fast-forwarded, so both branches hold an identical tree. §8's item 0
+> is closed and the numbering below is otherwise unchanged — **the next step is item 1, G19.** The
+> merge included one commit this document does not describe, `3e2b913`, which is the commit that
+> finished this handoff.
+>
 > **The principal answered three questions at the top of the session** and this handoff is what
 > followed from them: implement CSP and HSTS rather than correct the document; start phase 11 with
 > the seed; park [#17]'s tool count as *"eight, plus a ninth under test"* rather than wait on an
@@ -22,7 +28,9 @@
 
 [#15]: https://github.com/sanama-stack/reception-booking-system/issues/15
 [#17]: https://github.com/sanama-stack/reception-booking-system/issues/17
+[#20]: https://github.com/sanama-stack/reception-booking-system/pull/20
 [#27]: https://github.com/sanama-stack/reception-booking-system/pull/27
+[#28]: https://github.com/sanama-stack/reception-booking-system/pull/28
 [previous]: ./2026-09-11-the-headers-that-existed-only-in-prose.md
 
 ---
@@ -31,8 +39,8 @@
 
 | | |
 |---|---|
-| `origin/main` | **`fb9717a`**, unchanged this session |
-| `origin/dev` = `dev` | **`2e18c48`** — **seven ahead of `main`**, nothing unpushed, working tree clean |
+| `origin/main` | **`fb9717a`**, unchanged this session. **`34c454e` as of 2026-09-12**, when the decision below was taken |
+| `origin/dev` = `dev` | **`2e18c48`** — **seven ahead of `main`**, nothing unpushed, working tree clean. **`34c454e` as of 2026-09-12**, identical to `main` |
 | CI | **green on `dev` twice**, most recently on `2e18c48`: Backend, Frontend and Compose smoke all pass. §6.1 has the one failure and why it was not a change of mine |
 | Backend | **860 tests, 0 failures, 0 errors, 0 skipped** — `--rerun`, counted after the `BUILD` line and not before it (T41). 6m 20s. Up from 844; the sixteen are the seed's own, eight of them without a database. `NfrBenchmarkTest`'s five are **not** in that number: they are tagged `perf` and excluded, and the full run was checked for the absence of their result file rather than trusted to skip them |
 | Frontend | untouched. No `pnpm build` ran locally; the dev server stayed up throughout (G9 unchanged). It ran green in CI |
@@ -41,7 +49,7 @@
 | Issues | [#17] and [#15] open, untouched. No model was called: the account is **still out of credits**, re-checked this session (`429 credit_balance_exhausted`) |
 | Perf fixture | `backend/tools/perf-dataset/` — committed, migrates rather than clones. The ad-hoc `reception_perf` is **dropped**, and the drop-and-rebuild cycle run end to end afterwards |
 | Phase 11 | **started. 18 boxes ticked, 53 open.** Seed, security headers and the three performance checks done |
-| **Open decision** | whether to open the pull request into `main` now or let more of phase 11 accumulate on `dev`. Not taken — see §8 |
+| ~~**Open decision**~~ | ~~whether to open the pull request into `main` now or let more of phase 11 accumulate on `dev`. Not taken — see §8~~. **Taken 2026-09-12: merge.** [#28], `34c454e` |
 
 ---
 
@@ -327,6 +335,11 @@ where `CSP_SCRIPT_EXTRA` is emptied. It asserts the header, not the page — see
 `dev` and `origin/dev` are identical at `2e18c48` and the working tree is clean. **`main` has not
 moved**: the pull request is the open decision in §8.
 
+**Superseded 2026-09-12.** `main` has moved: [#28] merged as `34c454e`, and CI is green on the merge
+commit — so the shipped CSP now has a fourth Compose smoke behind it, and the first on `main`. **G21
+is unchanged by that**, because every one of those runs is `curl`: none of them loads the page in a
+browser, which is the whole content of the gap.
+
 ---
 
 ## 7. Every open item
@@ -390,6 +403,26 @@ walked. The argument for waiting is that phase 11 has 53 boxes open and this pro
 pull request per phase since 08. **Not taken here.** Whoever takes it should note that the previous
 session already merged mid-phase-11 work ([#27]), so the per-phase rule is not as firm as the history
 first suggests.
+
+> **Taken 2026-09-12 — merge.** Opened as [#28] with eight commits (the seven above plus `3e2b913`,
+> this handoff's own last commit) and merged as **`34c454e`**, a merge commit, which is what every
+> pull request since [#20] has been and what phase 05 recorded as the thing that ends the squash
+> conflicts on a long-lived `dev`. `dev` was then fast-forwarded: both branches are `34c454e` and
+> `git diff origin/main origin/dev` is empty. That last step is the one earlier sessions skipped —
+> which is why this history contains two *"Merge main into dev to satisfy strict branch protection"*
+> commits that carry no work of their own.
+>
+> **The first `gh pr merge` was refused** — *"the base branch policy prohibits the merge"* — while
+> `mergeStateStatus` read `CLEAN`, protection required **zero** approving reviews, and all three
+> required checks had passed. The retry succeeded with nothing changed, so it was GitHub computing
+> mergeability asynchronously rather than a policy. Recorded because that message names a cause that
+> was not the cause, and the obvious response to it is `--admin`, which would have bypassed a
+> protection that was not blocking anything.
+>
+> **CI on the merge commit is green** — run `34689259786`, Backend, Frontend and Compose smoke test
+> all `success`, waited for rather than assumed from the pull request's own head. So `main` has now
+> been smoke-tested with the shipped CSP in the topology that ships, which is the fourth such run
+> and the first on `main`.
 
 1. **The E2E's model strategy (G19)** — a stub at `OPENAI_BASE_URL` keeps `OpenAiChatModel` on the
    path. Decide it before writing the flow. The seed is now in place, which was its prerequisite.

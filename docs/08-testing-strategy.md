@@ -174,7 +174,7 @@ One complete flow, because one honest E2E is worth ten brittle ones:
 1. Register an owner → configure hours, service, employee, schedule
 2. Open `/book/{slug}` in a fresh context
 3. Book through the **Classic Flow**; assert the confirmation card and code
-4. Book through the **Receptionist** (against the scripted model in CI); assert the confirmation card
+4. Book through the **Receptionist** (against the fake provider in CI — ADR-0011); assert the confirmation card
 5. Assert both emails in Mailpit's API, including a working Manage Link
 6. Follow the Manage Link and cancel
 7. Log back in as the owner; assert both appointments are listed, one badged `AI`, one now cancelled
@@ -197,7 +197,7 @@ GitHub Actions on every push and pull request:
 ```text
 1. backend:  ./gradlew build            (unit + integration, Testcontainers)
 2. frontend: pnpm lint && pnpm typecheck && pnpm build
-3. e2e:      docker compose up -d && pnpm playwright test   (scripted model)
+3. e2e:      docker compose up -d && pnpm playwright test   (fake provider)
 4. report:   JaCoCo coverage summary
 ```
 
