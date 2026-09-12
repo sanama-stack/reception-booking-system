@@ -2,18 +2,26 @@
 
 > **Purpose.** The isolation suite is built and green. §2 is what it is and why discovery alone
 > could not have produced it; §3 is the five plants it was tested with, **one of which failed to go
-> red and exposed a real weakness in my own probes**; §4 is the three traps; §5 is ten phase-11
-> boxes, two of them ticked on work that already existed and was read before being ticked.
+> red and exposed a real weakness in my own probes**; §4 is the traps; §5 is ten phase-11
+> boxes, two of them ticked on work that already existed and was read before being ticked. **§11 was
+> added after the push** and is the one to read first — the End-to-end job went red and the cause was
+> a step in the flow that asserted nothing.
 >
 > **Built no product code.** `backend/src/main` and `frontend/src` end **byte-for-byte** as they
 > started. Five commits, all of them `backend/src/test` and one documentation commit.
 >
 > **The suite found no defects.** Every planted leak was caught; nothing unplanted was. That is the
 > second session running in which the new test found nothing, and it is worth stating rather than
-> glossing — see §6.
+> glossing — see §6. **The push that followed did find one**, in the E2E flow rather than the
+> application: §11.
 >
 > **Nothing is pushed.** `dev` is **five ahead of `origin/dev`** by the principal's decision: PR
 > [#30] is open for the E2E flow and pushing would silently widen it. That choice is §8's first item.
+>
+> > **Resolved later the same day.** The principal chose to push and widen. `dev` is at `3d2b567`,
+> > PR [#30] carries **23 commits** and covers both halves, and **all four jobs are green on it** —
+> > but not on the first attempt. Pushing turned the End-to-end job red and **found a real defect in
+> > the flow**, described in §11. Read §11 before §10's confidence claims.
 
 [previous]: ./2026-09-12-every-failure-was-the-test.md
 [#30]: https://github.com/sanama-stack/reception-booking-system/pull/30
@@ -26,8 +34,8 @@
 |---|---|
 | `origin/main` | **`78ecb5d`**, unchanged |
 | `origin/dev` | **`0063265`** — unchanged this session |
-| `dev` | **`f9fd72d`**, five ahead of `origin/dev`, tree clean, **deliberately unpushed** |
-| PR [#30] | open, `dev` → `main`, **all four checks green**. Covers the E2E flow only |
+| `dev` = `origin/dev` | **`3d2b567`** — pushed the same day, plus one commit that is §11's fix |
+| PR [#30] | open, `dev` → `main`, **all four checks green** at `3d2b567`. Widened the same day to cover both halves — 23 commits (§11) |
 | Backend | **928 tests, 0 failures**, run twice in full. Was 915 mid-session, 860 inherited |
 | Frontend | not touched, not rebuilt |
 | Migrations | **none.** New ADR: none |
@@ -191,7 +199,7 @@ covered by `TenantRepositoryShapeTest`'s compile-time rule — no `..web..` DTO 
 
 ### 7.3 Traps
 
-Carried T1–T51. New: **T52**, **T53**, **T54** (§4).
+Carried T1–T51. New: **T52**, **T53**, **T54** (§4), and **T55** (§11.2).
 
 ### 7.4 Carried
 
@@ -203,10 +211,10 @@ a customer's name and number; **nothing deletes an `ai_message`**; rate-limit bu
 
 ## 8. Next steps, in order
 
-1. **Decide how these five commits land.** Pushing to `dev` widens PR [#30] from "the E2E flow" to
-   "the E2E flow and the isolation suite"; a separate branch keeps the two reviewable apart. Held
-   deliberately, not forgotten.
-2. **G23**, still. One settings change.
+1. ~~**Decide how these five commits land.**~~ **Taken the same day — push and widen.** PR [#30] is
+   23 commits and covers both halves; see §11 for what the push turned up.
+2. **G23**, still. One settings change — and §11 is the argument for it: the job that caught the
+   defect is the one that cannot block a merge.
 3. **The frontend test runner.** Named in the phase document, overlaps nothing here.
 4. `docs/deployment.md`.
 5. **G24**, if the compile-time argument is judged insufficient.
@@ -256,3 +264,52 @@ reason, and no machine checks a reason. They are listed together at the foot of 
 and are the first thing to re-read if a leak is ever found in something this suite passed.
 
 **None — [#17]'s verdict.** Unchanged. No model was called.
+
+---
+
+## 11. Added after the push — the E2E defect the isolation work turned up
+
+Pushing turned **End-to-end** red at `0063265` — **a commit that had already passed**. That is the
+shape of a flake, and it was not one.
+
+**The log was not enough to tell.** It said `Expected: 40, Received: 0` on analytics revenue, which
+reads as an analytics defect. The answer came out of the run's own Playwright artifact: the page
+snapshot showed the range holding exactly **one** appointment, the tile reading **`0.00 USD`**, and
+the appointment still **`CONFIRMED`**. The mark-completed click had never landed.
+
+It was not caught at the step that should have caught it, because that step asserted:
+
+```ts
+await expect(page.getByText(/completed/i).first()).toBeVisible({ timeout: 30_000 });
+```
+
+`/completed/i` matches the **"Mark completed" button**, which is on the page before the click and
+after a click that did nothing. The step passed on a no-op and the failure surfaced two assertions
+later, pointing at the wrong subsystem.
+
+**This is T49, recurring two sessions running, in code written by the session that wrote T49 down.**
+`.first()` resolves ambiguity but not wrongness. The trap was recorded and then not applied to the
+rest of the file.
+
+The fix (`3d2b567`) asserts two things the trigger cannot satisfy: the badge reads exactly
+`Completed`, and the action block — rendered only while the status is `CONFIRMED`
+(`appointment-actions.tsx`) — is gone. `revenue()` now returns `null` rather than `0` when the tile
+carries no figure, because returning `0` made "not rendered yet" and "no revenue" the same value and
+is why diagnosing this needed an artifact download rather than a log.
+
+### 11.1 What this costs the previous handoff
+
+[The previous handoff][previous] §10 claimed **high** confidence that the flow "asserts something",
+reasoning that a test asserting nothing would have gone green on the first attempt. One step did
+assert nothing and did go green. Both of its §10 claims now carry dated corrections.
+
+**Count the flow's green runs as fewer than they appear.** At least one included a step that did
+nothing, and `retries: 0` means no run has ever been repeated to check itself.
+
+### 11.2 The trap
+
+**T55 — a red CI job on a commit that already passed is not evidence of a flake.** It is evidence of
+*nondeterminism*, and a vacuous assertion is a common source: the step that should fail passes
+regardless, so whether the run goes red depends on whether a later step happens to notice. Reach for
+the artifact before the word "flaky" — the screenshot named the cause in one reading, and the log
+pointed at the wrong subsystem.

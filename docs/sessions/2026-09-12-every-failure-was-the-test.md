@@ -138,7 +138,9 @@ availability takes `from`/`to` rather than `dateFrom`/`dateTo`, and the employee
 
 ## 4. Three traps
 
-**T49 — an ambiguous Playwright locator does not fail slowly, it throws immediately.** A strict-mode
+**T49 — an ambiguous Playwright locator does not fail slowly, it throws immediately.** *(Recurred
+2026-09-12 in the mark-completed step, which this trap's own rule would have caught — see §10.
+Writing a trap down does not apply it to the code already written.)* A strict-mode
 violation is not retried, so the `toBeVisible` timeout that exists to let a page settle is silently
 cancelled by the very thing it was meant to tolerate. Rounds 4, 5 and 10 were all this. The fix is
 not `.first()` sprinkled where it bites — `.first()` resolves ambiguity but not *wrongness*, and in
@@ -278,11 +280,27 @@ rather than inferred from the job's colour.
 the screens do and what the test expected is, in its way, the evidence: a test that asserted nothing
 would have gone green on the first attempt.
 
+> **Corrected 2026-09-12, later the same day. This was too strong, and one step was exactly what it
+> denies.** The mark-completed step asserted `getByText(/completed/i).first()` was visible — which
+> the **"Mark completed" button itself** satisfies, before the click and after a click that did
+> nothing. It asserted nothing, and it went green. The eleven rounds are evidence that the steps
+> which *failed* were asserting something; they are no evidence at all about a step that never did.
+> Found by the job going red on [PR #30](https://github.com/sanama-stack/reception-booking-system/pull/30)
+> and diagnosed out of the run's own artifact, not from the log. Fixed in `3d2b567`.
+
 **High — G21.** `CSP_SCRIPT_EXTRA: ""` was read out of `docker-compose.apps.yml` and the overlay
 checked for not overriding it, and the browser demonstrably ran the application through that policy.
 
 **Medium — that the flow is stable.** It has passed **once**. `retries: 0` is deliberate — this flow
 books real rows and a retry would run against a tenant the first attempt changed — but a flow with
 one green run has no flake history, and the mail wait is the part most likely to produce one.
+
+> **Corrected 2026-09-12, later the same day.** The flow has since gone red once, at `0063265` —
+> **a commit that had already passed**, which is the shape of a flake and was not one. The
+> mark-completed click had not landed; the vacuous assertion above let the run continue, and the
+> failure surfaced two steps later as revenue `0.00` where `40` was expected, which reads as an
+> analytics defect. It is not. **Count the green runs before this correction as fewer than they
+> appear**: at least one of them passed a step that did nothing. The mail wait, named above as the
+> likeliest source of a flake, has never produced one.
 
 **None — [#17]'s verdict.** Unchanged. No model was called.
