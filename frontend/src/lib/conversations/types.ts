@@ -47,6 +47,17 @@ export interface ConversationSummary {
   startedAt: IsoInstant;
   /** Never null: a conversation's first `last_message_at` is the instant it was opened. */
   lastMessageAt: IsoInstant;
+  /**
+   * When the retention purge deleted this conversation's transcript, or null while it still has
+   * one. Ninety days after a conversation's last activity (`ConversationLimits`).
+   *
+   * **The screen cannot tell the truth without it.** `messageCount` is not decremented by the
+   * purge, so a purged conversation arrives here as a count of eight with no messages — which is
+   * indistinguishable, from the client's side, from a customer who opened the chat panel and
+   * closed the tab. Those are the two states the transcript's empty case has to separate, and one
+   * of them is not an empty transcript at all.
+   */
+  messagesPurgedAt: IsoInstant | null;
 }
 
 /**
