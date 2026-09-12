@@ -75,6 +75,21 @@ register → configure → book classic → book by chat → assert both emails 
 
 Plus a 360 px run of the public page.
 
+### The 360 px sweep
+
+**Written 2026-09-12, and not yet run.** The `mobile` project grew from one route to **twenty-one**
+— three signed out, seventeen behind the sign-in, and the public booking page — replacing the
+phase-10 sweep that was measured by hand.
+
+Its first step **plants a 900 px element and requires the measurement to notice**. Every other
+assertion in it is an *absence*, and an absence is also what a broken measurement reports; the plant
+runs on every execution, so this sweep cannot quietly become vacuous the way the step above it did.
+Three conditions hold before anything is measured — the URL is still the route asked for, something
+rendered, and nothing is still loading — each ruling out a way to pass having measured nothing.
+
+**It has never executed.** A browser cannot be launched on this machine: Chrome starts and is
+`SIGKILL`ed by the sandbox, re-confirmed on 2026-09-12. CI is the only place it runs.
+
 **Green in CI 2026-09-12**, run `34697065351`: both specs pass, the flow in 30.4s. It lives in
 `e2e/`, runs against `make up-e2e` — an isolated compose project with its own database — and the
 Receptionist leg calls no model. Three gaps close with it: **G19** (the deterministic model is built
@@ -212,6 +227,33 @@ Targeted, not comprehensive. The cases worth having are the ones a person got wr
 Wired into CI's Frontend job beside the existing gates. **This does not replace the E2E flow**, which
 stays the check that proves the demo works end to end.
 
+**Built 2026-09-12.** Vitest 5 and Testing Library, 18 files and 68 tests, green locally with lint,
+typecheck and format alongside. Three things are worth carrying forward.
+
+**The timezone row is done, and proven the way it was specified.** The suite runs at
+`Asia/Tbilisi` — +04:00, no DST — and every fixture belongs to a business at **UTC**, so a helper
+falling back to the ambient zone answers four hours late. Both halves of the calendar are asserted,
+because there the zone decides pixels as well as text: the block is labelled `09:00` *and* drawn
+60 px down, not at the 300 px the browser's own reading of the same instant would give. Each file
+first asserts the counterfactual is in force, so a `TZ` that stopped reaching the worker turns the
+suite red instead of turning every assertion into a tautology. Shown able to fail: replacing the
+calendar's zone with the browser's turned both assertions red.
+
+**Loading and error are covered for every screen; empty is covered for fifteen of nineteen.** The
+first two come from `ResourceGate` everywhere but one screen, so they are the same by construction
+and are asserted once at the gate — and `src/test/screens/coverage.test.ts` is what makes that
+claim true rather than assumed, failing in both directions when a component reads a resource and is
+not classified. `DetailDrawer` is the exception, hand-rolled because both states must sit inside the
+dialog under a heading and above a Close button, and is asserted directly. *Empty* cannot be shared
+and is asserted screen by screen; **four are carried unasserted**, counted in
+`UNASSERTED_EMPTY_STATES` so a fifth turns the gate red rather than joining a number nobody reads.
+
+**The 360 px row could not live here, and that is a measurement.** In jsdom a `div` explicitly
+1200 px wide reports `scrollWidth`, `offsetWidth` and `clientWidth` of **0**, so the natural
+assertion reads `0 <= 0` and passes for every page forever — a vacuous assertion of exactly the kind
+this project has twice paid for (T49, and the mark-completed step). It went to the Playwright
+`mobile` project instead, where a real browser already runs at 360 px; see *The 360 px sweep* below.
+
 ### The revenue remainder
 
 [ADR-0010](../adr/0010-revenue-reports-one-currency-and-names-the-remainder.md), decided 2026-09-11.
@@ -253,7 +295,8 @@ argument that it was right.
 - [ ] Log redaction test
 - [ ] `prod` profile refuses default secrets
 - [x] The three performance checks
-- [ ] Frontend unit tests green in CI, including the timezone counterfactual
+- [ ] Frontend unit tests green in CI, including the timezone counterfactual — green locally,
+      never run in CI
 - [ ] `ai_message` retention purges past the window and spares what is inside it
 - [ ] Revenue reports the remainder after a currency change
 - [ ] Full suite green from a clean clone
@@ -299,10 +342,18 @@ argument that it was right.
 - [ ] Rate-limit tests for every public endpoint
 - [x] Security-header test
 - [ ] Log-redaction test
-- [ ] Vitest + Testing Library wired into the Frontend CI job
-- [ ] Timezone rendering test, proven against its counterfactual
-- [ ] Empty / loading / error state tests per screen
-- [ ] 360 px width assertions replacing the hand-run sweep
+- [ ] Vitest + Testing Library wired into the Frontend CI job — **the step is written and the
+      suite is green locally; CI has not run it yet**
+- [x] Timezone rendering test, proven against its counterfactual — `lib/time/index.test.ts` and
+      `calendar/day-view.test.tsx`, the suite at `Asia/Tbilisi` against UTC businesses, the
+      counterfactual asserted in force before anything rests on it, and the calendar assertions
+      shown red against a planted browser-zone fallback
+- [ ] Empty / loading / error state tests per screen — **loading and error: every screen. Empty:
+      fifteen of nineteen**, the other four counted in `UNASSERTED_EMPTY_STATES` and named in the
+      catalogue
+- [ ] 360 px width assertions replacing the hand-run sweep — **written, twenty-one routes, never
+      run**: jsdom cannot measure layout, so this went to the Playwright `mobile` project, and no
+      browser can be launched on this machine
 
 ### Seed
 - [x] `make seed`, `local`-profile-guarded
