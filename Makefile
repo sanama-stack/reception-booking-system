@@ -35,14 +35,51 @@ help: ## Show this help
 # Next.js ignores PORT from env files, so the frontend's port is pinned in package.json while
 # Caddy's upstream comes from .env. They must agree; a mismatch is a 502 that is tedious to
 # diagnose, so it is caught here instead.
+# Four ports in .env are written down twice, and the duplicates have to agree.
+#
+# The block's own comment invites changing them — "deliberately away from the 3000/8080/5432 range
+# so this project never collides with another one" is an instruction to move them when it does —
+# and each one moves in two places or the stack comes up broken in a way that names the wrong
+# cause. Until the .env.example audit on 2026-09-12 this target guarded one of the four.
+#
+# The three .env-internal pairs are checked only when the corresponding host is local, because
+# that is the only topology in which they are coupled: `make up-all` overrides DB_* and MAIL_*
+# with the compose service names, and a DB_HOST pointing at a real server has every right to a
+# port that is nothing to do with what Postgres publishes here.
 check-ports: .env
-	@env_port=$$(grep -E '^FRONTEND_PORT=' .env | cut -d= -f2); \
+	@fail=0; \
+	 val() { grep -E "^$$1=" .env | head -1 | cut -d= -f2- | tr -d '"'; }; \
+	 env_port=$$(val FRONTEND_PORT); \
 	 pkg_port=$$(grep -oE 'next dev --port [0-9]+' frontend/package.json | grep -oE '[0-9]+'); \
 	 if [ "$$env_port" != "$$pkg_port" ]; then \
 	   echo "FRONTEND_PORT=$$env_port in .env but frontend/package.json runs on $$pkg_port."; \
 	   echo "Caddy would proxy to a port nothing is listening on. Make them agree."; \
-	   exit 1; \
-	 fi
+	   fail=1; \
+	 fi; \
+	 case "$$(val DB_HOST)" in localhost|127.0.0.1) \
+	   if [ "$$(val DB_PORT)" != "$$(val POSTGRES_PORT)" ]; then \
+	     echo "DB_PORT=$$(val DB_PORT) but POSTGRES_PORT=$$(val POSTGRES_PORT)."; \
+	     echo "The backend would dial a port Postgres is not published on. Make them agree."; \
+	     fail=1; \
+	   fi;; \
+	 esac; \
+	 case "$$(val MAIL_HOST)" in localhost|127.0.0.1) \
+	   if [ "$$(val MAIL_PORT)" != "$$(val MAILPIT_SMTP_PORT)" ]; then \
+	     echo "MAIL_PORT=$$(val MAIL_PORT) but MAILPIT_SMTP_PORT=$$(val MAILPIT_SMTP_PORT)."; \
+	     echo "Every email would fail to send, and only the outbox would say so. Make them agree."; \
+	     fail=1; \
+	   fi;; \
+	 esac; \
+	 pub=$$(val APP_PUBLIC_URL); \
+	 case "$$pub" in *localhost*|*127.0.0.1*) \
+	   pub_port=$$(echo "$$pub" | grep -oE ':[0-9]+' | tr -d ':'); \
+	   if [ "$$pub_port" != "$$(val APP_PORT)" ]; then \
+	     echo "APP_PUBLIC_URL is $$pub but APP_PORT=$$(val APP_PORT)."; \
+	     echo "Manage Links and email links would point at a dead port. Make them agree."; \
+	     fail=1; \
+	   fi;; \
+	 esac; \
+	 exit $$fail
 
 up: .env check-ports ## Start Postgres, Mailpit and Caddy — run the apps from your IDE
 	$(COMPOSE) up -d
