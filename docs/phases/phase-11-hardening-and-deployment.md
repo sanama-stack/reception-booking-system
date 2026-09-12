@@ -532,4 +532,17 @@ argument that it was right.
       Mailpit on `0.0.0.0`, and Mailpit delivers no mail — and it records a measurement taken while
       writing it: the per-IP rate limits key on the real client behind the proxy, shown by a
       different real source getting its own bucket, which a forged `X-Forwarded-For` does not
-- [ ] Final consistency pass over `/docs` and `CONTEXT.md`
+- [x] Final consistency pass over `/docs` and `CONTEXT.md` — and **as a target rather than an
+      event**, because a pass run once is stale the next time somebody renumbers a section.
+      `make check-docs` (`docs/tools/consistency/`) is four mechanical checks with its own CI job:
+      269 relative links, 265 `<doc> §N` cross-references — **including the ones written in
+      `.java`, `.yml` and `.sql`, which cite sections their authors never reopen** — the ADR
+      inventory against `docs/agents/domain.md`, and the migration inventory against
+      [03-data-model.md](../03-data-model.md). Each prints how many things it looked at and
+      **fails on an empty population**: an anchor-link check was written first and removed, because
+      it reported that every anchor link resolved, which was true and meaningless — this corpus has
+      zero. Each of the four was shown red against a plant. What the pass itself found is in the
+      session handoff: the calendar endpoint missing from the API surface since phase 10, an
+      architecture paragraph that both claimed only Caddy was published and then named Mailpit's
+      port, and four terms used ~220 times across the design docs that the binding glossary never
+      defined

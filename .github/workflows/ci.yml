@@ -10,6 +10,18 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  # Its own job, and a fast one: it needs a checkout and Python, no containers and no build. It runs
+  # beside the others rather than gating them, because a renumbered section should not hold up a
+  # test suite — but it is a required check, because the alternative is the state phase 11 found
+  # twice, where a document described a control that no file implemented.
+  docs:
+    name: Documentation consistency
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - name: Links, section references, ADR and migration inventories
+        run: python3 docs/tools/consistency/check.py
+
   backend:
     name: Backend
     runs-on: ubuntu-latest

@@ -19,7 +19,7 @@ E2E_ENV := COMPOSE_PROJECT_NAME=reception-e2e \
 
 .DEFAULT_GOAL := help
 .PHONY: help up up-all up-e2e down down-e2e logs logs-e2e test e2e migrate seed rebuild ps psql \
-        check-ports check-bindings \
+        check-ports check-bindings check-docs \
         check-headers check-fake-provider
 
 help: ## Show this help
@@ -268,3 +268,11 @@ check-bindings: .env ## Assert only Caddy is published on all interfaces, in bot
 	 [ "$$fail" = "0" ] \
 	   && echo "Only the origin is published beyond loopback, and the database only to the IDE." \
 	   || { echo "check-bindings FAILED"; exit 1; }
+
+# The documentation's own consistency, as four mechanical checks rather than a reading. Phase 11's
+# last Documentation row is "a final consistency pass over /docs and CONTEXT.md", and a pass run
+# once is stale the next time somebody renumbers a section — so it is a target instead of an event.
+#
+# No containers, no network, no build: a checkout and Python. It is its own CI job for that reason.
+check-docs: ## Assert the documentation is internally consistent (links, §refs, inventories)
+	@python3 docs/tools/consistency/check.py
