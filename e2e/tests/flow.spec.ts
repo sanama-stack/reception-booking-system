@@ -164,6 +164,13 @@ test('a business is configured, booked twice, managed, cancelled and reported on
   });
 
   await test.step('the owner sees both bookings, one badged AI and one cancelled', async () => {
+    // Sign OUT first. The owner has been signed in since registration, and GuestGuard keeps a
+    // signed-in visitor off /login — it renders the pending screen and redirects — so going
+    // straight there means waiting forever for an Email field that will never render. §8 says
+    // "log back in", and this is the only step that exercises the sign-in path at all.
+    await page.goto('/dashboard');
+    await page.getByRole('button', { name: 'Sign out' }).click();
+    await page.waitForURL(/\/(login|)$/, { timeout: 30_000 });
     await signIn(page, tenant.email, tenant.password);
 
     await page.goto('/appointments');
