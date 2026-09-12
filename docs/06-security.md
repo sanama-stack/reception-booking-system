@@ -490,5 +490,46 @@ Stated rather than silently carried:
 | In-memory rate limiting | Single instance in MVP; externalisation documented as the first scale-out task |
 | No key rotation scheme | Single-secret; rotation requires a re-login of all users, acceptable at this stage |
 | No backups | Local-only deployment; would be mandatory before any real tenant |
-| No 2FA | Out of MVP scope; the account model supports adding it without migration |
-| The API documentation is unauthenticated in every profile | `/docs`, `/openapi` and `/swagger-ui` are permitted to everyone, `prod` included ([SecurityConfig](../backend/src/main/java/dev/reception/common/config/SecurityConfig.java)). Correct against the MVP's local-compose contract, where the origin is a developer's own machine — and **the first thing to change on an internet-reachable host**, because it publishes the entire endpoint surface to anyone who asks. Recorded here in phase 11 because it was in neither this table nor the deployment notes, which is the state this table exists to make impossible |
+| No 2FA | Out of MVP scope. **Adding it needs a migration** — `users` has six columns and none of them can hold a shared secret or an enrolment flag, and there is no credentials table. This entry read *"the account model supports adding it without migration"* until phase 11, which was wrong, and wrong in the direction that matters: the justification is what a reader prices the reversal with |
+| The API documentation is unauthenticated in every profile | `/docs`, `/openapi` and `/swagger-ui` are permitted to everyone, `prod` included ([SecurityConfig](../backend/src/main/java/dev/reception/common/config/SecurityConfig.java)). Correct against the MVP's local-compose contract, where the origin is a developer's own machine — and **the first thing to change on an internet-reachable host**, because it publishes the entire endpoint surface to anyone who asks. Recorded here in phase 11 because it was in neither this table nor the deployment notes, which is the state this table exists to make impossible. **Also unlimited**, which this entry did not say until the §15 review: see below |
+| A Manage Link is a bearer capability in a URL | Anyone holding the link can cancel or reschedule that one appointment until 24 hours after it ends — a forwarded email, a shared screen or a shared browser's history is enough. Accepted because the alternative is asking a Customer for their code and phone number on every visit to a link we emailed them, which is the friction the link exists to remove. §6 describes the token at length and the access-log leak it caused; **the residual risk was never carried here**, which is the same omission the row above it records |
+
+**Reviewed in phase 11, and the review is a different job from the rest of this walk.** The other
+fourteen sections name controls, and the question is whether each resolves to a test. An accepted
+risk resolves to nothing by definition — the entry *is* the decision not to build the control. What
+it can be checked for is the opposite defect: an entry that no longer describes the system.
+
+Three of the seven were wrong, and each in a different way.
+
+- **A justification that was false.** *"The account model supports adding 2FA without migration"* —
+  `users` carries id, email, password hash, full name and two timestamps, there is no credentials
+  table, and nothing there can hold a shared secret or an enrolment flag. A reader deciding how
+  cheaply this risk could be reversed was being told the wrong number.
+- **An entry that recorded half its risk.** The API documentation entry recorded the **disclosure**
+  and not the **amplification**. `/openapi` answers any anonymous caller with the complete
+  specification — tens of kilobytes — and **no rate-limit policy matches it**, so two hundred
+  consecutive requests are served without one refusal. The Definition of Done requires every public
+  endpoint to be limited; `RateLimitCoverageTest` enforces that across the surface it can see, and
+  it filters to `dev.reception` on purpose, so that a springdoc release renaming its paths cannot
+  break the build. These three paths are mapped outside that package. They are anonymous, unlimited,
+  and **invisible to every derived control in this repository** — and Caddy's `handle /api/*`
+  proxies all of them, so the exposure is the deployed one and not a local-only artefact.
+  [`ApiDocumentationExposureTest`](../backend/src/test/java/dev/reception/common/web/ApiDocumentationExposureTest.java)
+  pins both halves. **Whether to close it is an open decision** — a policy covering the paths, or an
+  exemption recorded in `RateLimitCoverageTest`'s `UNLIMITED_ON_PURPOSE` map with the reason.
+- **A risk that was missing.** The Manage Link's residual risk — a bearer capability living in a URL
+  — is discussed at length in §6 as a *fact* about the token, and was never carried here as a
+  *decision*. §6 closed the access-log leak; it did not close the property that made the leak matter.
+
+The four remaining entries were checked and are accurate, including the two that make claims about
+other documents: the rate-limit externalisation path is genuinely written down in three places, and
+the backup position is stated in `deployment.md` rather than assumed.
+
+> **An accepted-risk table is the one place where going out of date is the whole failure.** Every
+> other section describes a control, and a stale sentence there is caught the moment somebody tests
+> it. Here there is nothing to test, because the entry records an absence — so the only thing holding
+> an entry true is that somebody re-reads it, and the entry most likely to drift is the one whose
+> subject is a live configuration. That is why the API documentation row is now asserted rather than
+> merely written: not to defend the risk, but so that **closing** it cannot happen silently and leave
+> this table describing a system that no longer exists. If those assertions fail, the fix is to
+> correct the row.

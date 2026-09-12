@@ -484,7 +484,7 @@ argument that it was right.
 - [x] Credentials printed and documented
 
 ### Security
-- [ ] Walk [06-security.md](../06-security.md) and verify each control — **§12 done 2026-09-12**,
+- [x] Walk [06-security.md](../06-security.md) and verify each control — **all fifteen sections done 2026-09-13**. **§12 done 2026-09-12**,
       and it is the shape to expect from the rest of this walk. Its claim that the database port is
       exposed *"only in the `local` compose profile"* was implemented by **no file**; the principal's
       call was that the file moves rather than the sentence. Both compose topologies now bind to
@@ -599,7 +599,26 @@ argument that it was right.
       is the ordering plant: moving `RateLimitFilter` to `HIGHEST_PRECEDENCE` — the obvious edit for
       a filter that must precede authentication — ties the two, and **the behavioural test stayed
       green**, because tied filters are sequenced arbitrarily and that run landed the right way. Only
-      the assertion on the registered orders caught it
+      the assertion on the registered orders caught it. **§15 done 2026-09-13, which closes the
+      walk.** It is a different job from the other fourteen: an accepted risk resolves to no control
+      by definition — the entry *is* the decision not to build one — so it is checked for the
+      opposite defect, an entry that no longer describes the system. **Three of seven were wrong, each
+      differently.** A **justification that was false**: *"the account model supports adding 2FA
+      without migration"* — `users` has six columns, none able to hold a secret or an enrolment flag,
+      and there is no credentials table, so a reader was being told the wrong price for reversing the
+      decision. An entry that **recorded half its risk**: the API documentation row had the
+      disclosure and not the **amplification**. `/openapi` answers any anonymous caller with the full
+      specification and **no policy matches it** — two hundred consecutive requests, none refused,
+      measured. `RateLimitCoverageTest` filters to `dev.reception` deliberately, so a springdoc
+      rename cannot break the build; these three paths are mapped outside it and are therefore
+      anonymous, unlimited and **invisible to every derived control in the tree**, with Caddy's
+      `handle /api/*` proxying all of them. And a **risk that was missing**: the Manage Link's
+      residual property, a bearer capability in a URL, discussed at length in §6 as a fact about the
+      token and never carried into §15 as a decision. `ApiDocumentationExposureTest`, **shown red
+      three ways** — and the third is the lesson for the third time this walk: with the limiter
+      switched off, *"the documentation is unlimited"* **passed**, completely vacuously, and only the
+      positive control caught it. **Closing the documentation exposure is an open decision** — a
+      policy over the paths, or an `UNLIMITED_ON_PURPOSE` exemption with its reason
 - [x] Redaction filter verified across appenders — **2026-09-12.** Three tests already covered this
       ground and **none could catch the failure that matters**: deleting the `<jsonGeneratorDecorator>`
       from the appender that runs in production left `PiiValueMaskerTest`, `ConsoleRedactionTest` and
