@@ -170,7 +170,9 @@ test('a business is configured, booked twice, managed, cancelled and reported on
     // "log back in", and this is the only step that exercises the sign-in path at all.
     await page.goto('/dashboard');
     await page.getByRole('button', { name: 'Sign out' }).click();
-    await page.waitForURL(/\/(login|)$/, { timeout: 30_000 });
+    // No `$`: signOut() replaces with '/login', but the dashboard's AuthGuard can win the race and
+    // replace with `/login?next=<path>` instead, so the URL may carry a query string.
+    await page.waitForURL(/\/login(\?|$)/, { timeout: 30_000 });
     await signIn(page, tenant.email, tenant.password);
 
     await page.goto('/appointments');
