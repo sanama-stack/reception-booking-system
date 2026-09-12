@@ -28,7 +28,9 @@ services:
       MANAGE_LINK_SECRET: ${MANAGE_LINK_SECRET:?MANAGE_LINK_SECRET is required}
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
       OPENAI_MODEL: ${OPENAI_MODEL:-gpt-4o-mini}
-      APP_PUBLIC_URL: ${APP_PUBLIC_URL:-http://localhost:8080}
+      # 9080, not 8080: this is the origin a Manage Link is written with, and 8080 is what
+      # Caddy listens on *inside* the network — a port no customer's browser can reach.
+      APP_PUBLIC_URL: ${APP_PUBLIC_URL:-http://localhost:9080}
       LOG_LEVEL: ${LOG_LEVEL:-INFO}
     depends_on:
       postgres:
@@ -65,6 +67,11 @@ services:
     environment:
       BACKEND_UPSTREAM: backend:8081
       FRONTEND_UPSTREAM: frontend:3000
+      # Empty, whatever .env says. The frontend here is a production build served by `next start`,
+      # which needs no eval — so this topology gets the Content-Security-Policy as deployed, and
+      # the header test asserts against this shape rather than against a developer's machine.
+      CSP_SCRIPT_EXTRA: ""
+      HSTS: ${HSTS:-max-age=0}
     depends_on:
       backend:
         condition: service_healthy

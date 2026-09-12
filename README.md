@@ -86,12 +86,88 @@ the frontend's own port, which Next.js will only take from the command line — 
 `frontend/package.json`, and `make up` fails if the two ever disagree.
 
 ```bash
+make seed      # load the two-tenant demo dataset (see below)
 make down      # stop the infrastructure (keeps the database volume)
 make logs      # tail container logs
 make test      # backend build + frontend lint, typecheck, build
 make psql      # psql shell on the running database
 make help      # every target
 ```
+
+## Demo data
+
+```bash
+make seed
+```
+
+Two businesses, in two timezones and two currencies, with about forty appointments between them
+spread across the last fortnight and the next.
+
+| | Salon Aria | Dato's Auto |
+|---|---|---|
+| Booking page | [/book/salon-aria](http://localhost:9080/book/salon-aria) | [/book/datos-auto](http://localhost:9080/book/datos-auto) |
+| Sign in | `owner@salonaria.example` | `owner@datosauto.example` |
+| Timezone | `Asia/Tbilisi` | `Europe/Berlin` |
+| Currency | GEL | EUR |
+| | 4 services, 3 employees | 3 services, 2 mechanics |
+
+Both accounts use the password **`reception-demo`**. Sign in at
+[localhost:9080/login](http://localhost:9080/login).
+
+**Two tenants rather than one, deliberately.** Tenant isolation and timezone correctness are then
+things you can *watch* rather than things this README claims: sign into one and the other's
+customers, appointments and revenue are not merely filtered out of the page, they are unreachable.
+Each business's day is drawn in its own wall clock, and Berlin observes daylight saving while
+Tbilisi does not — so the two are not even a constant number of hours apart.
+
+The differences are arranged to show something:
+
+- Salon Aria's barber is not assigned to Colour, so a service with no available employee is on
+  screen from the first minute
+- Its colourist is away all of next week — time off, which is one employee; Dato's Auto closes for a
+  public holiday, which is the whole business. The calendar draws them differently
+- Dato's Auto's full service is four hours with a thirty-minute buffer: the case where the time an
+  appointment blocks is visibly not the time the customer agreed to
+- One customer has no email address on file, which is what makes the manage page say so rather than
+  promise a message nothing will send ([ADR-0008](docs/adr/0008-the-manage-page-says-whether-an-address-is-on-file.md))
+
+`make seed` **replaces** the two demo businesses each time it runs and touches nothing else — your
+own business, if you made one, is left alone. It runs only under the `local` profile, and refuses
+to run at all if the profile says anything else. It also leaves Mailpit empty, so the first message
+you see there is one your own clicking caused.
+
+### The demo, end to end
+
+1. **`make up`**, start both applications, **`make seed`**.
+2. Sign in as `owner@salonaria.example`. The home screen counts today, this week and this month, and
+   says which timezone it is counting in.
+3. **Calendar → Week.** Three employees, appointments drawn in proportion to how long they take, an
+   `AI` badge on the ones the receptionist booked. Press **Next** — next week is hatched across
+   Monday to Friday for Mariam Beridze, who is on leave.
+4. **Analytics.** Revenue is completed appointments only, priced in GEL. Change the range and every
+   number moves with it.
+5. Open [**/book/salon-aria**](http://localhost:9080/book/salon-aria) in a private window — you are a
+   stranger now, with no account. Book a haircut: pick the service, an employee or *any available*,
+   a day, a slot, and give a name, a phone number and an email address. **Pick a day at least two
+   ahead**, for the reason in step 7.
+6. **[Mailpit](http://localhost:9083)** — the confirmation arrives within a minute, carrying a
+   Confirmation Code and a Manage Link. It is not sent by the request that caused it; it was written
+   into an outbox row in the same transaction as the appointment
+   ([ADR-0005](docs/adr/0005-database-outbox-instead-of-queue.md)).
+7. **Follow the Manage Link.** Move the appointment to another slot, or cancel it, with no account
+   and no password. Another email follows, and the Confirmation Code does not change — you are
+   holding an email with that code in it. Book *tomorrow* instead and this page will politely refuse
+   both: Salon Aria asks for 24 hours' notice, and the Cancellation Window binds the customer rather
+   than the business, which is why the owner can still move it from the dashboard.
+8. Back in the dashboard: the change is already there. **Appointments** → mark a past one
+   **completed**, and watch the revenue on **Analytics** move.
+9. **Ask instead of clicking.** With an `OPENAI_API_KEY` in `.env`, the booking page's receptionist
+   books the same way — through the same endpoints the form calls. Every slot and price it quotes
+   came from a tool, and the confirmation card is rendered from the booking the server made rather
+   than from anything the model said. Read the whole conversation, and every tool call inside it,
+   under **Conversations**. Without a key the panel says so and the form is still there.
+10. Sign out, sign in as `owner@datosauto.example`, and look again: a different catalog, a different
+    currency, a different clock, and no trace of the salon.
 
 ### Watching the mail
 

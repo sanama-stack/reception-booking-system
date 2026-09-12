@@ -127,10 +127,16 @@ tasks.withType<Test> {
         // The `probe` tag is excluded for a different reason: those are instruments, not tests.
         // They assert nothing, they write files, and one of them holds a live conversation fifty
         // times. See tools/receptionist-probe/README.md.
+        //
+        // `perf` is excluded for a third reason again: those tests assert real thresholds and would
+        // be worth gating on, but they need a 31 600-row database that only
+        // tools/perf-dataset/generate.sh builds. Run against a machine that has not built it they
+        // fail on the connection, which says nothing about the code. Build the dataset, then
+        // `-PincludeTags=perf`.
         if (project.hasProperty("includeTags")) {
             includeTags(project.property("includeTags") as String)
         } else {
-            excludeTags("llm", "probe")
+            excludeTags("llm", "probe", "perf")
         }
     }
     testLogging {

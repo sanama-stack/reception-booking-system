@@ -6,7 +6,9 @@ An AI receptionist that can book appointments is only trustworthy if the model c
 for anything that matters. The model is responsible for language — understanding intent, choosing a tool,
 asking for missing details, phrasing the reply — and for nothing else. Availability, prices, policies,
 tenancy and whether a booking succeeded are all decided by backend services the model reaches only through
-eight validated, strictly-schema'd tools.
+eight validated, strictly-schema'd tools — nine
+since `resolve_date` landed under test, and the count is the only thing that number changes: whatever it
+is, it is the complete list of what the model can do.
 
 ## Considered options
 

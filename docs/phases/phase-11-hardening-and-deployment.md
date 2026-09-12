@@ -136,6 +136,40 @@ Two carried gaps fold in here, because this section runs the queries they concer
 - **G16 — cold cache.** Every performance number in the project is `shared hit`. Take at least one cold
   reading, so a p95 claim means something on a machine that has not just run the query
 
+**Measured 2026-09-11, and all three pass.** `NfrBenchmarkTest`, twenty runs after five discarded,
+against 31 600 Appointments with 10 000 for the target tenant:
+
+| Check | Threshold | p50 | **p95** |
+|---|---|---|---|
+| Availability, 7 days, **five** employees (the NFR says three) | < 300 ms | 102.12 ms | **111.12 ms** |
+| Appointment list, first page, no filters, 10 000 rows | < 200 ms | 17.05 ms | **19.33 ms** |
+| Analytics summary, 90 days | < 500 ms | 22.99 ms | **45.15 ms** |
+| Calendar, one week (G15 — no NFR; the bound's own check) | — | 33.89 ms | **42.64 ms** |
+
+**Nothing was missing and nothing was added.** The interesting part is the distance between these
+numbers and the query times phase 10 recorded for the same operations — 0.019 ms to 1.4 ms. The
+query was never the cost: what these measure is the operation, hydration and the engine's own
+computation included, which is what the NFR is about and what `psql` cannot see.
+
+**G15, and the number it corrects.** Phase 10 recorded **46x** for the calendar's lower bound, from
+hand-written SQL on literals. Re-measured as Hibernate issues it, with parameters bound and past the
+execution where the driver goes to a server-side prepared statement, the same bound is **1.2x** —
+7.55 ms against 8.95 ms at p95. Both numbers are right and the difference is the point: 46x was a
+ratio of *queries*, this is a ratio of *operations*, and hydrating a week of Appointments costs the
+same on both sides. Measured separately on this dataset the query alone is **0.26 ms against
+3.64 ms, 30 buffers against 841** — 14x and 28x.
+
+**Neither ratio is the reason the bound exists.** The unbounded query reads 8 800 rows to return 140,
+and 8 800 is every Appointment this tenant has ever had: it is a slope, not a factor. At 30 000 rows
+phase 10 watched that plan abandon the index and sequentially scan the whole table. No measurement
+at one table size can show a cliff, which is why the committed test asserts only that removing the
+bound is worse and records the ratio rather than gating on it.
+
+**G16, the cold reading.** The 366-day status count reads 31 buffers either way: `shared read`,
+1.931 ms on the first execution after a PostgreSQL restart, against `shared hit`, 1.026 ms warm. A
+restart empties the buffer pool and not the operating system's page cache, so that is a cold
+*database* rather than a cold *disk*, and the number is quoted with that limit attached.
+
 **The dataset, and the fixture decision.** All of the above needs the shape T28 requires — ten thousand
 Appointments for the target Business *and* tens of thousands across other tenants, because with one
 Business in the table `business_id` matches every row, a sequential scan really is cheapest, and a green
@@ -194,10 +228,10 @@ argument that it was right.
 - [ ] Full E2E flow green in CI against the scripted model
 - [ ] 360 px public-page run
 - [ ] Rate limits verified for every public endpoint
-- [ ] Security-header test
+- [x] Security-header test
 - [ ] Log redaction test
 - [ ] `prod` profile refuses default secrets
-- [ ] The three performance checks
+- [x] The three performance checks
 - [ ] Frontend unit tests green in CI, including the timezone counterfactual
 - [ ] `ai_message` retention purges past the window and spares what is inside it
 - [ ] Revenue reports the remainder after a currency change
@@ -212,7 +246,7 @@ argument that it was right.
 - [ ] The concurrency test passes repeatedly
 - [ ] All security items are implemented or explicitly listed as accepted risks
 - [ ] No secret is in the repository or its history
-- [ ] The three performance checks pass
+- [x] The three performance checks pass
 - [ ] Frontend unit tests run in CI's Frontend job
 - [ ] `revenue` names its remainder after a currency change, per ADR-0010
 - [ ] No `ai_message` outlives the documented retention window
@@ -238,7 +272,7 @@ argument that it was right.
 - [ ] Mailpit API assertions inside E2E
 - [ ] Mobile-viewport E2E run
 - [ ] Rate-limit tests for every public endpoint
-- [ ] Security-header test
+- [x] Security-header test
 - [ ] Log-redaction test
 - [ ] Vitest + Testing Library wired into the Frontend CI job
 - [ ] Timezone rendering test, proven against its counterfactual
@@ -246,17 +280,17 @@ argument that it was right.
 - [ ] 360 px width assertions replacing the hand-run sweep
 
 ### Seed
-- [ ] `make seed`, `local`-profile-guarded
-- [ ] Salon Aria with services, employees, schedules, time off, FAQs, appointments
-- [ ] Dato's Auto in a different timezone and currency, with a closure and a buffered long service
-- [ ] Past and future appointments in mixed statuses
-- [ ] Credentials printed and documented
+- [x] `make seed`, `local`-profile-guarded
+- [x] Salon Aria with services, employees, schedules, time off, FAQs, appointments
+- [x] Dato's Auto in a different timezone and currency, with a closure and a buffered long service
+- [x] Past and future appointments in mixed statuses
+- [x] Credentials printed and documented
 
 ### Security
 - [ ] Walk [06-security.md](../06-security.md) and verify each control
 - [ ] Redaction filter verified across appenders
 - [ ] `prod` default-secret refusal
-- [ ] Security headers in Caddy
+- [x] Security headers in Caddy
 - [ ] Full-history secret scan
 - [ ] Error-response leakage review
 - [ ] `ai_message` retention window, documented and enforced by a scheduled purge
@@ -268,17 +302,17 @@ argument that it was right.
 - [ ] Slow-query logging in `local`
 
 ### Performance
-- [ ] Availability benchmark
-- [ ] Appointment list benchmark at 10 000 rows
-- [ ] Analytics benchmark
+- [x] Availability benchmark
+- [x] Appointment list benchmark at 10 000 rows
+- [x] Analytics benchmark
 - [ ] ~~Add indexes for any miss~~ — fix any miss at its cause, bound or index (see *Performance sanity*)
-- [ ] Perf dataset generator committed as a script, and `reception_perf` dropped
-- [ ] G15 — the calendar query re-measured on Hibernate's own statement
-- [ ] G16 — at least one cold-cache reading
+- [x] Perf dataset generator committed as a script, and `reception_perf` dropped
+- [x] G15 — the calendar query re-measured on Hibernate's own statement
+- [x] G16 — at least one cold-cache reading
 
 ### Documentation
-- [ ] `README.md` with prerequisites, commands, URLs and credentials
-- [ ] Demo script
+- [x] `README.md` with prerequisites, commands, URLs and credentials
+- [x] Demo script
 - [ ] `.env.example` audited against the compose file
 - [ ] `docs/deployment.md`
 - [ ] Final consistency pass over `/docs` and `CONTEXT.md`

@@ -1,6 +1,9 @@
 # Single origin for the whole system.
 #
-# Everything the browser talks to is served from http://localhost:8080. This is what lets
+# Everything the browser talks to is served from one origin — http://localhost:9080 by default,
+# which is APP_PORT published onto the :8080 this file listens on inside the compose network.
+# (The two numbers differ on purpose: the published block is 9080–9085, chosen away from the usual
+# 3000/8080/5432 range so this project can run beside another.) One origin is what lets
 # authentication use httpOnly cookies with no CORS configuration anywhere in the system
 # (see docs/06-security.md §2, §13). `handle /api/*` does not strip the prefix, which is
 # why the backend runs with server.servlet.context-path: /api.
@@ -23,6 +26,33 @@
 		X-Content-Type-Options nosniff
 		Referrer-Policy strict-origin-when-cross-origin
 		X-Frame-Options DENY
+
+		# The Content-Security-Policy, and the one concession in it.
+		#
+		# `script-src` carries 'unsafe-inline' because the App Router serves its hydration payload
+		# as inline <script> elements, and the alternative — a per-request nonce — cannot be issued
+		# by a proxy: the nonce has to be generated where the HTML is rendered, which is Next's
+		# middleware, not Caddy. It does NOT carry 'unsafe-eval', which is the concession that
+		# matters: with `object-src 'none'` and `base-uri 'self'` alongside it, a reflected string
+		# cannot become executable code by any of the routes that do not need a <script> tag.
+		#
+		# CSP_SCRIPT_EXTRA is the one seam. `next dev` compiles modules through eval, so the
+		# development topology sets it to 'unsafe-eval' through .env — measured, not assumed: with
+		# it empty the dev server throws `EvalError: Evaluating a string as JavaScript violates the
+		# following Content Security Policy directive` on every page. docker-compose.apps.yml sets
+		# it back to "" for the containerised topology, where the frontend is a production build
+		# and needs no eval, so the policy that ships is the strict one and the header test asserts
+		# that shape. The default here is empty, so a topology that forgets to set it gets the
+		# strict policy rather than the lenient one.
+		Content-Security-Policy "default-src 'self'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'; object-src 'none'; img-src 'self' data: blob:; font-src 'self' data:; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline' {$CSP_SCRIPT_EXTRA:}; connect-src 'self'"
+
+		# A browser honours HSTS only on a response that arrived over HTTPS, so on this local
+		# plain-HTTP origin the header is inert whatever it says. `max-age=0` is the value that
+		# means "remember no policy for this host", which is the correct thing for an origin that
+		# is never going to be HTTPS. A TLS deployment sets HSTS to
+		# `max-age=31536000; includeSubDomains` — see docs/deployment.md.
+		Strict-Transport-Security "{$HSTS:max-age=0}"
+
 		-Server
 	}
 

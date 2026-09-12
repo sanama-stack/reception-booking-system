@@ -53,6 +53,12 @@ services:
       # docker-compose.apps.yml overrides these with the container names.
       BACKEND_UPSTREAM: host.docker.internal:${SERVER_PORT:-9081}
       FRONTEND_UPSTREAM: host.docker.internal:${FRONTEND_PORT:-9082}
+      # The two security headers that differ by environment (docs/06-security.md §13). This is the
+      # development topology, where the frontend is `next dev` on the host and compiles modules
+      # through eval — so CSP_SCRIPT_EXTRA is 'unsafe-eval' in .env.example, and
+      # docker-compose.apps.yml empties it again for the containerised topology that actually ships.
+      CSP_SCRIPT_EXTRA: ${CSP_SCRIPT_EXTRA:-}
+      HSTS: ${HSTS:-max-age=0}
     extra_hosts:
       # Docker Desktop defines host.docker.internal already; Linux does not.
       - "host.docker.internal:host-gateway"

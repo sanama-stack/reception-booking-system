@@ -7,11 +7,11 @@ COMPOSE := docker compose
 APPS := -f docker-compose.yml -f docker-compose.apps.yml
 
 .DEFAULT_GOAL := help
-.PHONY: help up up-all down logs test migrate seed rebuild ps psql check-ports
+.PHONY: help up up-all down logs test migrate seed rebuild ps psql check-ports check-headers
 
 help: ## Show this help
 	@grep -hE '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) \
-		| awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-10s\033[0m %s\n", $$1, $$2}'
+		| awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-14s\033[0m %s\n", $$1, $$2}'
 
 .env:
 	@cp .env.example .env
@@ -76,8 +76,50 @@ migrate: .env ## Apply Flyway migrations against the running database
 	$(COMPOSE) up -d postgres
 	set -a && . ./.env && set +a && cd backend && ./gradlew flywayMigrate
 
-seed: ## Load demo data (implemented in phase 11)
-	@echo "Seed data ships in phase 11 (docs/phases/phase-11-hardening-and-deployment.md)."
+# Runs the application with no web server, so it can be seeded while the real one is up on
+# SERVER_PORT — and with the notifications poller off, so nothing is sent while the fixture is
+# being built. `reception.seed.enabled` is set here and nowhere else: SeedRunner is also
+# @Profile("local") and checks the environment again before it deletes anything (SeedRunner).
+seed: .env ## Load the two-tenant demo dataset (local profile only)
+	$(COMPOSE) up -d postgres
+	set -a && . ./.env && set +a && cd backend && ./gradlew bootRun --console=plain -q \
+		--args='--spring.main.web-application-type=none --reception.seed.enabled=true --app.notifications.poller-enabled=false'
+
+# The headers of docs/06-security.md §13, asserted against the running origin rather than read
+# off the Caddyfile. Reading the file would prove only that the file says what the file says —
+# which is how two of these headers came to be documented for ten phases without existing (T42).
+#
+# It asserts the DEPLOYED policy, so run it against `make up-all`. Under `make up` the frontend is
+# `next dev`, which compiles through eval and therefore gets 'unsafe-eval' added to script-src on
+# purpose (.env, CSP_SCRIPT_EXTRA) — this check fails there, and that failure is the check working.
+check-headers: ## Assert the security headers on the running origin (expects the up-all topology)
+	@app=$$(grep -E '^APP_PORT=' .env | cut -d= -f2); \
+	 origin="http://localhost:$${app}"; \
+	 echo "Asserting security headers against $${origin}"; \
+	 for path in / /api/health; do \
+	   headers=$$(curl -fsS -D - -o /dev/null "$${origin}$${path}"); \
+	   for required in \
+	     'X-Content-Type-Options: nosniff' \
+	     'Referrer-Policy: strict-origin-when-cross-origin' \
+	     'X-Frame-Options: DENY' \
+	     'Strict-Transport-Security:' \
+	     'Content-Security-Policy:'; do \
+	     echo "$$headers" | grep -qi "$$required" \
+	       || { echo "$${path}: missing $$required"; exit 1; }; \
+	   done; \
+	   csp=$$(echo "$$headers" | grep -i '^content-security-policy:'); \
+	   for directive in "default-src 'self'" "base-uri 'self'" "form-action 'self'" \
+	                    "frame-ancestors 'none'" "object-src 'none'"; do \
+	     echo "$$csp" | grep -qF "$$directive" \
+	       || { echo "$${path}: the policy is missing $$directive"; exit 1; }; \
+	   done; \
+	   ! echo "$$csp" | grep -qi 'unsafe-eval' \
+	     || { echo "$${path}: the policy permits unsafe-eval — see CSP_SCRIPT_EXTRA in .env"; exit 1; }; \
+	   echo "$$headers" | grep -qi '^server:' \
+	     && { echo "$${path}: the Server header is still being sent"; exit 1; }; \
+	   echo "  $${path} ok"; \
+	 done; \
+	 echo "Security headers are as docs/06-security.md §13 describes them."
 
 psql: ## Open a psql shell on the running database
 	$(COMPOSE) exec postgres psql -U $${POSTGRES_USER:-reception} -d $${POSTGRES_DB:-reception}

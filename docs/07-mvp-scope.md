@@ -62,7 +62,7 @@ If no, it is in [future/future-features.md](./future/future-features.md).
 
 ### Receptionist (AI)
 - OpenAI tool calling with strict JSON schemas
-- Eight tools; the model can do nothing else
+- Eight tools, **plus a ninth under test** (`resolve_date`, [#17](https://github.com/sanama-stack/reception-booking-system/issues/17)); the model can do nothing else
 - Conversation persisted per business
 - Rate limits, turn ceilings, tool-call ceilings, per-business daily spend cap with graceful degradation
 
