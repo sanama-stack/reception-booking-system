@@ -29,7 +29,11 @@ test('a business is configured, booked twice, managed, cancelled and reported on
 
   await test.step('register an owner', async () => {
     slug = await registerBusiness(page, tenant);
-    await expect(page.getByRole('heading', { name: tenant.businessName })).toBeVisible();
+    // The dashboard's heading greets the owner; the business name is a paragraph and a <dd>, not a
+    // heading. It IS a heading on /book/{slug}, which is what made the first version of this line
+    // look reasonable and fail here.
+    await expect(page.getByRole('heading', { name: /^Welcome, / })).toBeVisible();
+    await expect(page.getByText(tenant.businessName).first()).toBeVisible();
   });
 
   await test.step('add an employee and give them a working schedule', async () => {
