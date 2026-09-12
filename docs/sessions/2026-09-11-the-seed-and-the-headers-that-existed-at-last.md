@@ -11,6 +11,10 @@
 > quotes. Written the obvious way it reaches Caddy as a bare token, and the policy then names a
 > *host* called `unsafe-eval` — a valid-looking header that permits nothing (**T43**).
 >
+> **Nothing is outstanding but a decision.** `dev` and `origin/dev` are both `2e18c48`, the working
+> tree is clean, and CI is green — but `main` has not moved, and whether these seven commits go into
+> it now or wait for more of phase 11 is §8's opening item rather than something this session took.
+>
 > **The principal answered three questions at the top of the session** and this handoff is what
 > followed from them: implement CSP and HSTS rather than correct the document; start phase 11 with
 > the seed; park [#17]'s tool count as *"eight, plus a ninth under test"* rather than wait on an
@@ -18,6 +22,7 @@
 
 [#15]: https://github.com/sanama-stack/reception-booking-system/issues/15
 [#17]: https://github.com/sanama-stack/reception-booking-system/issues/17
+[#27]: https://github.com/sanama-stack/reception-booking-system/pull/27
 [previous]: ./2026-09-11-the-headers-that-existed-only-in-prose.md
 
 ---
@@ -26,15 +31,17 @@
 
 | | |
 |---|---|
-| `origin/main` | `fb9717a`, unchanged this session |
-| `dev` | ahead — the [previous handoff][previous] commit, plus this session's |
-| Backend | **860 tests, 0 failures, 0 errors, 0 skipped** — `--rerun`, counted after the `BUILD` line and not before it (T41). 6m 20s. Up from 844; the sixteen are the seed's own, eight of them without a database |
-| Frontend | untouched. No `pnpm build` ran; the dev server stayed up throughout (G9 unchanged) |
-| Migrations | **none.** The seed writes through the application; it adds no column and no table |
+| `origin/main` | **`fb9717a`**, unchanged this session |
+| `origin/dev` = `dev` | **`2e18c48`** — **seven ahead of `main`**, nothing unpushed, working tree clean |
+| CI | **green on `dev` twice**, most recently on `2e18c48`: Backend, Frontend and Compose smoke all pass. §6.1 has the one failure and why it was not a change of mine |
+| Backend | **860 tests, 0 failures, 0 errors, 0 skipped** — `--rerun`, counted after the `BUILD` line and not before it (T41). 6m 20s. Up from 844; the sixteen are the seed's own, eight of them without a database. `NfrBenchmarkTest`'s five are **not** in that number: they are tagged `perf` and excluded, and the full run was checked for the absence of their result file rather than trusted to skip them |
+| Frontend | untouched. No `pnpm build` ran locally; the dev server stayed up throughout (G9 unchanged). It ran green in CI |
+| Migrations | **none.** The seed writes through the application and the perf fixture runs the existing nine; neither adds a column or a table |
 | New ADR | none |
 | Issues | [#17] and [#15] open, untouched. No model was called: the account is **still out of credits**, re-checked this session (`429 credit_balance_exhausted`) |
-| Perf fixture | `backend/tools/perf-dataset/` — committed, migrates rather than clones. The ad-hoc `reception_perf` is **dropped** |
-| Phase 11 | **started.** Seed, security headers and the three performance checks done; seventeen checklist boxes ticked |
+| Perf fixture | `backend/tools/perf-dataset/` — committed, migrates rather than clones. The ad-hoc `reception_perf` is **dropped**, and the drop-and-rebuild cycle run end to end afterwards |
+| Phase 11 | **started. 18 boxes ticked, 53 open.** Seed, security headers and the three performance checks done |
+| **Open decision** | whether to open the pull request into `main` now or let more of phase 11 accumulate on `dev`. Not taken — see §8 |
 
 ---
 
@@ -248,6 +255,12 @@ included, which is what the NFR is about.
 **Nothing was missing and nothing was added.** The interesting part is the distance from phase 10's
 query times for the same operations — 0.019 ms to 1.4 ms. **The query was never the cost.**
 
+**Those are one run's figures, and a re-run will not reproduce them.** Across four rebuilds the
+analytics p95 moved between 24.9 ms and 45.2 ms and availability between 103 ms and 111 ms — a
+factor of nearly two on the first. Every one passes its threshold with an order of magnitude to
+spare, which is why the test gates on the threshold and prints the number rather than the other way
+round. **A differing re-run is not a regression**; a failing threshold is.
+
 ### 5.3 G15, and the number it corrects — 46x is 1.2x
 
 Phase 10 recorded **46x** for the calendar's lower bound, from hand-written SQL on literals. G15
@@ -283,7 +296,7 @@ relative to midnight UTC on the day it is generated, so **a dataset more than a 
 be rebuilt** — the NFR ranges are anchored to today and a stale one quietly moves its history out
 from under them.
 
-## 6. Four documentation drifts closed
+## 6. Four documentation drifts closed, and the clearance
 
 | | |
 |---|---|
@@ -291,6 +304,28 @@ from under them.
 | **The Caddyfile's own port comment** | said *"served from `http://localhost:8080`"*, the container-internal port, in precisely the file a reader opens to find out what the origin is ([previous][previous] §3.3) |
 | **`APP_PUBLIC_URL`'s default** | `docker-compose.apps.yml` defaulted it to `http://localhost:8080`. That is the origin a **Manage Link** is written with — a default that sends a customer to a port no browser can reach. Now `9080` |
 | **The unauthenticated API docs** | `/docs`, `/openapi` and `/swagger-ui` are permitted to everyone in every profile, `prod` included. Correct against the MVP's local-compose contract and **not** in §15's accepted-risks table, which is the state that table exists to make impossible ([previous][previous] §3.4). Now recorded there, named as the first thing to change on an internet-reachable host |
+
+### 6.1 The clearance, and the CI failure that was not a change
+
+Seven commits, pushed in two batches, **CI green on both**:
+
+| | |
+|---|---|
+| `fb9717a..a64fa22` | the seed, the headers, the tool count, the first handoff commit |
+| `a64fa22..2e18c48` | the perf dataset and its record |
+
+**The first push went red, and it was Docker Hub.** The Compose smoke job failed at *Bring the
+system up* with `failed to fetch oauth token … read: connection reset by peer` while pulling
+`node:22-alpine` — before `make check-headers` ran at all. Re-run unchanged, it passed. Worth
+recording because a red Compose job on the commit that changes the Compose files invites exactly the
+wrong conclusion, and the log names the cause in one line.
+
+**That green run is also the only evidence the shipped CSP works in the topology that ships.**
+`make check-headers` passed there, against containers built from `docker-compose.apps.yml`, which is
+where `CSP_SCRIPT_EXTRA` is emptied. It asserts the header, not the page — see G21.
+
+`dev` and `origin/dev` are identical at `2e18c48` and the working tree is clean. **`main` has not
+moved**: the pull request is the open decision in §8.
 
 ---
 
@@ -347,6 +382,15 @@ no frontend test runner; no `docs/deployment.md`; no Playwright.
 
 ## 8. Next steps, in order
 
+**0. The pull request, which is a judgement rather than a task.** `dev` is seven ahead of `main` with
+CI green, and every commit in it has been exercised rather than merely compiled — which is the
+standard the README sets. The argument for merging now is that two of the seven make `main` a better
+clone for a stranger, which is what that standard is *for*: `make seed` and a demo script that was
+walked. The argument for waiting is that phase 11 has 53 boxes open and this project has merged one
+pull request per phase since 08. **Not taken here.** Whoever takes it should note that the previous
+session already merged mid-phase-11 work ([#27]), so the per-phase rule is not as firm as the history
+first suggests.
+
 1. **The E2E's model strategy (G19)** — a stub at `OPENAI_BASE_URL` keeps `OpenAiChatModel` on the
    path. Decide it before writing the flow. The seed is now in place, which was its prerequisite.
 2. **The isolation suite**, built as classify-or-fail. The seed gives it two real tenants to probe
@@ -361,6 +405,9 @@ no frontend test runner; no `docs/deployment.md`; no Playwright.
 ## 9. Commands
 
 ```bash
+# Where things actually stand.
+git status -sb && git log --oneline -3 && git rev-list --left-right --count origin/main...origin/dev
+
 # The demo dataset. Repeatable; replaces only the two demo tenants.
 make seed
 
@@ -372,6 +419,8 @@ make check-headers
 # range in it is anchored to the day it was generated.
 backend/tools/perf-dataset/generate.sh
 cd backend && JAVA_HOME=$(/usr/libexec/java_home -v 21) ./gradlew test -PincludeTags=perf --rerun
+# `--drop` removes it and touches nothing else. The cold-reading recipe (G16) is in the tool's README.
+backend/tools/perf-dataset/generate.sh --drop
 
 # The seed's own tests, without the rest of the suite.
 cd backend && JAVA_HOME=$(/usr/libexec/java_home -v 21) ./gradlew test --tests '*BlueprintCheckTest' --tests '*DemoSeedTest' --rerun
