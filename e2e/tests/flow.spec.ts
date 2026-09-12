@@ -1,5 +1,6 @@
 import { test, expect } from '@playwright/test';
 import {
+  SERVICE_PRICE,
   freshTenant,
   registerBusiness,
   signIn,
@@ -33,6 +34,7 @@ test('a business is configured, booked twice, managed, cancelled and reported on
   let slug = '';
   let classicCode = '';
   let receptionistCode = '';
+  let aiDate = '';
 
   await test.step('register an owner', async () => {
     slug = await registerBusiness(page, tenant);
@@ -63,7 +65,7 @@ test('a business is configured, booked twice, managed, cancelled and reported on
     await page.goto('/services/new');
     await page.getByLabel('Name').fill(tenant.serviceName);
     await page.getByLabel('Length (minutes)').fill('30');
-    await page.getByLabel(/^Price/).fill('40');
+    await page.getByLabel(/^Price/).fill(String(SERVICE_PRICE));
     // Assigned here rather than afterwards: a service nobody can perform cannot be booked, and the
     // public page would show an empty grid instead of failing usefully.
     await page.getByText(tenant.employeeName).first().click();
@@ -209,7 +211,7 @@ test('a business is configured, booked twice, managed, cancelled and reported on
       (appointment) => appointment.customer.fullName === RECEPTIONIST_CUSTOMER,
     );
     expect(aiAppointment, 'the Receptionist booking is in the list').toBeTruthy();
-    const aiDate = aiAppointment!.startsAt.slice(0, 10);
+    aiDate = aiAppointment!.startsAt.slice(0, 10);
 
     await page.goto('/calendar');
     await page.getByLabel('Date').fill(aiDate);
@@ -219,8 +221,12 @@ test('a business is configured, booked twice, managed, cancelled and reported on
   });
 
   await test.step('marking one completed moves analytics revenue', async () => {
-    await page.goto('/analytics');
+    // Every preset ends at TODAY — "Last 30 days" is today-29..today — and both bookings are at the
+    // far end of the fortnight, so the default range cannot contain them and completing one could
+    // never move the figure. The range is widened to the booking's own date instead.
+    await openAnalyticsThrough(page, aiDate);
     const before = await revenue(page);
+    expect(before, 'nothing is completed yet, so there is no revenue').toBe(0);
 
     await page.goto('/appointments');
     // The row's appointment link, which is the "When" cell. The customer's NAME is also a link and
@@ -239,12 +245,19 @@ test('a business is configured, booked twice, managed, cancelled and reported on
     await page.getByRole('dialog').getByRole('button', { name: 'Mark completed' }).click();
     await expect(page.getByText(/completed/i).first()).toBeVisible({ timeout: 30_000 });
 
-    await page.goto('/analytics');
-    await expect
-      .poll(async () => revenue(page), { timeout: 30_000 })
-      .toBeGreaterThan(before);
+    // The exact figure, not merely "more than before": this tenant has one completed Appointment
+    // and its price is known, so "changes accordingly" has a right answer and greater-than would
+    // pass on any number at all.
+    await openAnalyticsThrough(page, aiDate);
+    await expect.poll(async () => revenue(page), { timeout: 30_000 }).toBe(SERVICE_PRICE);
   });
 });
+
+/** Analytics over a range that reaches the booking, rather than the default ending today. */
+async function openAnalyticsThrough(page: import('@playwright/test').Page, to: string) {
+  await page.goto('/analytics');
+  await page.getByLabel('To').fill(to);
+}
 
 /**
  * The Confirmation Code, read from inside the card that captions it.

@@ -24,6 +24,9 @@ export function freshTenant() {
   };
 }
 
+/** What the flow charges for its one service, and therefore the revenue one completion produces. */
+export const SERVICE_PRICE = 40;
+
 /** The fake provider's fixed identity — infra/fake-provider/server.js, ADR-0011. */
 export const RECEPTIONIST_CUSTOMER = 'E2E Customer';
 
