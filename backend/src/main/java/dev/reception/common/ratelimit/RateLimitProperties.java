@@ -41,6 +41,19 @@ public class RateLimitProperties {
                 new RateLimitPolicy("login", HttpMethod.POST, "/auth/login", 10, Duration.ofMinutes(15)),
                 // Account spam. Registration is cheap for us and valuable to an abuser.
                 new RateLimitPolicy("register", HttpMethod.POST, "/auth/register", 5, Duration.ofHours(1)),
+                /*
+                 * Rotating a session. Unauthenticated by construction — the whole point is that the
+                 * access token has expired — and every call is a database read and a write.
+                 *
+                 * Sixty an hour against a fifteen-minute access token: a tab needs four, so this is
+                 * fifteen times what a person uses and still far below what replaying a stolen
+                 * cookie against the reuse detector costs us. Keyed on the client address rather
+                 * than the proxy's, which is what server.forward-headers-strategy buys.
+                 */
+                new RateLimitPolicy("refresh", HttpMethod.POST, "/auth/refresh", 60, Duration.ofHours(1)),
+                // Ending one. A write, reachable without a token, and nobody logs out twenty times
+                // an hour.
+                new RateLimitPolicy("logout", HttpMethod.POST, "/auth/logout", 20, Duration.ofHours(1)),
 
                 // Brute-forcing a Confirmation Code. The tightest limit in the system, and first in
                 // this list so nothing wider can shadow it.
@@ -125,6 +138,16 @@ public class RateLimitProperties {
                         "public-business", HttpMethod.GET, "/public/businesses/**", 120, Duration.ofMinutes(1)),
                 // Resolving a Manage Link. A cheap read too, and one a customer may refresh.
                 new RateLimitPolicy(
-                        "public-manage", HttpMethod.GET, "/public/appointments/manage", 120, Duration.ofMinutes(1)));
+                        "public-manage", HttpMethod.GET, "/public/appointments/manage", 120, Duration.ofMinutes(1)),
+                /*
+                 * Liveness. Not a cheap read at all: it opens a database connection and an outbound
+                 * SMTP connection on every call, which makes an unlimited one an amplifier a
+                 * stranger can point at our mail server.
+                 *
+                 * Sixty a minute against a container healthcheck that polls every ten seconds — and
+                 * that healthcheck reaches localhost inside the container, so it has a bucket of its
+                 * own and cannot be starved by traffic arriving through Caddy.
+                 */
+                new RateLimitPolicy("health", HttpMethod.GET, "/health", 60, Duration.ofMinutes(1)));
     }
 }

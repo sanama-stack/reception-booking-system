@@ -70,15 +70,32 @@ The public surface is unauthenticated and therefore the most exposed part of the
 | `POST …/chat` | 20 / hour / conversation, 60 / hour / IP | Paid calls |
 | `POST /auth/login` | 10 / 15 min / IP | Credential stuffing |
 | `POST /auth/register` | 5 / hour / IP | Account spam |
+| `POST /auth/refresh` | 60 / hour / IP | Session rotation — a database read and write, unauthenticated by construction |
+| `POST /auth/logout` | 20 / hour / IP | A write reachable without a token, and nobody logs out more often |
+| `GET /health` | 60 / min / IP | Opens a database connection *and an outbound SMTP connection* per call |
 
 The three Manage Link rows were added in phase 08, which built the page they serve; the Definition of Done
 requires every public endpoint to be limited, and an unlimited write is an unlimited write. Cancel and
 reschedule are looser than booking because they cannot create anything — each needs a proof that already names
 one existing appointment.
 
+The last three rows were added in phase 11, by a test rather than by a reading. Until then "every public
+endpoint is limited" was checked against a list of ten paths typed into a test file — which had been wrong
+since phase 09, having never gained the chat endpoints. `/auth/refresh`, `/auth/logout` and `/health` had
+carried no limit since the phase that introduced them. `/health` is the one worth naming: it is the only
+endpoint in this system where an unauthenticated caller causes an *outbound* connection, which makes an
+unlimited one an amplifier aimed at our own mail server.
+
 **Order is significant and is tested.** The filter takes the first matching policy, so a wider pattern above a
 narrower one makes the tight limit unreachable and leaves the endpoint it was written for guarded by the loose
 one — silently, with nothing failing. `RateLimitPolicyOrderTest` pins which policy each public path lands on.
+
+**Coverage is tested too, and derived rather than listed.** `RateLimitCoverageTest` enumerates the endpoints
+from Spring's own `RequestMappingHandlerMapping` and asks the `AuthorizationManager` inside the running
+security filter chain which of them an anonymous caller may reach — the same object that decides it in
+production. An endpoint added under a `permitAll` pattern is in that test the moment it is mapped, and a
+public endpoint with no policy fails the build. An exemption is possible and there are none; it would have to
+carry a written reason.
 
 Exceeding a limit returns `429` with `Retry-After`. Bucket4j in-memory for MVP; the externalisation path
 (Redis) is documented and is the first change required when running more than one instance.

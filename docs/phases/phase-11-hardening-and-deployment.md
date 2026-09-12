@@ -383,7 +383,9 @@ argument that it was right.
       at any depth, in both spellings
 - [x] Full E2E flow green in CI against the fake provider (ADR-0011)
 - [x] 360 px public-page run
-- [ ] Rate limits verified for every public endpoint
+- [x] Rate limits verified for every public endpoint — `RateLimitCoverageTest`, which derives the
+      public surface from the handler mapping and the security filter chain rather than from a
+      list. Found three endpoints that had never carried a limit; shown red six ways
 - [x] Security-header test
 - [x] Log redaction test — `AppenderRedactionTest`, at the appenders rather than at the masker.
       Shown red five ways
@@ -442,7 +444,8 @@ argument that it was right.
 - [x] Playwright E2E flow
 - [x] Mailpit API assertions inside E2E
 - [x] Mobile-viewport E2E run
-- [ ] Rate-limit tests for every public endpoint
+- [x] Rate-limit tests for every public endpoint — `RateLimitCoverageTest`. The hand-written
+      list it replaces had been missing both chat endpoints since phase 09
 - [x] Security-header test
 - [x] Log-redaction test — secrets driven through the encoder the real `logback-json.xml` builds,
       and the bytes inspected
@@ -480,7 +483,11 @@ argument that it was right.
       loopback, the deployed one publishes no database port at all, and `make check-bindings` holds
       it there in CI and on both `up` targets — shown red three ways, including against the
       `ports: []` that *looks* like it removes a mapping and, because Compose appends sequences,
-      does not
+      does not. **§5 done 2026-09-12** and it broke in the same shape: the table listed ten limits
+      and the test that checked them listed ten paths, so the two agreed with each other and neither
+      agreed with the application. `/auth/refresh`, `/auth/logout` and `/health` had never been in
+      either. `RateLimitCoverageTest` now reads the public surface off the security filter chain, so
+      the list cannot be short
 - [x] Redaction filter verified across appenders — **2026-09-12.** Three tests already covered this
       ground and **none could catch the failure that matters**: deleting the `<jsonGeneratorDecorator>`
       from the appender that runs in production left `PiiValueMaskerTest`, `ConsoleRedactionTest` and
