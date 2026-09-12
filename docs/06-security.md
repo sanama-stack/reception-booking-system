@@ -136,14 +136,15 @@ The public surface is unauthenticated and therefore the most exposed part of the
 
 | Endpoint | Limit | Rationale |
 |---|---|---|
-| `GET /public/businesses/{slug}*` | 120 / min / IP | Cheap reads |
-| `GET …/availability` | 60 / min / IP | Computation, but read-only |
-| `POST …/appointments` | 10 / hour / IP | Writes; spam bookings |
+| `GET /public/businesses/**` | 120 / min / IP | Cheap reads |
+| `GET /public/businesses/*/availability` | 60 / min / IP | Computation, but read-only |
+| `POST /public/businesses/*/appointments` | 10 / hour / IP | Writes; spam bookings |
 | `POST /public/appointments/lookup` | **5 / hour / IP** | Brute-forcing a Confirmation Code |
 | `GET /public/appointments/manage` | 120 / min / IP | Cheap read, and one a customer may refresh |
-| `GET …/manage/availability` | 60 / min / IP | The same computation as availability |
-| `POST /public/appointments/{id}/*` | 20 / hour / IP | Customer cancel and reschedule |
-| `POST …/chat` | 20 / hour / conversation, 60 / hour / IP | Paid calls |
+| `GET /public/appointments/manage/availability` | 60 / min / IP | The same computation as availability |
+| `POST /public/appointments/*/**` | 20 / hour / IP | Customer cancel and reschedule |
+| `POST /public/businesses/*/chat` | 60 / hour / IP | Paid calls — the only request in this system that spends money every time |
+| `POST /public/businesses/*/chat/session` | 20 / hour / IP | Opening a conversation. Tighter than a turn: cycling sessions is how you would retry a Confirmation Code past the conversation ceiling |
 | `POST /auth/login` | 10 / 15 min / IP | Credential stuffing |
 | `POST /auth/register` | 5 / hour / IP | Account spam |
 | `POST /auth/refresh` | 60 / hour / IP | Session rotation — a database read and write, unauthenticated by construction |
@@ -152,6 +153,14 @@ The public surface is unauthenticated and therefore the most exposed part of the
 | `GET /openapi/**` | 30 / min / IP | The specification, ~45 KB, served to anyone. §15 |
 | `GET /swagger-ui/**` | 60 / min / IP | The page's assets — `swagger-ui-bundle.js` alone is 1.4 MB |
 | `GET /docs/**` | 60 / min / IP | The entry point that redirects to them |
+
+**The chat rows are rate limits and nothing else.** The Receptionist's other bounds — five tool calls
+a turn, forty messages a conversation, a twenty-message window — are per *conversation*, live in
+`ConversationLimits`, and are not enforced by `RateLimitFilter`. Until phase 11 this table carried
+*"20 / hour / conversation"* in the chat row, which was neither: the conversation ceilings are not
+hourly, and the twenty is the session policy's budget, which had no row of its own. Both are fixed
+above, and the table is now reconciled against the code rather than agreed with it by hand — see the
+note below the rationale.
 
 The three Manage Link rows were added in phase 08, which built the page they serve; the Definition of Done
 requires every public endpoint to be limited, and an unlimited write is an unlimited write. Cancel and

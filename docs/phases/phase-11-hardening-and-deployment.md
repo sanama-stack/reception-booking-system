@@ -635,7 +635,21 @@ argument that it was right.
       document currently behind authentication. **One exclusion could not be closed**: `/swagger-ui/**`
       is served by a resource handler and can never appear in a derivation built on
       `RequestMappingHandlerMapping`, so its policy is required by a written list whose entries the
-      orphan check verifies by probing the running application
+      orphan check verifies by probing the running application. **G28 closed 2026-09-13**, and it found the
+      drift it was written to prevent. §5's limits table and `RateLimitProperties` agreed **by hand**:
+      coverage was derived, the numbers were not, and changing `refresh` to ten an hour left §5
+      saying sixty with nothing failing. `RateLimitTableTest` reconciles the table against the policy
+      list in both directions. **Phase 09 had already drifted**: it added two chat policies and §5
+      gained one row, reading *"20 / hour / conversation, 60 / hour / IP"* — the sixty right, the
+      twenty belonging to `public-chat-session`, **a policy with no row at all**, and attributed to a
+      mechanism that has no hourly limit, since the conversation ceilings are five tool calls a turn,
+      forty messages and a twenty-message window in `ConversationLimits`. One policy undocumented and
+      one number filed under the wrong control, read past by two sessions of this walk. The table's
+      paths were abbreviated with `…` and are now the patterns the code declares, which is what makes
+      reconciliation possible at all. **Shown red four ways**, including G28's own worked example, and
+      the fourth is T89 for the fourth time in this walk: reformatting the table so the parse matches
+      nothing left *"§5 documents no limit the code does not enforce"* **green**, over an empty table
+      — an emptiness assertion satisfied by a parser that had stopped working
 - [x] Redaction filter verified across appenders — **2026-09-12.** Three tests already covered this
       ground and **none could catch the failure that matters**: deleting the `<jsonGeneratorDecorator>`
       from the appender that runs in production left `PiiValueMaskerTest`, `ConsoleRedactionTest` and
