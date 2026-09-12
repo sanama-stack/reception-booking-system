@@ -28,7 +28,7 @@
 |---|---|
 | `origin/main` | **`d420568`** — PR #31 merged this session, ten commits. Was `a71d17a` |
 | `origin/dev` = `dev` | **three ahead of `main`**, nothing unpushed, tree clean |
-| CI | **green on both runs carrying code**: `34703554370` (the PR run) and **`34704699908`** (the one every claim below is read from). `34705042652` and this handoff's own run are documentation only and were **still in flight** when this was written |
+| CI | **green on both runs carrying code**: `34703554370` (the PR run) and **`34704699908`** (the one every claim below is read from). `34705042652` reads **`cancelled`** and is not a break — the workflow sets `cancel-in-progress` on the ref, so pushing this handoff superseded it; its Frontend and Backend had already passed. Both it and this handoff's own run are documentation only |
 | Frontend | **22 files, 76 tests** — was 18 and 68 |
 | The 360 px sweep | **26 routes, every one `360/360`** — was 21. 5.4s, was 3.9s |
 | Backend | **not re-run by anything here.** No Java changed; the job is green in both runs |
