@@ -401,7 +401,13 @@ argument that it was right.
       pass. Shown red three ways: anchored on message age instead of conversation activity (2 red),
       with the `messages_purged_at` guard removed (2 red), and with the purge made a no-op (6 red),
       each reverted byte-identically
-- [ ] Revenue reports the remainder after a currency change
+- [x] Revenue reports the remainder after a currency change — `revenue.excluded`, one sum per other
+      currency among the same COMPLETED appointments, `[]` when there are none. Shown red four ways:
+      the derivation returning nothing (1 red), the COMPLETED filter dropped so the remainder
+      reports 120.00 (1 red), the currency comparison inverted (2 red), and `null` in place of the
+      empty list (1 red), each reverted byte-identically. **The first plant is the point**: it is
+      caught only by the assertion on `excluded[*].amount`, because "the list is empty" is what the
+      no-remainder test asserts on purpose. A count would not have caught it either
 - [ ] Full suite green from a clean clone
 
 ## Definition of Done
@@ -415,7 +421,9 @@ argument that it was right.
 - [ ] No secret is in the repository or its history
 - [x] The three performance checks pass
 - [x] Frontend unit tests run in CI's Frontend job
-- [ ] `revenue` names its remainder after a currency change, per ADR-0010
+- [x] `revenue` names its remainder after a currency change, per ADR-0010 — with an amount rather
+      than a count, on the screen as well as in the payload, and never summed with the figure above
+      it or with itself
 - [x] No `ai_message` outlives the documented retention window — ninety days after a
       conversation's last activity, enforced hourly by `TranscriptPurgeJob`. The window is
       `ConversationLimits.TRANSCRIPT_RETENTION_DAYS`, a constant, so widening it is a diff

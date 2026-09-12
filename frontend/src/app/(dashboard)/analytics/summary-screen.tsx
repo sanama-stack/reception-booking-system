@@ -2,7 +2,7 @@
 
 import { EmptyState, ResourceGate, Table, Td, Th, cn } from '@/components/ui';
 import { useResource } from '@/lib/api/use-resource';
-import type { AnalyticsSummary } from '@/lib/analytics';
+import type { AnalyticsRevenue, AnalyticsSummary } from '@/lib/analytics';
 import { formatIsoDate, formatMoney } from '@/lib/time';
 
 /**
@@ -55,14 +55,42 @@ function Headline({ summary }: { summary: AnalyticsSummary }) {
           Two caveats, both of them load-bearing. Completed only, because a booking that was never
           honoured is not money. And this currency only: appointments keep the currency they were
           priced in, so a business that switched has older revenue this figure does not report —
-          saying so is what stops a smaller number from reading as a bad month.
+          saying so is what stops a smaller number from reading as a bad month. Since ADR-0010 the
+          note also says how much, which is the difference between a caveat and a fact.
         */
-        note={`Completed appointments only, priced in ${revenue.currency}`}
+        note={revenueNote(revenue)}
       />
       <Rate label="Cancellation rate" rate={rates.cancellation} of={counts.total} />
       <Rate label="No-show rate" rate={rates.noShow} of={counts.total} />
     </div>
   );
+}
+
+/**
+ * What the revenue figure counts, and — when there is one — what it leaves out.
+ *
+ * The second sentence exists only when there is something to say, so a business that has never
+ * changed currency reads exactly the note phase 10 shipped. That is almost every business, and
+ * ADR-0010 chose this shape so the ordinary case would not pay for the rare one.
+ *
+ * **The remainder is listed, never summed** — not with `amount` above it and not with itself. Two
+ * excluded currencies produce two figures side by side, because one figure would be a number that
+ * is not money.
+ *
+ * `excluded` is an empty array and never null, which is why this is a length check and not a null
+ * guard. If it ever does arrive null the screen should break here loudly rather than quietly
+ * claiming nothing was left out — the failure mode a `?? []` would create is a partial truth that
+ * looks exactly like a whole one, which is the defect this whole field exists to fix.
+ */
+function revenueNote(revenue: AnalyticsRevenue): string {
+  const counted = `Completed appointments only, priced in ${revenue.currency}`;
+  if (revenue.excluded.length === 0) {
+    return counted;
+  }
+  const remainder = revenue.excluded
+    .map((entry) => formatMoney(entry.amount, entry.currency))
+    .join(', ');
+  return `${counted}. Not counted above: ${remainder}, earned before the currency changed`;
 }
 
 /**

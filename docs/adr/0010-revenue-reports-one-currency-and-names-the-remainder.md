@@ -49,13 +49,18 @@ happens anywhere — the thing the first section refuses is refused here too.
 
 ## Consequences
 
-- **This is not yet built.** The ADR records the decision; the field lands in phase 11 alongside the
-  `/analytics` screen change. A reader looking for `excluded` in `AnalyticsResponses` today will not
-  find it.
-- The existing test — *"after a currency change, revenue reports the new currency only"* — becomes
-  wrong as written once `excluded` exists, and is the natural place to assert the new behaviour. It
+- **Built 2026-09-13**, in phase 11, alongside the `/analytics` screen change — `excluded` is in
+  `AnalyticsResponses.Revenue`, derived by
+  `AnalyticsRepository#findByBusinessIdAndCompletedRevenueInOtherCurrencies`, and the screen renders
+  it as the footnote below. This bullet previously said the field did not exist yet.
+- The existing test — *"after a currency change, revenue reports the new currency only"* — became
+  wrong as written once `excluded` existed, and was rewritten in place rather than kept green. It
   was always a record of what the endpoint did rather than an argument that it was right
-  ([phase-10 backend handoff](../sessions/2026-09-11-phase-10-backend.md) §3.5).
+  ([phase-10 backend handoff](../sessions/2026-09-11-phase-10-backend.md) §3.5), and its premise —
+  that the contract had nowhere to put the remainder — had expired. **A Service stamps the
+  Business's currency at creation and never re-stamps it**, so the rewritten test has to create a
+  Service *after* the change to produce a second currency at all; switching the Business alone
+  leaves every future appointment in the old one.
 - `excluded` is an empty list rather than `null` when there is no remainder, matching `topServices`
   and unlike `Rates`, which is deliberately `null` when there were no appointments at all. The
   distinction holds: `Rates` has no meaningful zero, a remainder does.

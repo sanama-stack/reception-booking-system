@@ -110,7 +110,8 @@ public class AnalyticsService {
                 new Revenue(
                         analytics.sumByBusinessIdAndCompletedRevenue(
                                 businessId, AppointmentStatus.COMPLETED, business.currency(), rangeFrom, rangeTo),
-                        business.currency()),
+                        business.currency(),
+                        excludedRevenue(businessId, business.currency(), rangeFrom, rangeTo)),
                 new Rates(
                         rate(counts.get(AppointmentStatus.CANCELLED), total),
                         rate(counts.get(AppointmentStatus.NO_SHOW), total)),
@@ -222,6 +223,26 @@ public class AnalyticsService {
                 .toList();
     }
 
+    /**
+     * Every currency the headline figure does not cover, each with its own sum.
+     *
+     * <p>Empty for a Business that has never changed currency, which is every Business today and
+     * both of {@code make seed}'s. ADR-0010 chose this shape over turning {@code revenue} into a
+     * list of co-equal totals precisely so the ordinary case does not pay for the rare one: the
+     * primary number keeps its position and the remainder reads like the exception it is.
+     *
+     * <p><strong>Empty list, never null.</strong> {@code Rates} is null over no appointments because
+     * it has no meaningful zero; "nothing was excluded" is a fact and has one.
+     */
+    private List<ExcludedRevenue> excludedRevenue(UUID businessId, String currency, Instant from, Instant to) {
+        return analytics
+                .findByBusinessIdAndCompletedRevenueInOtherCurrencies(
+                        businessId, AppointmentStatus.COMPLETED, currency, from, to)
+                .stream()
+                .map(row -> new ExcludedRevenue(row.getCurrency(), row.getTotal()))
+                .toList();
+    }
+
     /** What the endpoint answers. One record per object in the documented body. */
     public record Summary(Range range, Counts counts, Periods periods, Revenue revenue, Rates rates,
             List<TopService> topServices) {}
@@ -237,8 +258,18 @@ public class AnalyticsService {
     /**
      * @param amount completed appointments only, at the prices that were agreed
      * @param currency the Business's current currency, and the only one {@code amount} covers
+     * @param excluded the other currencies found among the same appointments, empty when there are
+     *     none — the remainder ADR-0010 decided to name rather than drop
      */
-    public record Revenue(BigDecimal amount, String currency) {}
+    public record Revenue(BigDecimal amount, String currency, List<ExcludedRevenue> excluded) {}
+
+    /**
+     * One currency {@code Revenue#amount} does not cover, and what was taken in it.
+     *
+     * <p>A sum rather than a count, deliberately: "3 appointments excluded" tells an owner something
+     * is missing without telling them whether it matters.
+     */
+    public record ExcludedRevenue(String currency, BigDecimal amount) {}
 
     /** Either may be null, and null means "no appointments", not "none cancelled". */
     public record Rates(BigDecimal cancellation, BigDecimal noShow) {}
