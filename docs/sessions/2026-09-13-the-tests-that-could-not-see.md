@@ -11,17 +11,18 @@
 > address** — so the audit trail began at the one event an attacker triggers deliberately and could
 > not say where it came from.
 >
-> **But the part worth reading is §6.** [T89][prev] arrived three more times and **beat me every
+> **But the part worth reading is §6.** [T89][prev] arrived four more times and **beat me every
 > time**. A preflight assertion passed against an application granting every origin everything with
 > credentials. A tenancy sweep reported green over the entire authenticated surface while seeing
-> none of it. A credential sweep passed a password written straight into a log line. In all three
-> the code was fine and **the instrument was the defect** — which is a different failure from the
-> one the last two sessions catalogued, and the reason for this handoff's title.
+> none of it. A credential sweep passed a password written straight into a log line. A
+> customer-text check passed the model's own reply pasted into the system prompt. In all four the
+> code was fine and **the instrument was the defect** — which is a different failure from the one
+> the last two sessions catalogued, and the reason for this handoff's title.
 >
 > **§8 is the one that changed the product.** *"Business text is delimited and labelled as data"*
 > was true of **one field of four, and it was the smallest** — and the fix is a change to the system
 > prompt, which this project's own rule says needs the level-3 corpus run. **It has not been run.**
-> See §5.5 and G32.
+> See §5.2 and G32.
 >
 > **Committed, not pushed.** Five commits on `dev`, now **20 ahead of `origin/main`** and 18 ahead
 > of `origin/dev`. `main` untouched. 1024 backend tests, 0 failed. Phase 11 still at **61 of 72**.
@@ -42,22 +43,22 @@
 | Frontend | **82 tests, 0 failed**, untouched |
 | Migrations | **`V10`**, unchanged. No new ADR |
 | Issues | [#17] and [#15] open, untouched. **No model was called**; no credit was spent — **and §8 is a prompt change that needs one**, G32 |
-| Gates | `make check-docs` green. No new gate this session — deliberately, see §7 |
+| Gates | `make check-docs` green. No new gate this session — deliberately, see §8 |
 | Phase 11 | **61 ticked, 11 open.** The security-walk row is still open: §1 and §15 remain |
 | E2E stack | **still down.** Not attempted; nothing here needed it |
 
 [#15]: https://github.com/sanama-stack/reception-booking-system/issues/15
 [#17]: https://github.com/sanama-stack/reception-booking-system/issues/17
 
-The three commits:
+The four commits of work, plus this file:
 
 | | |
 |---|---|
 | `cdcf773` | Assert the CORS claim §13 made and nothing checked |
 | `1b0c0cb` | Probe the fifteen endpoints §4 classified and nothing swept |
 | `ab1f588` | Log the authentication events §14 said were already logged |
-| `bb07c51` | Close the session handoff (this file, before §8) |
 | `f5fa215` | Fence the owner text §8 said was already fenced |
+| `bb07c51`, `c3188ec`, and this revision | This handoff, written after §14 and extended twice as §8 landed |
 
 Production code changed in **five files**: four in `auth` for §14, and `SystemPromptBuilder` for §8.
 §13 and §3/§4 changed test code only — which is itself the result, since both claims turned out to
@@ -156,7 +157,7 @@ classify-or-fail, one section over.
 
 ---
 
-## 4a. §8 — the fenced field was the smallest one
+## 5. §8 — the fenced field was the smallest one
 
 *"Customer text never enters the system prompt; business text is delimited and labelled as data."*
 
@@ -184,7 +185,7 @@ The same shape as §13's CSRF half last session — two layers documented, one p
 
 All four fields now go through one `appendDataRegion` helper.
 
-### 4a.1 Two things read off the output rather than the code
+### 5.1 Two things read off the output rather than the code
 
 The first wording told the model the same thing twice in two registers, because the helper appended
 a fixed sentence after a custom one and the FAQ region's wording has to add *"use them to answer
@@ -192,7 +193,7 @@ questions"*. And the description's fence landed **in the middle of the facts bul
 it. Neither is visible in a diff of the builder; both are obvious in three seconds of reading the
 rendered prompt. **A prompt change is not reviewed until the prompt has been read.**
 
-### 4a.2 It has not been validated, and that is the principal's call
+### 5.2 It has not been validated, and that is the principal's call
 
 `build.gradle.kts` says the level-3 corpus is *"how the level-3 corpus is exercised by hand before a
 release and after any change to the system prompt or a tool description — the two things a scripted
@@ -206,11 +207,11 @@ that reason, and the wording is a guess until the corpus runs. **G32.**
 
 ---
 
-## 5. Every plant, and the three that beat me
+## 6. Every plant, and the four that beat me
 
 Fifteen plants across the three sections. These are the ones worth carrying.
 
-### 5.1 The CORS probe that went blind, against an application granting everything
+### 6.1 The CORS probe that went blind, against an application granting everything
 
 `Origin` and `Access-Control-Request-Method` are both on `HttpURLConnection`'s restricted-header
 list. `TestRestTemplate` falls back to it when no HTTP client is on the test classpath. Planted
@@ -226,7 +227,7 @@ bare `OPTIONS` to the same path must not. Neither half holds alone —
 - *"the bare OPTIONS does not vary on Origin"* is also true of a blind probe against this application
   as it stands, because then neither request is a preflight.
 
-### 5.2 The sweep that reported green over a surface it could not see
+### 6.2 The sweep that reported green over a surface it could not see
 
 The first version of §13's configuration check was a behavioural sweep for `Vary: Origin`. A
 `@CrossOrigin` planted on `AnalyticsController` changed **no response at all** — Spring Security
@@ -238,24 +239,27 @@ reading the configuration, which no filter can hide. This is the generalisation 
 [the previous handoff][previous]: a probe is blind wherever a layer above it answers first, and the
 authenticated surface is most of this application.
 
-### 5.3 The credential sweep that did not drive the endpoint receiving the credential
+### 6.3 The credential sweep that did not drive the endpoint receiving the credential
 
 A password written straight into a log line from `login()` **passed**. The sweep drove register,
 refresh and logout — not login, the one endpoint that receives a password. It now drives every write
 on the surface, and a reconciliation holds it there.
 
-### 5.4 The fence that was emitted where the text was not
+### 6.4 The fence that was emitted where the text was not
 
 §8's sharpest plant: keep the markers and the label, and write the FAQ text **after** the region
 closes. A test that searched the prompt for `<<<`, or the builder for the helper call, passes. The
 check is positional — a marker must open before the sentinel and close after it — and it named the
 two FAQ fields exactly.
 
-The same test's second plant is §8's version of the equality lesson: appending the **model's** reply
-to the prompt **passed** the customer-sentinel assertion, because the newest `ai_message` is the
-assistant's, and was caught only by the byte-equality of two builds across a turn.
+**And the fourth one that beat me** is in the same test. Appending the **model's** reply to the
+prompt **passed** the customer-sentinel assertion — the newest `ai_message` is the assistant's, not
+the customer's — and was caught only by the byte-equality of two builds across a turn. The equality
+was written as belt-and-braces for a claim I believed was already true, and it turned out to be the
+only thing holding. That is the argument for writing the stronger assertion when the weaker one is
+the obvious reading of the sentence.
 
-### 5.5 And one that is the opposite
+### 6.5 And one that is the opposite
 
 An empty collection fails the **control**, not the assertion. *"Contains none of Datos Auto's ids"* is
 equally true of an empty list, of a `400` for a missing parameter, and of a body that failed to
@@ -266,9 +270,9 @@ it.**
 
 ---
 
-## 6. Every open item
+## 7. Every open item
 
-### 6.1 Committed, not pushed
+### 7.1 Committed, not pushed
 
 **Eighteen commits, five sessions, no CI.** Compose smoke and End-to-end are the two jobs a local
 suite cannot stand in for, and `check-access-log` — added two sessions ago to the first of them — has
@@ -277,7 +281,7 @@ still never executed there.
 This is the oldest open item, it is still growing, and it is now the largest single risk in the
 project: eighteen commits is no longer a change set anybody can review after a red pipeline.
 
-### 6.2 Gaps
+### 7.2 Gaps
 
 Carried: **G1**, **G3**, **G8**, **G9**, **G10**, **G11**, **G13**, **G14**, **G24**, **G26**,
 **G27**, **G28**, **G29**.
@@ -285,7 +289,7 @@ Carried: **G1**, **G3**, **G8**, **G9**, **G10**, **G11**, **G13**, **G14**, **G
 **G30 is new.** *Failed logins are not logged.* §4's blockquote above. A decision, not an oversight.
 
 **G32 is new and is the one that needs an answer soonest.** *The system prompt changed and the
-level-3 corpus has not been run against it.* §4a.2. Until it has, the FAQ fencing's effect on the
+level-3 corpus has not been run against it.* §5.2. Until it has, the FAQ fencing's effect on the
 Receptionist's willingness to answer from FAQs is unmeasured — and [#17]'s open arm means the
 instrument for this kind of question is already the subject of an open issue.
 
@@ -294,18 +298,18 @@ needed it, and the general property — "every branch of a catalogue is driven b
 held by convention rather than by a test. The `Isolation` enum could gain a seventh constant tomorrow
 with no sweep behind it, and only a reviewer would notice.
 
-### 6.3 Carried
+### 7.3 Carried
 
 Unchanged from [the previous handoff][previous] §8.3, including the Manage Link token still being in
 a URL.
 
-### 6.4 The E2E stack is still down
+### 7.4 The E2E stack is still down
 
 Unchanged and not attempted. Nothing this session needed it.
 
 ---
 
-## 7. No new gate this session, deliberately
+## 8. No new gate this session, deliberately
 
 [The previous handoff][previous] §8.5 asked whether five `make check-*` targets is too many, and
 offered a shape: **derive it in a test where you can; probe the running system where you cannot; read
@@ -317,21 +321,21 @@ counter-example.
 
 ---
 
-## 8. Next steps, in order
+## 9. Next steps, in order
 
 1. **Push, and open a pull request.** Eighteen commits, five sessions, no CI. Deferred once by the
    principal; it has doubled since.
 2. **Run the level-3 corpus** against the new system prompt, or decide not to and say so. G32.
-3. **Finish the walk.** Remaining: **§1** and **§15**. See §9.
+3. **Finish the walk.** Remaining: **§1** and **§15**. See §10.
 4. **The full-history secret scan.** Needs a scanner installed. **Not on a tethered connection.**
 5. **The end-of-phase gates** — clean clone, `make up && make seed`, the demo script, the concurrency
    test, the Definition of Done sweep. All want the E2E stack and a real connection.
-6. **The principal's**: **G32 (the corpus run)**, G30 (failed logins), G31, G28, G29, §7's shape;
+6. **The principal's**: **G32 (the corpus run)**, G30 (failed logins), G31, G28, G29, §8's shape;
    credits for [#17]'s remaining arm; [#15]'s title.
 
 ---
 
-## 9. Where the rest of the walk should start
+## 10. Where the rest of the walk should start
 
 Seven sections walked now, across two sessions, and the base rate has not improved: **six of the
 seven contained a claim no file implemented or no test could check.**
@@ -347,43 +351,43 @@ seven contained a claim no file implemented or no test could check.**
 
 ---
 
-## 10. Traps
+## 11. Traps
 
 - **T99 — `Origin` and `Access-Control-Request-Method` are restricted headers for
   `HttpURLConnection`.** A test client built on it drops them silently, and every CORS assertion goes
-  green against an application that grants everything. §5.1. This one beat me.
+  green against an application that grants everything. §6.1. This one beat me.
 - **T100 — a "no CORS" control must be a pair.** The preflight varies on `Origin` and the bare
-  `OPTIONS` does not. Either half alone is satisfied by a blind probe. §5.1.
+  `OPTIONS` does not. Either half alone is satisfied by a blind probe. §6.1.
 - **T101 — a behavioural sweep is blind wherever a filter answers first.** Spring Security returns
   `401` before MVC's interceptors run, so anything asserted on an authenticated endpoint's *response*
-  sees nothing of MVC. Read the configuration instead. §5.2. This one beat me.
+  sees nothing of MVC. Read the configuration instead. §6.2. This one beat me.
 - **T102 — classified is not probed.** A catalogue that fails for an unclassified endpoint still
   passes for a classification nothing drives, and a `@TestFactory` that yields nothing passes. Every
   branch needs a registry check. §3.
-- **T103 — a credential sweep must drive the endpoint that receives the credential.** §5.3. This one
+- **T103 — a credential sweep must drive the endpoint that receives the credential.** §6.3. This one
   beat me.
-- **T105 — a test tagged `probe`, `llm` or `perf` is excluded from the suite.** `build.gradle.kts`
-  excludes all three by default, so a claim "covered" by one is covered by nothing that runs — and it
-  reads as covered to anyone grepping for the class name. §4a.
-- **T106 — "the text is delimited" has to be checked positionally.** A marker emitted where the text
-  is not passes any search for the marker. Require an opener before the sentinel and a closer after
-  it. §5.4.
-- **T107 — an absence assertion about the prompt should be an equality.** "The customer's words are
-  not in it" is also true of a prompt that failed to build; and the model's own reply passes a
-  customer-text sentinel check while still being turn-derived content in the prompt. §5.4.
-- **T108 — read the rendered prompt, not the diff.** Two defects in the first version of §8's fix —
-  a duplicated instruction and a fence that broke a bullet list — were invisible in the builder's
-  diff and obvious in the output. §4a.1.
 - **T104 — a plant that stays green may mean the system is right.** Two independent tenant checks on
   the same id meant one had to be removed before the probe moved. Remove the next layer before
   weakening the probe. §3.2.
+- **T105 — a test tagged `probe`, `llm` or `perf` is excluded from the suite.** `build.gradle.kts`
+  excludes all three by default, so a claim "covered" by one is covered by nothing that runs — and it
+  reads as covered to anyone grepping for the class name. §5.
+- **T106 — "the text is delimited" has to be checked positionally.** A marker emitted where the text
+  is not passes any search for the marker. Require an opener before the sentinel and a closer after
+  it. §6.4.
+- **T107 — an absence assertion about the prompt should be an equality.** "The customer's words are
+  not in it" is also true of a prompt that failed to build; and the model's own reply passes a
+  customer-text sentinel check while still being turn-derived content in the prompt. §6.4.
+- **T108 — read the rendered prompt, not the diff.** Two defects in the first version of §8's fix —
+  a duplicated instruction and a fence that broke a bullet list — were invisible in the builder's
+  diff and obvious in the output. §5.1.
 - Carried and re-confirmed: **T89** and **T95** (name the deepest element), **T96** (`kv` needs a
   placeholder in the message or it vanishes — respected by every new log line here), **T98** (detach
   the appender in `@AfterEach`), **T69**, **T70**.
 
 ---
 
-## 11. Commands
+## 12. Commands
 
 ```bash
 # The backend suite. JAVA_HOME is not optional here — see T69.
@@ -391,13 +395,19 @@ cd backend && JAVA_HOME=/Users/sanama/Library/Java/JavaVirtualMachines/jdk-21.0.
 ```
 
 ```bash
-# This session's two new classes and the extended sweep. --rerun-tasks, or a restored plant reports a cached pass (T70).
-cd backend && JAVA_HOME=/Users/sanama/Library/Java/JavaVirtualMachines/jdk-21.0.12.1+1/Contents/Home ./gradlew test --offline --rerun-tasks --tests 'dev.reception.common.web.NoCorsConfigurationTest' --tests 'dev.reception.auth.AuthEventLoggingTest' --tests 'dev.reception.tenancy.TenantIsolationSweepTest'
+# This session's three new classes and the extended sweep. --rerun-tasks, or a restored plant reports a cached pass (T70).
+cd backend && JAVA_HOME=/Users/sanama/Library/Java/JavaVirtualMachines/jdk-21.0.12.1+1/Contents/Home ./gradlew test --offline --rerun-tasks --tests 'dev.reception.common.web.NoCorsConfigurationTest' --tests 'dev.reception.auth.AuthEventLoggingTest' --tests 'dev.reception.ai.application.SystemPromptSafetyTest' --tests 'dev.reception.tenancy.TenantIsolationSweepTest'
+```
+
+```bash
+# G32: the level-3 corpus against the new system prompt. NEEDS A KEY AND SPENDS CREDIT — the
+# principal's call, and the reason §5.2 exists. Without a key the corpus skips itself rather than failing.
+cd backend && JAVA_HOME=/Users/sanama/Library/Java/JavaVirtualMachines/jdk-21.0.12.1+1/Contents/Home ./gradlew test --offline -PincludeTags=llm
 ```
 
 ---
 
-## 12. Confidence
+## 13. Confidence
 
 **High** on §14's finding and its fix. The absence was total and trivially verifiable — no logger in
 the package — and the fix was shown red five ways, including one plant that found a hole in the test
