@@ -107,12 +107,16 @@ for form reasons in a spec that measures layout. The conversation is the one tha
 by a plain write — it has to be *talked* into existing, against the fake provider. **Twenty-six
 routes declared; the count assertion moves with them.**
 
-**Every request in that helper was verified against a running stack on 2026-09-12** — registration
-through to all five detail endpoints answering `200`, and the transcript confirmed to hold eight
-messages including `TOOL` rows carrying `toolArguments` and `toolResult`. What that does *not*
-establish is the measurement: no browser ran. **The twenty-six-route sweep is unproven until CI
-reports it**, and the twenty-one-route numbers quoted above remain the last ones a run actually
-produced.
+**Green in CI 2026-09-12**, run `34704699908`: **26 routes, every one `360/360`**, the five
+`/{id}` rows among them, read off the per-route table in the *The flow* step's log rather than off
+the job's colour. The sweep took **5.4s** against the twenty-one-route run's 3.9 — the seeding and
+five more page loads — and the count assertion is what makes that number mean something.
+
+Before that run the helper's requests had been verified against a live stack, registration through
+to all five detail endpoints answering `200` and a transcript holding eight messages including
+`TOOL` rows with `toolArguments` and `toolResult`. That established the requests and **not** the
+measurement, because no browser can run here; the row stayed open until CI printed twenty-six. Worth
+keeping as the shape of the thing: a verified fixture is not a verified assertion.
 
 **It cannot be run on a developer machine here.** Chrome starts and is `SIGKILL`ed by the sandbox,
 re-confirmed on 2026-09-12. CI is the only place it runs.
@@ -255,7 +259,8 @@ Wired into CI's Frontend job beside the existing gates. **This does not replace 
 stays the check that proves the demo works end to end.
 
 **Built 2026-09-12, and green in CI** — run `34702330928`, 18 files and 68 tests in the Frontend
-job beside lint, typecheck, format and the build.
+job beside lint, typecheck, format and the build. **22 files and 76 tests** as of run
+`34704699908`, which is where the last four empty states landed.
 
 **The counterfactual is load-bearing and CI proves it.** GitHub's runners are UTC. The timezone
 tests assert the ambient zone is +04:00 *before* they assert anything else, so had `env: { TZ }` in
@@ -402,9 +407,10 @@ argument that it was right.
       run `34702330928`, printed per route in the log. jsdom cannot measure layout at all, so this
       lives in the Playwright `mobile` project; a 900 px plant runs on every execution so the
       sweep cannot become vacuous
-- [ ] **G25 — the five id-taking routes inside the sweep.** Written 2026-09-12 and the seeding
-      verified against a running stack; **no browser has measured them yet**, so this stays open
-      until a CI run prints twenty-six
+- [x] **G25 — the five id-taking routes inside the sweep.** **26 routes, every one `360/360`** in
+      run `34704699908`, the five `/{id}` rows printed among them. The conversation's transcript is
+      the one that mattered: it draws each tool call's arguments and results as pretty-printed JSON,
+      which is the widest content in the application, and it holds inside its own scroll container
 
 ### Seed
 - [x] `make seed`, `local`-profile-guarded
