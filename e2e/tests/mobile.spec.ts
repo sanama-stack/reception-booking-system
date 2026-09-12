@@ -1,6 +1,7 @@
 import { test, expect } from '@playwright/test';
 import { expectNoSidewaysScroll, measureOverflow } from './overflow';
-import { freshTenant, registerBusiness } from './support';
+import type { DetailRows } from './support';
+import { freshTenant, registerBusiness, seedDetailRows } from './support';
 
 /**
  * The 360 px sweep — docs/08-testing-strategy.md §8's last line, and phase 11's row asking for the
@@ -24,9 +25,8 @@ const PUBLIC_ROUTES = ['/', '/login', '/register'];
 /**
  * Everything behind the sign-in that needs no id in its path.
  *
- * The detail routes are deliberately absent: each needs a row this tenant would have to create
- * first, and the sweep's value is breadth. `/book/{slug}` is swept separately because its path is
- * only known once the business exists.
+ * `/book/{slug}` is swept separately because its path is only known once the business exists, and
+ * the five `/{id}` routes are swept after that — see `DETAIL_ROUTES`.
  */
 const DASHBOARD_ROUTES: Array<{ route: string; lands?: string }> = [
   { route: '/dashboard' },
@@ -48,6 +48,25 @@ const DASHBOARD_ROUTES: Array<{ route: string; lands?: string }> = [
   { route: '/settings/closures' },
   { route: '/settings/faqs' },
   { route: '/analytics' },
+];
+
+/**
+ * The five routes that need a row before they can be looked at — **G25**.
+ *
+ * They were outside this sweep until 2026-09-12, and they are the ones most likely to be too wide:
+ * every other route here is a list or a form, while these render history tables, a week of
+ * schedule, and — on the conversation — each tool call's arguments and results as pretty-printed
+ * JSON, which is the widest content this application draws anywhere.
+ *
+ * Labelled by shape rather than by the UUID actually visited, so the log reads as a route list
+ * rather than as five opaque ids.
+ */
+const DETAIL_ROUTES: Array<{ label: string; of: (rows: DetailRows) => string }> = [
+  { label: '/appointments/{id}', of: (rows) => `/appointments/${rows.appointmentId}` },
+  { label: '/customers/{id}', of: (rows) => `/customers/${rows.customerId}` },
+  { label: '/services/{id}', of: (rows) => `/services/${rows.serviceId}` },
+  { label: '/employees/{id}', of: (rows) => `/employees/${rows.employeeId}` },
+  { label: '/conversations/{id}', of: (rows) => `/conversations/${rows.conversationId}` },
 ];
 
 test('no screen scrolls sideways at 360 px', async ({ page }) => {
@@ -109,6 +128,14 @@ test('no screen scrolls sideways at 360 px', async ({ page }) => {
       record(route, await expectNoSidewaysScroll(page, route, lands)));
   }
 
+  // Created before the detail routes are visited, and only then: the ids are what the routes are.
+  const rows = await seedDetailRows(page, tenant, slug);
+
+  for (const { label, of } of DETAIL_ROUTES) {
+    await test.step(`signed in: ${label}`, async () =>
+      record(label, await expectNoSidewaysScroll(page, of(rows))));
+  }
+
   await test.step(`public booking page: /book/${slug}`, async () => {
     await page.goto(`/book/${slug}`);
     await expect(page.getByRole('heading', { name: tenant.businessName })).toBeVisible({
@@ -125,7 +152,7 @@ test('no screen scrolls sideways at 360 px', async ({ page }) => {
 
   // The count is asserted, not just printed. A loop that silently visited nothing would otherwise
   // produce an empty table and a green tick.
-  const expected = PUBLIC_ROUTES.length + DASHBOARD_ROUTES.length + 1;
+  const expected = PUBLIC_ROUTES.length + DASHBOARD_ROUTES.length + DETAIL_ROUTES.length + 1;
   expect(measured.length, 'routes measured').toBe(expected);
 
   // eslint-disable-next-line no-console -- this is the evidence the run leaves behind
