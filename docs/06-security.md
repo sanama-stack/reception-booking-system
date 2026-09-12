@@ -149,6 +149,9 @@ The public surface is unauthenticated and therefore the most exposed part of the
 | `POST /auth/refresh` | 60 / hour / IP | Session rotation — a database read and write, unauthenticated by construction |
 | `POST /auth/logout` | 20 / hour / IP | A write reachable without a token, and nobody logs out more often |
 | `GET /health` | 60 / min / IP | Opens a database connection *and an outbound SMTP connection* per call |
+| `GET /openapi/**` | 30 / min / IP | The specification, ~45 KB, served to anyone. §15 |
+| `GET /swagger-ui/**` | 60 / min / IP | The page's assets — `swagger-ui-bundle.js` alone is 1.4 MB |
+| `GET /docs/**` | 60 / min / IP | The entry point that redirects to them |
 
 The three Manage Link rows were added in phase 08, which built the page they serve; the Definition of Done
 requires every public endpoint to be limited, and an unlimited write is an unlimited write. Cancel and
@@ -491,7 +494,7 @@ Stated rather than silently carried:
 | No key rotation scheme | Single-secret; rotation requires a re-login of all users, acceptable at this stage |
 | No backups | Local-only deployment; would be mandatory before any real tenant |
 | No 2FA | Out of MVP scope. **Adding it needs a migration** — `users` has six columns and none of them can hold a shared secret or an enrolment flag, and there is no credentials table. This entry read *"the account model supports adding it without migration"* until phase 11, which was wrong, and wrong in the direction that matters: the justification is what a reader prices the reversal with |
-| The API documentation is unauthenticated in every profile | `/docs`, `/openapi` and `/swagger-ui` are permitted to everyone, `prod` included ([SecurityConfig](../backend/src/main/java/dev/reception/common/config/SecurityConfig.java)). Correct against the MVP's local-compose contract, where the origin is a developer's own machine — and **the first thing to change on an internet-reachable host**, because it publishes the entire endpoint surface to anyone who asks. Recorded here in phase 11 because it was in neither this table nor the deployment notes, which is the state this table exists to make impossible. **Also unlimited**, which this entry did not say until the §15 review: see below |
+| The API documentation is unauthenticated in every profile | `/docs`, `/openapi` and `/swagger-ui` are permitted to everyone, `prod` included ([SecurityConfig](../backend/src/main/java/dev/reception/common/config/SecurityConfig.java)). Correct against the MVP's local-compose contract, where the origin is a developer's own machine — and **the first thing to change on an internet-reachable host**, because it publishes the entire endpoint surface to anyone who asks. Recorded here in phase 11 because it was in neither this table nor the deployment notes, which is the state this table exists to make impossible. The §15 review found it **also unlimited**; that half is now closed (§5), and **the disclosure is what remains accepted**. Note it stops at the JSON rendering: `/openapi.yaml` answers `401`, because `/openapi/**` matches children and not siblings — an accident, and pinned as one |
 | A Manage Link is a bearer capability in a URL | Anyone holding the link can cancel or reschedule that one appointment until 24 hours after it ends — a forwarded email, a shared screen or a shared browser's history is enough. Accepted because the alternative is asking a Customer for their code and phone number on every visit to a link we emailed them, which is the friction the link exists to remove. §6 describes the token at length and the access-log leak it caused; **the residual risk was never carried here**, which is the same omission the row above it records |
 
 **Reviewed in phase 11, and the review is a different job from the rest of this walk.** The other
@@ -515,8 +518,9 @@ Three of the seven were wrong, and each in a different way.
   and **invisible to every derived control in this repository** — and Caddy's `handle /api/*`
   proxies all of them, so the exposure is the deployed one and not a local-only artefact.
   [`ApiDocumentationExposureTest`](../backend/src/test/java/dev/reception/common/web/ApiDocumentationExposureTest.java)
-  pins both halves. **Whether to close it is an open decision** — a policy covering the paths, or an
-  exemption recorded in `RateLimitCoverageTest`'s `UNLIMITED_ON_PURPOSE` map with the reason.
+  pins both halves. **The amplification was closed** — three policies in §5's table — **and the
+  disclosure stays accepted**, which is the row above. The two were separate decisions and the test
+  keeps them apart, so that closing one later cannot quietly be read as closing the other.
 - **A risk that was missing.** The Manage Link's residual risk — a bearer capability living in a URL
   — is discussed at length in §6 as a *fact* about the token, and was never carried here as a
   *decision*. §6 closed the access-log leak; it did not close the property that made the leak matter.
@@ -524,6 +528,29 @@ Three of the seven were wrong, and each in a different way.
 The four remaining entries were checked and are accurate, including the two that make claims about
 other documents: the rate-limit externalisation path is genuinely written down in three places, and
 the backup position is stated in `deployment.md` rather than assumed.
+
+**Closing the amplification took two changes, and the second is the one worth remembering.** The
+policies were the easy half. The derivation in `RateLimitCoverageTest` filtered handlers to
+`dev.reception`, inherited from `EndpointCoverageTest` where the reason is sound — a springdoc
+release renaming its paths should not break a test about *our* tenancy. Rate limiting is a different
+question: springdoc's paths spend exactly what ours do. So the filter did not merely hide the gap,
+**it rejected the fix** — a policy written for `/openapi` matched nothing in the derived surface and
+was reported as a dead policy. The derivation now sees every mapped endpoint, which also means a
+`permitAll` widened to expose a framework path arrives as an uncovered public endpoint rather than
+as nothing at all.
+
+> **A guarantee is only as wide as the set it quantifies over, and the set is easy to read past.**
+> *"Every endpoint an anonymous caller can reach is rate limited"* was enforced, derived, and shown
+> red — and it quietly meant *every endpoint of ours*, while the largest unauthenticated response in
+> the system sat outside it. Nothing was wrong with the test; the scope was one line in a private
+> method, correct where it was written and wrong where it was inherited. **When a control is copied
+> between sections, its exclusions have to be re-argued rather than re-used.**
+>
+> One exclusion could not be closed and is worth naming: `/swagger-ui/**` is served by a resource
+> handler, which declares no handler methods, so it can never appear in a derivation built on
+> `RequestMappingHandlerMapping`. Its policy is required by a written list, and the orphan check
+> verifies that list by **probing the running application** rather than by trusting it. That is the
+> weakest link in this control and the place to look first if the assets are ever unlimited again.
 
 > **An accepted-risk table is the one place where going out of date is the whole failure.** Every
 > other section describes a control, and a stale sentence there is caught the moment somebody tests

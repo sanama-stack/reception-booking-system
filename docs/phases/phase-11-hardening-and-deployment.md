@@ -618,7 +618,24 @@ argument that it was right.
       three ways** — and the third is the lesson for the third time this walk: with the limiter
       switched off, *"the documentation is unlimited"* **passed**, completely vacuously, and only the
       positive control caught it. **Closing the documentation exposure is an open decision** — a
-      policy over the paths, or an `UNLIMITED_ON_PURPOSE` exemption with its reason
+      policy over the paths, or an `UNLIMITED_ON_PURPOSE` exemption with its reason. **Closed 2026-09-13, on the
+      principal's call.** Three policies — `/openapi/**` at 30/min, `/swagger-ui/**` and `/docs/**`
+      at 60/min, sized against a real page load of about seven asset requests. **The policies were
+      the easy half.** `RateLimitCoverageTest`'s derivation filtered handlers to `dev.reception`,
+      inherited from `EndpointCoverageTest` where the reason is sound, and rate limiting is a
+      different question from tenancy — so the filter did not just hide the gap, **it rejected the
+      fix**: a policy for `/openapi` matched nothing derived and was reported as a dead policy. The
+      derivation now sees every mapped endpoint. **Shown red five ways**, and two changed the work.
+      Restoring the old filter turns the new policies back into orphans, which is the finding
+      restated as a test. And a policy written for `/openapi.yaml` **was wrong** — the coverage test
+      stayed green without it, because `permitAll` lists `/openapi/**`, which matches children and
+      not siblings, so the YAML rendering answers `401` while the JSON one answers `200`. Nobody
+      decided that; the pattern did. The policy was removed and the asymmetry pinned instead, because
+      the tidy-up that makes the two patterns consistent is one character wide and publishes a
+      document currently behind authentication. **One exclusion could not be closed**: `/swagger-ui/**`
+      is served by a resource handler and can never appear in a derivation built on
+      `RequestMappingHandlerMapping`, so its policy is required by a written list whose entries the
+      orphan check verifies by probing the running application
 - [x] Redaction filter verified across appenders — **2026-09-12.** Three tests already covered this
       ground and **none could catch the failure that matters**: deleting the `<jsonGeneratorDecorator>`
       from the appender that runs in production left `PiiValueMaskerTest`, `ConsoleRedactionTest` and

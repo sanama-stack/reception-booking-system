@@ -14,6 +14,8 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.boot.test.web.client.TestRestTemplate;
+import org.springframework.boot.test.web.server.LocalServerPort;
 import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.security.authentication.AnonymousAuthenticationToken;
 import org.springframework.security.authorization.AuthorizationManager;
@@ -64,6 +66,18 @@ class RateLimitCoverageTest extends IntegrationTest {
     private static final Map<String, String> UNLIMITED_ON_PURPOSE = new LinkedHashMap<>();
 
     /**
+     * Policies whose target is served by a resource handler rather than a handler method, and a
+     * concrete path each must still resolve to.
+     *
+     * <p>These cannot be derived from {@link RequestMappingHandlerMapping} because they are not in
+     * it, so the orphan check probes the running application for them instead. The path is the
+     * assertion: rename or remove the assets and the probe 404s, which is exactly when the policy
+     * has stopped guarding anything.
+     */
+    private static final Map<String, String> SERVED_BY_A_RESOURCE_HANDLER =
+            Map.of("api-docs-ui", "/swagger-ui/index.html");
+
+    /**
      * Two beans implement this type — ours and springdoc's. The qualifier picks the one that routes
      * real requests; omitting it fails with {@code NoUniqueBeanDefinition}, which reads like a
      * missing bean and is the opposite. Same trap as {@code EndpointCoverageTest}.
@@ -80,6 +94,26 @@ class RateLimitCoverageTest extends IntegrationTest {
 
     @Autowired
     private RateLimitProperties rateLimits;
+
+    @LocalServerPort
+    private int port;
+
+    @Autowired
+    private TestRestTemplate rest;
+
+    /**
+     * Whether the running application serves {@code path} at all.
+     *
+     * <p>Anything but a 404 counts: the question is whether something is mounted there, not whether
+     * it answers happily. Rate limiting is disabled for this class as it is for most of the suite,
+     * so a 429 cannot be mistaken for a resource that exists.
+     */
+    private boolean resolves(String path) {
+        return rest.getForEntity("http://localhost:" + port + "/api" + path, String.class)
+                        .getStatusCode()
+                        .value()
+                != 404;
+    }
 
     @Test
     @DisplayName("every endpoint an anonymous caller can reach is covered by a rate-limit policy")
@@ -150,6 +184,13 @@ class RateLimitCoverageTest extends IntegrationTest {
         for (RateLimitPolicy policy : rateLimits.policies()) {
             boolean guardsSomething = mappedEndpoints().stream()
                     .anyMatch(endpoint -> policy.matches(endpoint.method(), endpoint.samplePath()));
+            if (!guardsSomething && SERVED_BY_A_RESOURCE_HANDLER.containsKey(policy.name())) {
+                // Not in the handler mapping and not dead either: a static resource is served by
+                // ResourceHttpRequestHandler, which declares no handler methods. There is nothing to
+                // derive from, so the running application is asked instead — the fallback this
+                // project reaches for when a derivation is impossible rather than merely harder.
+                guardsSomething = resolves(SERVED_BY_A_RESOURCE_HANDLER.get(policy.name()));
+            }
             if (!guardsSomething) {
                 orphans.add(policy.name() + " (" + policy.method() + " " + policy.pathPattern() + ")");
             }
@@ -260,16 +301,30 @@ class RateLimitCoverageTest extends IntegrationTest {
     }
 
     /**
-     * Every endpoint this application maps, framework endpoints excluded by the package that
-     * declares them rather than by name — the same rule, and the same reason, as {@code
-     * EndpointCoverageTest}.
+     * Every endpoint mapped in this application, <strong>including the ones it does not declare.</strong>
+     *
+     * <p>This filtered handlers to {@code dev.reception} until phase 11, for the reason {@code
+     * EndpointCoverageTest} still does: a springdoc release renaming its paths should not break a
+     * test about <em>our</em> tenancy. <strong>Inherited here, that reason did not hold and the cost
+     * was real.</strong> Tenancy is a question about our own data and framework endpoints hold none;
+     * rate limiting is a question about what an anonymous caller can spend, and springdoc's paths
+     * spend exactly as much as ours. Filtering them out made this test's headline sentence — "every
+     * endpoint an anonymous caller can reach is rate limited" — quietly mean "every endpoint of
+     * ours", while {@code /openapi} served the full specification to anybody, unlimited, and
+     * {@code /swagger-ui} served 1.8 MB of assets beside it (docs/06-security.md §15).
+     *
+     * <p>The filter also made the gap <em>unfixable in place</em>: a policy written for a springdoc
+     * path matched nothing here and was reported as an orphan, so the derivation that hid the
+     * problem also rejected the fix.
+     *
+     * <p>What the old comment was right about is that a springdoc rename must not pass silently. It
+     * does not: the renamed path arrives here as an uncovered public endpoint and the policy left
+     * behind arrives as an orphan. Both fail, which is the outcome that was wanted — a build that
+     * stops rather than a limit that disappears.
      */
     private Set<Endpoint> mappedEndpoints() {
         Set<Endpoint> endpoints = new TreeSet<>();
         mappings.getHandlerMethods().forEach((info, handler) -> {
-            if (!handler.getBeanType().getPackageName().startsWith("dev.reception")) {
-                return;
-            }
             for (String pattern : patternsOf(info)) {
                 info.getMethodsCondition()
                         .getMethods()
