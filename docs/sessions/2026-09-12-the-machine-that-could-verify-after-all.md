@@ -142,7 +142,7 @@ command in §8 carries an explicit `JAVA_HOME`.
 
 ---
 
-## 5. Seven traps
+## 5. Thirteen traps
 
 **T69 — `./gradlew` on this machine needs `JAVA_HOME` pointed at JDK 21.** The default `java` is
 25, Gradle 8.14 does not support it, and the failure prints the version string as though it were
