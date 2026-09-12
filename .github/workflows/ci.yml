@@ -14,12 +14,18 @@ jobs:
   # beside the others rather than gating them, because a renumbered section should not hold up a
   # test suite.
   #
-  # IT IS NOT IN main's REQUIRED-CHECKS SET, which is Backend, Frontend, Compose smoke test and
-  # End-to-end. A red run here is visible on the pull request and does not block a merge. Said
-  # plainly because the first version of this comment claimed the opposite, and a comment asserting
-  # a control that is not configured is G26 written into the file that would have to enforce it —
-  # in the same session that filed G26. Making it required is a branch-protection change and a
-  # decision for the principal, not something this file can do.
+  # IT IS A REQUIRED CHECK on main, added to the branch-protection set by principal decision on
+  # 2026-09-12. The set is now Backend, Frontend, Compose smoke test, End-to-end and this — a red
+  # run here blocks the merge.
+  #
+  # That is configured in branch protection and NOT in this file, which no workflow can assert. An
+  # earlier version of this comment claimed the job was required while it was not, which is G26 —
+  # prose describing a control nothing implements — written into the very file that would have to
+  # enforce it, in the session that filed G26. If the required-checks set is ever changed, this
+  # paragraph is wrong again and nothing here will say so.
+  #
+  # The check's name below is the contract: branch protection matches the job by this exact string,
+  # so renaming it silently removes the requirement rather than failing.
   docs:
     name: Documentation consistency
     runs-on: ubuntu-latest
