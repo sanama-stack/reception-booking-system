@@ -377,7 +377,34 @@ one that differs from the header is worse than none, since it is the whole of wh
   environment variable. Proven by `TranscriptRetentionTest`, which asserts both directions: what is
   taken past the window, and what is spared inside it.
 - `created_at` / `updated_at` on every table.
-- Authentication events (login, refresh, revocation) are logged with user id and IP.
+- Authentication events (login, refresh, revocation) are logged with user id and IP, by
+  `AuthService`, and asserted by
+  [`AuthEventLoggingTest`](../backend/src/test/java/dev/reception/auth/AuthEventLoggingTest.java).
+  **Registration is logged too**, although this sentence named only three: registration is where a
+  session first exists, and leaving it out puts the hole in the trail exactly at the moment an
+  account is created.
+- **The user id and not the email.** The id is stable and is what every other record joins on; the
+  address is a customer-grade identifier that `PiiValueMasker` redacts out of log output anyway, so
+  logging it would produce a line that names nobody. The IP is the peer address — the same value the
+  refresh token row already stores — and is deliberately not masked, because an authentication record
+  without an origin cannot answer the question it exists for.
+
+> **Added in phase 11, because the sentence above was true of nothing.** `AuthService` contained no
+> log statement at all. The only authentication line anywhere in the application was the replay
+> warning in `RefreshTokenFamilyRevoker`, which carried a user id and **no address** — so the audit
+> trail began at the one event an attacker triggers deliberately and could not say where it came
+> from. The data was never missing: `RequestFingerprint` has carried the user agent and the peer
+> address since phase 02 and the refresh token row stores both. It simply never reached a log.
+>
+> The list of events is **derived** from the `/auth` surface off `RequestMappingHandlerMapping`, and
+> every write on it must be either a recorded event or an exemption with a reason — `EndpointCatalogue`'s
+> classify-or-fail, one section over. A typed list of three cannot fail for the fourth authentication
+> endpoint somebody adds, which is the endpoint this is about.
+>
+> **One plant found a hole in the test rather than in the code**, which is the third time this walk
+> has gone that way. A password written straight into a log line from `login()` **passed**: the
+> credential sweep drove register, refresh and logout, and not the one endpoint that receives a
+> password. It now drives every write on the surface, and a reconciliation holds it there.
 
 ## 15. Explicitly accepted risks
 

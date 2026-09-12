@@ -79,7 +79,7 @@ public class RefreshTokenService {
             // Replay. The token is single-use, so a second presentation means the value leaked.
             // The revocation commits in its own transaction, because the exception below would
             // otherwise roll it back and leave the stolen token live.
-            familyRevoker.revokeFamily(existing.familyId(), existing.userId());
+            familyRevoker.revokeFamily(existing.familyId(), existing.userId(), fingerprint.ip());
             throw new ApiException(
                     ErrorCode.TOKEN_REUSED,
                     "This session was ended for security reasons. Please sign in again.");
@@ -98,12 +98,16 @@ public class RefreshTokenService {
 
     /** Revokes one token if it is known. Logout is idempotent, so an unknown token is not an error. */
     @Transactional
-    public void revoke(String presentedToken) {
+    public Optional<UUID> revoke(String presentedToken) {
         Optional<RefreshToken> existing = tokens.findByTokenHash(hash(presentedToken));
         existing.ifPresent(token -> {
             token.revoke(clock.instant());
             tokens.save(token);
         });
+        // The user whose session this was, so the revocation can be audited (docs/06-security.md
+        // §14). Empty for an unknown or already-forgotten token, which is a successful logout and
+        // not an event about anybody.
+        return existing.map(RefreshToken::userId);
     }
 
     private String issue(UUID userId, UUID familyId, RequestFingerprint fingerprint) {

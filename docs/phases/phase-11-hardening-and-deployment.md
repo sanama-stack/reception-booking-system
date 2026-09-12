@@ -558,7 +558,18 @@ argument that it was right.
       an empty collection fails the *control* rather than the assertion, and the availability probe
       stayed green with `ServiceCatalogService#read` unscoped, because `AssignmentService` checks the
       same id independently; it went red only when both were removed, which is §4's "each
-      independently sufficient" demonstrated rather than asserted
+      independently sufficient" demonstrated rather than asserted. **§14 done 2026-09-13**, and its
+      last bullet was the §6 shape for the fourth time: *"Authentication events (login, refresh,
+      revocation) are logged with user id and IP"* — `AuthService` contained **no log statement at
+      all**, and the only authentication line in the application was the replay warning in
+      `RefreshTokenFamilyRevoker`, carrying a user id and **no address**. The audit trail began at
+      the one event an attacker triggers deliberately and could not say where it came from. The data
+      was never missing: `RequestFingerprint` has carried the peer address since phase 02. Logged
+      now, registration included, with the events **derived** from the `/auth` surface so a fourth
+      endpoint cannot be silently unlogged. **Shown red five ways**, and one of them found a hole in
+      the test rather than the code: a password logged from `login()` **passed**, because the
+      credential sweep drove register, refresh and logout and not the one endpoint that receives a
+      password
 - [x] Redaction filter verified across appenders — **2026-09-12.** Three tests already covered this
       ground and **none could catch the failure that matters**: deleting the `<jsonGeneratorDecorator>`
       from the appender that runs in production left `PiiValueMaskerTest`, `ConsoleRedactionTest` and
