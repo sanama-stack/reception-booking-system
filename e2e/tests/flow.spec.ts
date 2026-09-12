@@ -198,7 +198,10 @@ test('a business is configured, booked twice, managed, cancelled and reported on
  * any short upper-case string that happens to be rendered, and would do it silently.
  */
 async function confirmationCode(page: import('@playwright/test').Page): Promise<string> {
-  const card = page.getByText('Your confirmation code').locator('..');
+  // `exact` and `.first()` both matter: getByText matches an ancestor whose text merely CONTAINS
+  // the caption as well as the caption itself, so `..` off a bare match resolves to two parents
+  // and violates strict mode.
+  const card = page.getByText('Your confirmation code', { exact: true }).first().locator('..');
   await expect(card).toBeVisible({ timeout: 30_000 });
   return (await card.getByText(/^[A-Z0-9]{6,10}$/).first().innerText()).trim();
 }
