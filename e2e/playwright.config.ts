@@ -17,8 +17,12 @@ export default defineConfig({
   fullyParallel: false,
   workers: 1,
   forbidOnly: !!process.env.CI,
-  // The flow waits on a mail poller and a chat round trip, so a slow CI runner is not a failure.
-  timeout: 180_000,
+  // Five minutes, and the reason is one line in application.yml: `poll-interval-ms: 60000`. The
+  // outbox poller is what turns a booking into an email, its interval is hardcoded rather than
+  // configurable, and this flow waits for two of those emails — so a minute or more of the run is
+  // the system behaving correctly rather than anything being slow. At 180s the budget was spent
+  // before the dashboard steps began.
+  timeout: 300_000,
   expect: { timeout: 15_000 },
   // Zero. A flow that passes on the second attempt is a flow nobody can trust, and this one books
   // real rows: a retry would run against a tenant the first attempt already changed.
