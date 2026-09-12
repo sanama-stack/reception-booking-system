@@ -17,6 +17,13 @@ import {
  *
  * The Receptionist leg runs against the fake provider (ADR-0011), so it is deterministic and calls
  * no model. Everything else is the application exactly as it ships.
+ *
+ * **Every getByText here ends in `.first()`, deliberately.** getByText matches on substrings and on
+ * ancestors, so a bare one resolves to several elements more often than not — and a strict-mode
+ * violation THROWS rather than retrying, which silently cancels the very wait that was supposed to
+ * let the page settle. Three separate rounds of this flow failed that way while the application was
+ * working correctly underneath. Where identity actually matters the assertion is a role and an
+ * accessible name instead, which is unambiguous by construction.
  */
 test('a business is configured, booked twice, managed, cancelled and reported on', async ({
   page,
@@ -49,7 +56,7 @@ test('a business is configured, booked twice, managed, cancelled and reported on
     await page.getByRole('button', { name: 'Add a working day' }).first().click();
     await page.getByRole('button', { name: 'Copy to all days' }).first().click();
     await page.getByRole('button', { name: 'Save working schedule' }).click();
-    await expect(page.getByText(/working schedule.*saved/i)).toBeVisible();
+    await expect(page.getByText(/working schedule.*saved/i).first()).toBeVisible();
   });
 
   await test.step('add a service the employee can perform', async () => {
@@ -59,7 +66,7 @@ test('a business is configured, booked twice, managed, cancelled and reported on
     await page.getByLabel(/^Price/).fill('40');
     // Assigned here rather than afterwards: a service nobody can perform cannot be booked, and the
     // public page would show an empty grid instead of failing usefully.
-    await page.getByText(tenant.employeeName).click();
+    await page.getByText(tenant.employeeName).first().click();
     await page.getByRole('button', { name: 'Add service' }).click();
     // The detail page, not back to the list: the form routes to /services/{id} on both its success
     // path and its "created, but the assignment failed" path.
@@ -140,8 +147,8 @@ test('a business is configured, booked twice, managed, cancelled and reported on
     const manage = await manageContext.newPage();
     await manage.goto(link);
 
-    await expect(manage.getByText(tenant.serviceName)).toBeVisible({ timeout: 30_000 });
-    await expect(manage.getByText(classicCode)).toBeVisible();
+    await expect(manage.getByText(tenant.serviceName).first()).toBeVisible({ timeout: 30_000 });
+    await expect(manage.getByText(classicCode).first()).toBeVisible();
 
     await test.step('and the customer cancels with it', async () => {
       await manage.getByRole('button', { name: 'Cancel appointment' }).click();
@@ -160,8 +167,8 @@ test('a business is configured, booked twice, managed, cancelled and reported on
     await signIn(page, tenant.email, tenant.password);
 
     await page.goto('/appointments');
-    await expect(page.getByText(tenant.customerName)).toBeVisible({ timeout: 30_000 });
-    await expect(page.getByText(RECEPTIONIST_CUSTOMER)).toBeVisible();
+    await expect(page.getByText(tenant.customerName).first()).toBeVisible({ timeout: 30_000 });
+    await expect(page.getByText(RECEPTIONIST_CUSTOMER).first()).toBeVisible();
     await expect(page.getByText(/cancelled/i).first()).toBeVisible();
 
     // The AI badge lives on the calendar, not on the list — see §4 of the handoff.
@@ -176,9 +183,9 @@ test('a business is configured, booked twice, managed, cancelled and reported on
     const before = await revenue(page);
 
     await page.goto('/appointments');
-    await page.getByText(RECEPTIONIST_CUSTOMER).click();
+    await page.getByText(RECEPTIONIST_CUSTOMER).first().click();
     await page.waitForURL(/\/appointments\/[0-9a-f-]{36}$/i, { timeout: 30_000 });
-    await expect(page.getByText('Booked with the receptionist')).toBeVisible();
+    await expect(page.getByText('Booked with the receptionist').first()).toBeVisible();
 
     await page.getByRole('button', { name: 'Mark completed' }).click();
     await page.getByRole('dialog').getByRole('button', { name: 'Mark completed' }).click();
@@ -208,7 +215,7 @@ async function confirmationCode(page: import('@playwright/test').Page): Promise<
 
 /** The Revenue tile's number, as a number. */
 async function revenue(page: import('@playwright/test').Page): Promise<number> {
-  const tile = page.getByText('Revenue', { exact: true }).locator('..');
+  const tile = page.getByText('Revenue', { exact: true }).first().locator('..');
   await expect(tile).toBeVisible({ timeout: 30_000 });
   const text = await tile.innerText();
   const match = text.match(/([\d,]+\.\d{2})/);
