@@ -15,6 +15,49 @@ Not a compliance programme.
 | Availability | Public endpoint flooding | Rate limiting by IP |
 | Integrity | Double booking under race | Database exclusion constraint |
 
+**Every control named above now resolves to a test that runs**, checked row by row in phase 11. This
+table is an index into the rest of this document, so a row resolving to nothing is a control the
+other sections are entitled to assume and nobody has to supply.
+
+| Row | What asserts it |
+|---|---|
+| Tenant data | [`TenantIsolationSweepTest`](../backend/src/test/java/dev/reception/tenancy/TenantIsolationSweepTest.java), [`EndpointCoverageTest`](../backend/src/test/java/dev/reception/tenancy/EndpointCoverageTest.java), [`SmuggledBusinessIdTest`](../backend/src/test/java/dev/reception/tenancy/SmuggledBusinessIdTest.java) |
+| Customer PII | [`PublicAppointmentAuthorityTest`](../backend/src/test/java/dev/reception/publicapi/PublicAppointmentAuthorityTest.java) — the code alone and the phone alone are each refused — and the five-an-hour lookup budget in [`RateLimitTest`](../backend/src/test/java/dev/reception/common/ratelimit/RateLimitTest.java) |
+| Appointments | [`PublicAppointmentAuthorityTest`](../backend/src/test/java/dev/reception/publicapi/PublicAppointmentAuthorityTest.java), including a Manage Link token refused on another appointment's path |
+| LLM budget | [`ConversationLoopTest`](../backend/src/test/java/dev/reception/ai/application/ConversationLoopTest.java) — the tool-call and message ceilings, and the daily cap closing a conversation at `LIMIT_REACHED` |
+| Credentials | [`AuthCookieSecurityTest`](../backend/src/test/java/dev/reception/auth/AuthCookieSecurityTest.java), [`AppenderRedactionTest`](../backend/src/test/java/dev/reception/common/logging/AppenderRedactionTest.java), and the `$2a$12$` prefix asserted in [`RegistrationTest`](../backend/src/test/java/dev/reception/auth/RegistrationTest.java) |
+| Availability | [`RateLimitAddressTest`](../backend/src/test/java/dev/reception/common/ratelimit/RateLimitAddressTest.java) — **added in phase 11; see below** |
+| Integrity | [`ConcurrentBookingTest`](../backend/src/test/java/dev/reception/appointments/ConcurrentBookingTest.java), twenty threads against the exclusion constraint |
+
+- **"Rate limiting by IP" was true, and the *by IP* half was asserted by nothing.**
+  [`RateLimitCoverageTest`](../backend/src/test/java/dev/reception/common/ratelimit/RateLimitCoverageTest.java) proves every public
+  endpoint is matched by a policy, and [`RateLimitTest`](../backend/src/test/java/dev/reception/common/ratelimit/RateLimitTest.java)
+  proves a limit bites. Both drive one client, so both are equally true of a filter keying every
+  bucket on a constant. The per-address property is claimed four more times in prose in
+  `RateLimitProperties` — *"keyed on the client address rather than the proxy's"* — and was checked
+  in none of them.
+- **The control rests on three independent facts, and any one could be undone without a test going
+  red.** `server.forward-headers-strategy: framework` is set, in the base profile, so it reaches
+  `prod`; Spring Boot registers `ForwardedHeaderFilter` at `HIGHEST_PRECEDENCE`, **ten ahead** of
+  `RateLimitFilter`; and `RateLimitFilter` keys on `getRemoteAddr()`, which that filter's wrapper
+  overrides. [`RateLimitAddressTest`](../backend/src/test/java/dev/reception/common/ratelimit/RateLimitAddressTest.java) asserts all
+  three — the first two behaviourally, because every request in the suite arrives from `127.0.0.1`
+  and two callers can only be told apart if `X-Forwarded-For` is transmitted *and* honoured.
+- **The failure it admits is the inverse of the control, which is why the row is *Availability*.** A
+  limiter that pools every visitor into one bucket does not merely fail to stop an attacker; it lets
+  one stranger spend the budget for everybody and close a public endpoint to real users. The
+  configuration comment says so in as many words: *"a limit that locks out real users while stopping
+  nobody."*
+
+> **A control held by a coin toss does not fail — it stops being a control.** The ordering above is
+> load-bearing and the margin is ten. Planted deliberately, `RateLimitFilter` moved to
+> `HIGHEST_PRECEDENCE` — the obvious edit for a filter that must precede authentication, and one no
+> reviewer would question — ties the two filters, and **the behavioural half of the test stayed
+> green**: tied filters are sequenced arbitrarily and that run happened to land the right way. Only
+> the assertion on the two registered orders caught it. Where a property is decided by an ordering
+> nobody wrote down, probing the behaviour samples the coin; the ordering itself has to be asserted
+> as well.
+
 ## 2. Authentication
 
 - Email + password. **BCrypt cost 12**; the hash is the only stored form.

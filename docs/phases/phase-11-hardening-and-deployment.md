@@ -582,7 +582,24 @@ argument that it was right.
       helper now. **Shown red five ways**, the sharpest being a fence emitted with the text landing
       *after* it closes, which a check that searched for `<<<` would have passed. **This is a system
       prompt change and the level-3 corpus has NOT been run against it** — `-PincludeTags=llm` needs
-      a key and credits, and that is the principal's call. See G32
+      a key and credits, and that is the principal's call. See G32. **§1 done 2026-09-13**, and it is the
+      first section of this walk that was very nearly clean: its threat-model table names seven
+      primary controls and **six of the seven already resolved to a test that runs**. The seventh
+      did not. *"Rate limiting by IP"* is the control for the **availability** row, and the **by
+      IP** half was asserted by nothing — `RateLimitCoverageTest` proves every public endpoint is
+      matched by a policy, `RateLimitTest` proves a limit bites, and both drive one client, so both
+      are equally true of a filter keying every bucket on a constant. The property is claimed four
+      further times in `RateLimitProperties`' own prose and checked in none of them. It rests on
+      **three independent facts**, any one of which can be undone with the suite staying green: the
+      `forward-headers-strategy: framework` line, Spring registering `ForwardedHeaderFilter`
+      **ten ahead** of `RateLimitFilter`, and `clientAddress()` reading `getRemoteAddr()`. What they
+      admit is the inverse of the control — one bucket for every visitor, so a single stranger
+      closes a public endpoint for all of them, which is the outage the row exists to prevent.
+      `RateLimitAddressTest`, **no production code changed**, **shown red four ways**. The sharp one
+      is the ordering plant: moving `RateLimitFilter` to `HIGHEST_PRECEDENCE` — the obvious edit for
+      a filter that must precede authentication — ties the two, and **the behavioural test stayed
+      green**, because tied filters are sequenced arbitrarily and that run landed the right way. Only
+      the assertion on the registered orders caught it
 - [x] Redaction filter verified across appenders — **2026-09-12.** Three tests already covered this
       ground and **none could catch the failure that matters**: deleting the `<jsonGeneratorDecorator>`
       from the appender that runs in production left `PiiValueMaskerTest`, `ConsoleRedactionTest` and
