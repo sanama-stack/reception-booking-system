@@ -446,6 +446,31 @@ argument that it was right.
 ### Documentation
 - [x] `README.md` with prerequisites, commands, URLs and credentials
 - [x] Demo script
-- [ ] `.env.example` audited against the compose file
-- [ ] `docs/deployment.md`
+- [x] `.env.example` audited against the compose files, the backend's `application*.yml`, the
+      Caddyfile and the frontend — **2026-09-12, and it was already complete**. The declared set
+      and the consumed set match exactly in both directions: nothing is read that is not declared,
+      and nothing is declared that nothing reads. `BACKEND_UPSTREAM` and `FRONTEND_UPSTREAM` are
+      correctly absent, being set by compose rather than by `.env`, and the `NEXT_PUBLIC_*` pair is
+      derived from `APP_PORT` / `FRONTEND_PORT` in `next.config.ts` rather than declared twice.
+      Two prose claims were checked by measurement rather than read: the CSP double-quoting note
+      is true (`make up` serves `script-src … 'unsafe-eval'`, the containerised topology serves it
+      without), and one claim was **wrong** — the header said the `prod` profile refuses to start
+      while *any* secret holds its local default, where `SecretsGuard` checks three of the five
+      that [06-security.md](../06-security.md) §9 lists. Corrected in place.
+      **What the audit actually found is a gap the file could not show:** four ports are written
+      down twice and `make check-ports` guarded one of them. It now guards all four — the three
+      `.env`-internal pairs only while the matching host is local, since `make up-all` overrides
+      `DB_*` and `MAIL_*` — and each was shown red on demand by planting a half-moved port. The
+      fifth coupling, `SERVER_PORT` against the hardcoded fallback in `client.ts`, is named in the
+      file as unguardable by a gate that reads `.env`. **Both `up` and `up-all` depend on the
+      gate**, so it now runs in CI's Compose smoke test as well as on a developer's machine —
+      shown to stop `up-all` at the prerequisite, before compose is invoked and with every
+      running container untouched
+- [x] `docs/deployment.md` — the single-VPS-behind-Caddy-with-TLS path, **written and not walked**:
+      no host has run it, and the document says so at the top rather than reading as a report. It
+      names three files that cannot deploy as committed — the Caddyfile disables certificate
+      issuance and has no domain to request one for, `docker-compose.yml` publishes Postgres and
+      Mailpit on `0.0.0.0`, and Mailpit delivers no mail — and it records a measurement taken while
+      writing it: the per-IP rate limits key on the real client behind the proxy, shown by a
+      different real source getting its own bucket, which a forged `X-Forwarded-For` does not
 - [ ] Final consistency pass over `/docs` and `CONTEXT.md`
