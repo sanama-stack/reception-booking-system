@@ -67,13 +67,21 @@ Reflection-based discovery is the point: a test that must be remembered will eve
 
 ### End-to-end
 
-The single Playwright flow from [08-testing-strategy.md](../08-testing-strategy.md) §8, run against the
-scripted model so it is deterministic in CI:
+The single Playwright flow from [08-testing-strategy.md](../08-testing-strategy.md) §8, run against a
+**fake provider at `app.ai.base-url`** so it is deterministic in CI:
 
 register → configure → book classic → book by chat → assert both emails in Mailpit → follow the Manage Link
 → cancel → verify in the dashboard → mark completed → verify analytics.
 
 Plus a 360 px run of the public page.
+
+**Corrected 2026-09-12.** The line above said *"run against the scripted model"*, which named a
+mechanism that cannot be reached: `ScriptedChatModel` is on the test classpath and Playwright drives
+a booted application. [ADR-0011](../adr/0011-the-e2e-fake-provider-lives-behind-the-base-url.md)
+records the decision, and the part it warns about: **a queue of canned replies cannot work here**,
+because the conversation must name a `service_id` and a slot that `make seed` generates fresh on
+every run. The fake provider answers from the message list it is sent, including the earlier tool
+results — which is what makes the ids reachable.
 
 ### Seed data
 
@@ -225,7 +233,7 @@ argument that it was right.
 - [ ] Reflection-driven isolation suite over every tenant-scoped endpoint
 - [ ] Cross-tenant native-insert rejection
 - [ ] AI tool schemas contain no tenant parameter
-- [ ] Full E2E flow green in CI against the scripted model
+- [ ] Full E2E flow green in CI against the fake provider (ADR-0011)
 - [ ] 360 px public-page run
 - [ ] Rate limits verified for every public endpoint
 - [x] Security-header test
