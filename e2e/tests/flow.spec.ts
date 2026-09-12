@@ -223,7 +223,15 @@ test('a business is configured, booked twice, managed, cancelled and reported on
     const before = await revenue(page);
 
     await page.goto('/appointments');
-    await page.getByText(RECEPTIONIST_CUSTOMER).first().click();
+    // The row's appointment link, which is the "When" cell. The customer's NAME is also a link and
+    // goes to /customers/{id} — clicking it navigates somewhere real and entirely wrong, so the
+    // wait below timed out against a customer page rather than failing to navigate at all.
+    await page
+      .getByRole('row')
+      .filter({ hasText: RECEPTIONIST_CUSTOMER })
+      .locator('a[href^="/appointments/"]')
+      .first()
+      .click();
     await page.waitForURL(/\/appointments\/[0-9a-f-]{36}$/i, { timeout: 30_000 });
     await expect(page.getByText('Booked with the receptionist').first()).toBeVisible();
 
