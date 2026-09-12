@@ -243,7 +243,18 @@ test('a business is configured, booked twice, managed, cancelled and reported on
 
     await page.getByRole('button', { name: 'Mark completed' }).click();
     await page.getByRole('dialog').getByRole('button', { name: 'Mark completed' }).click();
-    await expect(page.getByText(/completed/i).first()).toBeVisible({ timeout: 30_000 });
+    // T49 again, and this one cost a red CI run: `getByText(/completed/i)` matches the "Mark
+    // completed" BUTTON, which is on the page before the click and after a click that did not
+    // land. The step passed, the status was still CONFIRMED, and the failure surfaced two
+    // assertions later as revenue 0.00 — which reads as an analytics bug and is not one.
+    //
+    // Two assertions that cannot be satisfied by the control that triggers them: the badge says
+    // exactly "Completed", and the action block renders only while the status is CONFIRMED
+    // (appointment-actions.tsx), so the button's disappearance IS the status change.
+    await expect(page.getByText('Completed', { exact: true })).toBeVisible({ timeout: 30_000 });
+    await expect(page.getByRole('button', { name: 'Mark completed' })).toBeHidden({
+      timeout: 30_000,
+    });
 
     // The exact figure, not merely "more than before": this tenant has one completed Appointment
     // and its price is known, so "changes accordingly" has a right answer and greater-than would
@@ -275,10 +286,20 @@ async function confirmationCode(page: import('@playwright/test').Page): Promise<
 }
 
 /** The Revenue tile's number, as a number. */
-async function revenue(page: import('@playwright/test').Page): Promise<number> {
+/**
+ * The figure on the Revenue tile, or `null` when the tile carries no figure at all.
+ *
+ * Null rather than 0, which is what this returned first. Nothing on the tile can be read as a
+ * number while it is loading, and returning 0 for that made "no figure yet" indistinguishable from
+ * "no revenue" — so the `before` assertion would have passed on a tile that had not rendered, and a
+ * failure of the one after it reported `Received: 0` for two entirely different situations. It took
+ * a screenshot out of a CI artifact to tell them apart. `expect.poll` keeps retrying on a null, so
+ * a tile that is merely slow still settles.
+ */
+async function revenue(page: import('@playwright/test').Page): Promise<number | null> {
   const tile = page.getByText('Revenue', { exact: true }).first().locator('..');
   await expect(tile).toBeVisible({ timeout: 30_000 });
   const text = await tile.innerText();
   const match = text.match(/([\d,]+\.\d{2})/);
-  return match ? Number(match[1].replace(/,/g, '')) : 0;
+  return match ? Number(match[1].replace(/,/g, '')) : null;
 }
