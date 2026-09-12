@@ -151,6 +151,12 @@ Customer identifiers appear in logs only as `customer_id`. Log entries for AI tu
 latency, tool names and outcomes — not message content. A redaction filter is applied at the appender, so
 correctness does not depend on every call site remembering.
 
+**Both appenders, and checked at both.** `PiiValueMasker` holds the rules; the JSON appender applies it as
+the encoder's masking decorator and the console applies it through the `%m` / `%wEx` conversion rules.
+`AppenderRedactionTest` drives secrets through the encoder the real configuration builds and reads the
+bytes — because a test that asserts the masker masks, or that the appender is of the right *type*, stays
+green when the masking is deleted from the appender that ships.
+
 ## 11. Error responses
 
 - One `@RestControllerAdvice` produces every error body. No handler writes its own.

@@ -385,7 +385,8 @@ argument that it was right.
 - [x] 360 px public-page run
 - [ ] Rate limits verified for every public endpoint
 - [x] Security-header test
-- [ ] Log redaction test
+- [x] Log redaction test — `AppenderRedactionTest`, at the appenders rather than at the masker.
+      Shown red five ways
 - [x] `prod` profile refuses default secrets — `SecretsGuardTest`, twelve tests, each starting a
       real context rather than calling the guard, so the `@Profile("prod")` wiring is under test
       too. Shown red six ways
@@ -443,7 +444,8 @@ argument that it was right.
 - [x] Mobile-viewport E2E run
 - [ ] Rate-limit tests for every public endpoint
 - [x] Security-header test
-- [ ] Log-redaction test
+- [x] Log-redaction test — secrets driven through the encoder the real `logback-json.xml` builds,
+      and the bytes inspected
 - [x] Vitest + Testing Library wired into the Frontend CI job — 18 files, 68 tests, green in run
       `34702330928`, read out of the job log rather than off the job's colour
 - [x] Timezone rendering test, proven against its counterfactual — `lib/time/index.test.ts` and
@@ -479,7 +481,17 @@ argument that it was right.
       it there in CI and on both `up` targets — shown red three ways, including against the
       `ports: []` that *looks* like it removes a mapping and, because Compose appends sequences,
       does not
-- [ ] Redaction filter verified across appenders
+- [x] Redaction filter verified across appenders — **2026-09-12.** Three tests already covered this
+      ground and **none could catch the failure that matters**: deleting the `<jsonGeneratorDecorator>`
+      from the appender that runs in production left `PiiValueMaskerTest`, `ConsoleRedactionTest` and
+      `JsonLoggingConfigurationTest` all green and every deployed log unmasked — demonstrated, not
+      argued. `AppenderRedactionTest` drives real secrets through the encoder the real file builds.
+      The console half stays a file check, deliberately: its root binding lives inside `<springProfile>`,
+      which only Spring Boot's package-private configurator reads, and initialising the real logging
+      system would reconfigure the JVM the rest of the suite logs through. What the file check found
+      is the subtle one — **Boot's own `defaults.xml` binds `wEx` too**, so the `<include>` must stay
+      above our rules or every stack trace renders through Boot's converter, unredacted, with the file
+      looking exactly as intended
 - [x] `prod` default-secret refusal — **2026-09-12.** The guard was written in phase 01 and had
       never been executed by anything: it is `@Profile("prod")`, and no test in the suite starts
       that profile. `SecretsGuardTest` starts it, twelve tests, **shown red six ways** — including
