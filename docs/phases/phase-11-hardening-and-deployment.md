@@ -462,7 +462,10 @@ argument that it was right.
       `.env`-internal pairs only while the matching host is local, since `make up-all` overrides
       `DB_*` and `MAIL_*` — and each was shown red on demand by planting a half-moved port. The
       fifth coupling, `SERVER_PORT` against the hardcoded fallback in `client.ts`, is named in the
-      file as unguardable by a gate that reads `.env`
+      file as unguardable by a gate that reads `.env`. **Both `up` and `up-all` depend on the
+      gate**, so it now runs in CI's Compose smoke test as well as on a developer's machine —
+      shown to stop `up-all` at the prerequisite, before compose is invoked and with every
+      running container untouched
 - [x] `docs/deployment.md` — the single-VPS-behind-Caddy-with-TLS path, **written and not walked**:
       no host has run it, and the document says so at the top rather than reading as a report. It
       names three files that cannot deploy as committed — the Caddyfile disables certificate

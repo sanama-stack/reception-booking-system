@@ -46,6 +46,15 @@ help: ## Show this help
 # that is the only topology in which they are coupled: `make up-all` overrides DB_* and MAIL_*
 # with the compose service names, and a DB_HOST pointing at a real server has every right to a
 # port that is nothing to do with what Postgres publishes here.
+#
+# Both `up` and `up-all` depend on this, and for `up-all` that is deliberately one check wider
+# than that topology strictly needs. APP_PORT against APP_PUBLIC_URL matters there and matters
+# most — it is the shape that deploys, and a drifted pair sends every Manage Link to a dead port,
+# which a customer finds rather than a developer. The DB_* and MAIL_* pairs are inert under
+# `up-all`, since compose overrides both, and are still enforced because .env describes one
+# machine rather than one topology: letting it go internally inconsistent under `up-all` only
+# moves the failure to the next `make up`. Agreement costs a line; the asymmetry would cost an
+# afternoon.
 check-ports: .env
 	@fail=0; \
 	 val() { grep -E "^$$1=" .env | head -1 | cut -d= -f2- | tr -d '"'; }; \
@@ -96,7 +105,7 @@ up: .env check-ports ## Start Postgres, Mailpit and Caddy — run the apps from 
 	 echo "  Docs     http://localhost:$$app/api/docs"; \
 	 echo "  Mailpit  http://localhost:$$mail"
 
-up-all: .env ## Start everything in containers, including both applications
+up-all: .env check-ports ## Start everything in containers, including both applications
 	$(COMPOSE) $(APPS) up -d --build
 	@app=$$(grep -E '^APP_PORT=' .env | cut -d= -f2); \
 	 mail=$$(grep -E '^MAILPIT_UI_PORT=' .env | cut -d= -f2); \
