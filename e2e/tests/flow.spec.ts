@@ -61,8 +61,14 @@ test('a business is configured, booked twice, managed, cancelled and reported on
     // public page would show an empty grid instead of failing usefully.
     await page.getByText(tenant.employeeName).click();
     await page.getByRole('button', { name: 'Add service' }).click();
-    await page.waitForURL('**/services', { timeout: 30_000 });
-    await expect(page.getByText(tenant.serviceName)).toBeVisible();
+    // The detail page, not back to the list: the form routes to /services/{id} on both its success
+    // path and its "created, but the assignment failed" path.
+    await page.waitForURL(/\/services\/[0-9a-f-]{36}$/i, { timeout: 30_000 });
+    await expect(page.getByText(tenant.serviceName).first()).toBeVisible();
+    // The assignment is what makes the service bookable, and it is saved by a second request that
+    // can fail on its own — leaving a service that exists and cannot be booked. Assert it rather
+    // than assume it, because the public page would otherwise just show an empty grid later.
+    await expect(page.getByText(tenant.employeeName).first()).toBeVisible();
   });
 
   await test.step('a stranger books through the Classic Flow', async () => {
