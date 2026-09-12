@@ -113,7 +113,26 @@ Customers have no accounts, so authority is proven per appointment:
 - **Manage Link:** HMAC-SHA256 over `appointmentId|expiry` with a server secret, expiring 24 hours after the
   appointment ends. A single-purpose capability token: it authorises one appointment and grants nothing else.
 - Both paths converge on the same `authorizedAppointmentIds` concept used by the Receptionist.
-- Manage tokens are excluded from access logs and never appear in an error message.
+- Manage tokens are excluded from the access log and never appear in an error message.
+
+> **Added in phase 11, and until then this line described a control that did not exist.** The token
+> is a bearer capability in a URL — a path segment in `/manage/{token}`, the page the Customer
+> opens, and a query parameter on the two API calls that page makes — and Caddy's log is the only
+> access log in the system. It was unfiltered, so every Manage Link a Customer clicked was written
+> to stdout verbatim: measured against the running container, not inferred. Two log filters in
+> [the Caddyfile](../infra/caddy/Caddyfile) redact it now, and `make check-access-log` holds them
+> in CI.
+>
+> **The error logger was the trap.** A site's `log` directive configures the *access* logger only;
+> Caddy writes `http.log.error` from the proxy handler on any transport error, carrying the whole
+> request. A filter on the access log alone looked complete against a healthy stack and leaked
+> every token the moment the backend was down — which is when somebody is reading the logs. It was
+> found by probing with the backend stopped.
+>
+> The backend never had this problem: `getRequestURI()` excludes the query string, so the `instance`
+> in an error body and every path the application logs stop at `/public/appointments/manage`. That
+> is load-bearing and accidental — `getRequestURL()` plus `getQueryString()` would leak the lot.
+
 
 **Why not phone-number-only lookup.** It would let anyone who knows a phone number list and cancel that
 person's appointments. This was the single largest hole in the original specification and is closed here

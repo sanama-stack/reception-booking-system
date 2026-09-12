@@ -495,7 +495,16 @@ argument that it was right.
       and the test that checked them listed ten paths, so the two agreed with each other and neither
       agreed with the application. `/auth/refresh`, `/auth/logout` and `/health` had never been in
       either. `RateLimitCoverageTest` now reads the public surface off the security filter chain, so
-      the list cannot be short
+      the list cannot be short. **§6 done 2026-09-13** and it broke the same way a third
+      time: *"Manage tokens are excluded from access logs"* was implemented by no file, and Caddy —
+      the only access log in the system — wrote every one of them to stdout verbatim, as a path
+      segment in `/manage/{token}` and as a query parameter on the two API calls that page makes.
+      Measured against the running container rather than read off the Caddyfile. **The error logger
+      was the trap**: a site's `log` directive configures the *access* logger only, so the first fix
+      looked complete against a healthy stack and leaked every token the moment the backend was
+      down. `make check-access-log` holds both, shown red three ways — and **its own first control
+      was defective**, satisfied by a stale `/api/health` line from a previous container because
+      `docker compose logs --tail` spans restarts. Both sentinels are now unique per run
 - [x] Redaction filter verified across appenders — **2026-09-12.** Three tests already covered this
       ground and **none could catch the failure that matters**: deleting the `<jsonGeneratorDecorator>`
       from the appender that runs in production left `PiiValueMaskerTest`, `ConsoleRedactionTest` and
