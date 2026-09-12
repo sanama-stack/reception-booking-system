@@ -532,7 +532,19 @@ argument that it was right.
       has no `RECORD_COMPONENT`, so every field reads as unbounded — and read the other way round it
       would have passed forever), and a walk that stops at nested records, which silently drops the
       one record the class exists to catch. Naming a nested field in the bounded set is what closes
-      both
+      both. **§13's CORS half done 2026-09-13**, which completes §13.
+      *"No CORS configuration exists"* was asserted by nothing, and `NoCorsConfigurationTest` now
+      checks it in two halves: the grant is probed across all 65 mapped endpoints in both shapes,
+      and the configuration is **read** off `RequestMappingHandlerMapping` and the annotations,
+      because a `@CrossOrigin` naming one partner origin is invisible to any probe. **Shown red five
+      ways**, and two of them cost the design. A permissive configuration *plus* a client that
+      cannot send `Origin` — both are restricted headers for `HttpURLConnection` — made the
+      preflight assertion **pass against an application granting every origin everything**; the
+      control is a pair because neither half of it holds alone. And the first version of the
+      configuration check was a behavioural sweep that **reported green over the whole authenticated
+      surface**: Spring Security answers `401` before MVC's CORS interceptor runs, so a planted
+      `@CrossOrigin` on `AnalyticsController` changed no response, while the same annotation on
+      `HealthController` was caught at once
 - [x] Redaction filter verified across appenders — **2026-09-12.** Three tests already covered this
       ground and **none could catch the failure that matters**: deleting the `<jsonGeneratorDecorator>`
       from the appender that runs in production left `PiiValueMaskerTest`, `ConsoleRedactionTest` and

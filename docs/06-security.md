@@ -262,6 +262,20 @@ one that differs from the header is worse than none, since it is the whole of wh
 ## 13. Transport and browser
 
 - Single origin, so **no CORS configuration exists** — the safest configuration is the absent one.
+  [`NoCorsConfigurationTest`](../backend/src/test/java/dev/reception/common/web/NoCorsConfigurationTest.java)
+  asserts it, because until phase 11 nothing did: `.cors(cors -> cors.disable())` is one line in
+  `SecurityConfig` that could become `Customizer.withDefaults()` with a permissive source beside it,
+  and a single `@CrossOrigin` on one controller would have left the whole suite green. An absent
+  configuration is the one nothing defends, because there is no file to review.
+- **The claim is checked in two halves, because it makes two different promises.** *Nothing is
+  granted* is probed across all 65 mapped endpoints in both shapes — a simple cross-origin request,
+  where the response either carries `Access-Control-Allow-Origin` or the caller cannot read it, and
+  a preflight, which never reaches a handler and is refused `403` by `DefaultCorsProcessor`. *No
+  configuration exists* is stronger and is the sentence written here: a `@CrossOrigin` naming one
+  partner origin grants a hostile origin nothing, so it is invisible to any probe, and it is read
+  instead off the two objects that can hold it — `RequestMappingHandlerMapping`'s configuration
+  source, which is what `WebMvcConfigurer#addCorsMappings` populates, and the annotation itself.
+  Shown red five ways, and two of them are worth naming.
 - `SameSite=Lax` cookies plus a same-origin-only API removes classic CSRF for the cookie-authenticated
   surface; state-changing requests additionally **refuse the three content types an HTML form can send** —
   `application/x-www-form-urlencoded`, `multipart/form-data` and `text/plain`, the values `enctype` accepts —
@@ -279,6 +293,23 @@ one that differs from the header is worse than none, since it is the whole of wh
 > the control now, running before authentication so a forged request is refused on its shape rather than
 > on the credentials it lacks. `FormPostRejectionTest` derives the write surface from
 > `RequestMappingHandlerMapping`, so an endpoint is covered the moment it is mapped.
+
+> **A CORS probe can go blind without saying so, and this one was proved to.** `Origin` and
+> `Access-Control-Request-Method` are both on `HttpURLConnection`'s restricted-header list, so a test
+> client built on it drops them silently. Planted deliberately — a permissive CORS configuration
+> wired into the filter chain *and* a client that could not send the headers — the preflight
+> assertion **passed**, against an application granting every origin everything with credentials.
+> The control that catches it is a pair and has to be: the preflight must vary on `Origin` and a
+> bare `OPTIONS` to the same path must not. Taken alone neither holds — the first is also true of a
+> blind probe against an application that *has* a configuration source, and the second is also true
+> of a blind probe against this one.
+>
+> **The other finding was a test of my own reporting green over a surface it could not see.** A
+> behavioural sweep for `Vary: Origin` was written first, and a `@CrossOrigin` planted on
+> `AnalyticsController` changed no response at all: Spring Security answers `401` in the filter
+> chain and MVC's CORS interceptor never runs. The same annotation on `HealthController` was caught
+> at once. A sweep of that shape covers the public surface and silently covers nothing else, which
+> is why the configuration is read rather than probed.
 - Security headers via Caddy: `Strict-Transport-Security`, `X-Content-Type-Options: nosniff`,
   `Referrer-Policy: strict-origin-when-cross-origin`, `X-Frame-Options: DENY`, and a Content-Security-Policy
   with no `unsafe-eval`. `Server` is removed.

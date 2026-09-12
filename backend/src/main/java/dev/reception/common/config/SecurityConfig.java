@@ -43,7 +43,11 @@ import com.nimbusds.jose.jwk.source.ImmutableSecret;
  * <p>CSRF stays disabled and that is a decision, not an omission: the cookie-authenticated surface
  * is defended by {@code SameSite=Lax}, the single origin, and a required JSON content type, which
  * together block the form-post shape CSRF tokens exist to stop (docs/06-security.md §13). No CORS
- * configuration exists anywhere — with one origin, the safest configuration is the absent one.
+ * configuration exists anywhere — with one origin, the safest configuration is the absent one, and
+ * {@code NoCorsConfigurationTest} is what keeps this line true: it probes the whole mapped surface
+ * for a grant and reads {@link org.springframework.web.servlet.handler.AbstractHandlerMapping}'s
+ * configuration source, so neither changing {@code cors.disable()} here nor adding a single
+ * {@code @CrossOrigin} elsewhere can pass.
  */
 @Configuration
 @EnableWebSecurity
