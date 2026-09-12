@@ -512,7 +512,16 @@ argument that it was right.
       call deleted from the builder, and the `@Value` default flipped. The third is caught by one
       test only, and writing it surfaced a wrong premise: *unset* does not reach the `@Value`
       fallback, because `spring.profiles.default: local`. The assertion that fails safe is about a
-      profile with no file of its own, which is the next environment somebody adds
+      profile with no file of its own, which is the next environment somebody adds. **§13's CSRF half done 2026-09-13**,
+      by measurement: *"state-changing requests additionally require `Content-Type: application/json`"*
+      was true wherever a `@RequestBody` existed and false at the **ten endpoints that take no
+      body** — a form-encoded `POST /auth/logout` answered `204`. Two layers documented, one built,
+      and the missing one is the layer a reader counts on if `SameSite` is ever relaxed.
+      `JsonOnlyWriteFilter` refuses the three content types an `enctype` can produce, before
+      authentication so the refusal is about the request's shape and not its credentials;
+      `FormPostRejectionTest` derives all 36 writes from `RequestMappingHandlerMapping`. **Shown red
+      four ways**, and the fourth is the control: a filter that refuses *every* content type passes
+      the main assertion and is caught only by sending the same endpoints JSON
 - [x] Redaction filter verified across appenders — **2026-09-12.** Three tests already covered this
       ground and **none could catch the failure that matters**: deleting the `<jsonGeneratorDecorator>`
       from the appender that runs in production left `PiiValueMaskerTest`, `ConsoleRedactionTest` and

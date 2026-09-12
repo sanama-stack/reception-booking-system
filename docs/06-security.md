@@ -251,8 +251,22 @@ one that differs from the header is worse than none, since it is the whole of wh
 
 - Single origin, so **no CORS configuration exists** — the safest configuration is the absent one.
 - `SameSite=Lax` cookies plus a same-origin-only API removes classic CSRF for the cookie-authenticated
-  surface; state-changing requests additionally require `Content-Type: application/json`, which blocks the
-  form-post CSRF shape.
+  surface; state-changing requests additionally **refuse the three content types an HTML form can send** —
+  `application/x-www-form-urlencoded`, `multipart/form-data` and `text/plain`, the values `enctype` accepts —
+  which blocks the form-post CSRF shape. A request with no `Content-Type` at all is allowed through: no form
+  omits the header, and body-less `POST`s from legitimate clients often do.
+
+> **Reworded in phase 11, because the sentence had been true of two thirds of the surface.** It previously
+> said state-changing requests *"require `Content-Type: application/json`"*. That held wherever a
+> `@RequestBody` existed — Spring answers `415` because no converter turns a form body into a DTO — and
+> **not at the ten endpoints that take no body**, where there is nothing to convert and so nothing to
+> refuse. Measured, not inferred: a form-encoded `POST /auth/logout` answered `204`. `SameSite=Lax` was
+> carrying that surface alone, so two layers were documented and one existed — which matters precisely
+> because the missing one is what a reader would count on if `SameSite` were ever relaxed.
+> [`JsonOnlyWriteFilter`](../backend/src/main/java/dev/reception/common/web/JsonOnlyWriteFilter.java) is
+> the control now, running before authentication so a forged request is refused on its shape rather than
+> on the credentials it lacks. `FormPostRejectionTest` derives the write surface from
+> `RequestMappingHandlerMapping`, so an endpoint is covered the moment it is mapped.
 - Security headers via Caddy: `Strict-Transport-Security`, `X-Content-Type-Options: nosniff`,
   `Referrer-Policy: strict-origin-when-cross-origin`, `X-Frame-Options: DENY`, and a Content-Security-Policy
   with no `unsafe-eval`. `Server` is removed.
