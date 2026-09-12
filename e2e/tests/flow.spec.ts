@@ -191,8 +191,28 @@ test('a business is configured, booked twice, managed, cancelled and reported on
     const aiRow = page.getByRole('row').filter({ hasText: RECEPTIONIST_CUSTOMER });
     await expect(aiRow.getByText(/cancelled/i)).toHaveCount(0);
 
-    // The AI badge lives on the calendar, not on the list — see §4 of the handoff.
+    // The AI badge lives on the calendar, not on the list.
+    //
+    // The calendar opens on today, and these bookings are at the far end of the fortnight — the
+    // day strip's last bookable day, chosen so the cancel step clears the Cancellation Window. So
+    // the badge is real and simply off-screen until the calendar is moved to the right date.
+    //
+    // The date comes from the API rather than from parsing a rendered one: `page.request` carries
+    // the signed-in cookies, and a date read off the screen would be in the display format and
+    // need converting back.
+    const listed = await page.request.get('/api/appointments');
+    expect(listed.ok(), 'the owner can list appointments').toBeTruthy();
+    const body = (await listed.json()) as {
+      content: { startsAt: string; customer: { fullName: string } }[];
+    };
+    const aiAppointment = body.content.find(
+      (appointment) => appointment.customer.fullName === RECEPTIONIST_CUSTOMER,
+    );
+    expect(aiAppointment, 'the Receptionist booking is in the list').toBeTruthy();
+    const aiDate = aiAppointment!.startsAt.slice(0, 10);
+
     await page.goto('/calendar');
+    await page.getByLabel('Date').fill(aiDate);
     await expect(page.getByTitle('Booked by the AI receptionist').first()).toBeVisible({
       timeout: 30_000,
     });
