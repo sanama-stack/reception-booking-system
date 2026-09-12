@@ -71,14 +71,21 @@ this is no longer theoretical: sign in through any other port and the cookies wi
 **Ports live in one contiguous block, `9080`–`9085`**, deliberately away from the usual
 `3000`/`8080`/`5432` range so this project can run alongside another without colliding:
 
-| Port | |
-|---|---|
-| `9080` | Caddy — the origin you browse |
-| `9081` | backend |
-| `9082` | frontend |
-| `9083` | Mailpit web UI |
-| `9084` | Mailpit SMTP |
-| `9085` | Postgres |
+| Port | | Reachable from |
+|---|---|---|
+| `9080` | Caddy — the origin you browse | anywhere — it is the origin |
+| `9081` | backend | your machine (run by your IDE) |
+| `9082` | frontend | your machine (run by your IDE) |
+| `9083` | Mailpit web UI | **this host only** |
+| `9084` | Mailpit SMTP | **this host only**, and only under `make up` |
+| `9085` | Postgres | **this host only**, and only under `make up` |
+
+**Only Caddy is published beyond loopback, and the database only to the IDE topology.** Everything
+else is bound to `127.0.0.1`, because an unqualified Docker port mapping is reachable from the
+network even when `ufw` says otherwise — Docker writes its rules below the firewall's
+(docs/06-security.md §12). Under `make up-all` the applications are containers that reach Postgres
+and Mailpit by service name, so `9084` and `9085` are not published at all; use `make psql` for a
+database shell. `make check-bindings` asserts all of this and both `up` targets depend on it.
 
 Check the whole block at once with `lsof -nP -iTCP:9080-9085 -sTCP:LISTEN`. Change any of them in
 `.env`; Caddy derives its upstreams from `SERVER_PORT` and `FRONTEND_PORT`. The one exception is

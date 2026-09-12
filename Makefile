@@ -19,7 +19,7 @@ E2E_ENV := COMPOSE_PROJECT_NAME=reception-e2e \
 
 .DEFAULT_GOAL := help
 .PHONY: help up up-all up-e2e down down-e2e logs logs-e2e test e2e migrate seed rebuild ps psql \
-        check-ports \
+        check-ports check-bindings check-docs \
         check-headers check-fake-provider
 
 help: ## Show this help
@@ -90,7 +90,7 @@ check-ports: .env
 	 esac; \
 	 exit $$fail
 
-up: .env check-ports ## Start Postgres, Mailpit and Caddy — run the apps from your IDE
+up: .env check-ports check-bindings ## Start Postgres, Mailpit and Caddy — run the apps from your IDE
 	$(COMPOSE) up -d
 	@app=$$(grep -E '^APP_PORT=' .env | cut -d= -f2); \
 	 mail=$$(grep -E '^MAILPIT_UI_PORT=' .env | cut -d= -f2); \
@@ -105,7 +105,7 @@ up: .env check-ports ## Start Postgres, Mailpit and Caddy — run the apps from 
 	 echo "  Docs     http://localhost:$$app/api/docs"; \
 	 echo "  Mailpit  http://localhost:$$mail"
 
-up-all: .env check-ports ## Start everything in containers, including both applications
+up-all: .env check-ports check-bindings ## Start everything in containers, including both applications
 	$(COMPOSE) $(APPS) up -d --build
 	@app=$$(grep -E '^APP_PORT=' .env | cut -d= -f2); \
 	 mail=$$(grep -E '^MAILPIT_UI_PORT=' .env | cut -d= -f2); \
@@ -115,7 +115,7 @@ up-all: .env check-ports ## Start everything in containers, including both appli
 
 # Everything up-all starts, plus the fake provider, with the backend pointed at it. The
 # application images are the ones that ship; only app.ai.base-url differs.
-up-e2e: .env ## Start the E2E topology — isolated project, own database, fake AI provider
+up-e2e: .env check-bindings ## Start the E2E topology — isolated project, own database, fake AI provider
 	$(E2E_ENV) $(COMPOSE) $(E2E) up -d --build
 	@echo ""; \
 	 echo "  App           http://localhost:9180   ← the E2E origin, not 9080"; \
@@ -218,3 +218,61 @@ check-headers: ## Assert the security headers on the running origin (expects the
 
 psql: ## Open a psql shell on the running database
 	$(COMPOSE) exec postgres psql -U $${POSTGRES_USER:-reception} -d $${POSTGRES_DB:-reception}
+
+# docs/06-security.md §12, asserted against the merged compose configuration rather than read off
+# a file. The claim it checks — "the database port is exposed to the host only in the local IDE
+# topology" — was DESCRIBED for ten phases and implemented by nothing (G26, the second instance of
+# the shape T42 records about the security headers). Fixing the file without adding this check
+# would have left the next such sentence exactly as unguarded.
+#
+# It needs no containers: `docker compose config` merges the overlays and resolves every variable
+# without starting anything, so this runs in CI beside the header check and on a laptop in under a
+# second.
+#
+# ALL THREE TOPOLOGIES, and the third is here because of T66 — `check-ports` guarded one coupling
+# at `make up`, a target CI never invokes, so the shape that deploys never met the gate. A check
+# that covers the topology you develop in and not the one you ship is the same mistake with the
+# ports renamed.
+#
+# WHY host_ip IS THE WHOLE ASSERTION. A published port with no host given binds 0.0.0.0, and a host
+# firewall does not cover it — Docker writes its rules in the DOCKER-USER chain, below ufw. Measured
+# on 2026-09-12 against the two bindings side by side: unqualified, the Mailpit UI answered 200 and
+# Postgres accepted a connection on the machine's LAN address; bound to 127.0.0.1, both refused.
+check-bindings: .env ## Assert only Caddy is published on all interfaces, in both topologies
+	@fail=0; \
+	 check() { \
+	   topology="$$1"; shift; \
+	   echo "  $$topology"; \
+	   published=$$("$$@" config --format json 2>/dev/null \
+	     | jq -r '.services | to_entries[] | .key as $$s | (.value.ports // [])[] \
+	              | "\($$s) \(.published) \(.host_ip // "0.0.0.0")"'); \
+	   if [ -z "$$published" ]; then \
+	     echo "    nothing published at all — the config did not resolve"; fail=1; return; fi; \
+	   echo "$$published" | while read -r svc port ip; do \
+	     echo "      $$svc $$ip:$$port"; done; \
+	   echo "$$published" | grep -qE '^caddy [0-9]+ 0\.0\.0\.0$$' \
+	     || { echo "    caddy is not published on all interfaces — it is the origin"; fail=1; }; \
+	   offenders=$$(echo "$$published" | grep -vE '^caddy ' | grep -v ' 127\.0\.0\.1$$' || true); \
+	   [ -z "$$offenders" ] \
+	     || { echo "    published beyond loopback: $$offenders"; fail=1; }; \
+	 }; \
+	 echo "Asserting published bindings (docs/06-security.md §12)"; \
+	 check "local IDE topology (make up)" $(COMPOSE); \
+	 check "containerised topology (make up-all)" $(COMPOSE) $(APPS); \
+	 check "E2E topology (make up-e2e)" env $(E2E_ENV) $(COMPOSE) $(E2E); \
+	 db=$$($(COMPOSE) $(APPS) config --format json 2>/dev/null \
+	   | jq -r '(.services.postgres.ports // []) | length'); \
+	 [ "$$db" = "0" ] \
+	   || { echo "  the database is published in the containerised topology — §12 says it is not"; \
+	        fail=1; }; \
+	 [ "$$fail" = "0" ] \
+	   && echo "Only the origin is published beyond loopback, and the database only to the IDE." \
+	   || { echo "check-bindings FAILED"; exit 1; }
+
+# The documentation's own consistency, as four mechanical checks rather than a reading. Phase 11's
+# last Documentation row is "a final consistency pass over /docs and CONTEXT.md", and a pass run
+# once is stale the next time somebody renumbers a section — so it is a target instead of an event.
+#
+# No containers, no network, no build: a checkout and Python. It is its own CI job for that reason.
+check-docs: ## Assert the documentation is internally consistent (links, §refs, inventories)
+	@python3 docs/tools/consistency/check.py

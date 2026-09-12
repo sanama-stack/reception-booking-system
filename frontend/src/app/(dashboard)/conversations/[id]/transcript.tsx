@@ -67,11 +67,30 @@ export function Transcript({
         <Card>
           <p className="text-ink-muted text-sm leading-relaxed">
             {/*
-              Reachable, and not a bug. A conversation row is written when the panel opens a session
-              and the first message is what fills it — a customer who opened a chat and closed the
-              tab leaves exactly this.
+              TWO reasons a transcript is empty, and they are not the same thing to an owner
+              looking for what the Receptionist said.
+
+              A conversation row is written when the panel opens a session and the first message is
+              what fills it, so a customer who opened a chat and closed the tab leaves one with
+              nothing in it. The other is a transcript the retention purge took at ninety days.
+
+              Without messagesPurgedAt the screen would have to guess between them from
+              messageCount — which the purge does not decrement, and which sits in the Rows fact
+              directly above this sentence. An owner reading "Rows 8" over "nothing was ever said
+              in it" is reading a contradiction.
+
+              The date is rendered and the length of the window is NOT. Ninety days lives in
+              ConversationLimits on the server and is enforced only there; written down here too it
+              would be a number duplicated across two languages with nothing checking the copies
+              agree, and the one that drifted would be the one telling an owner a policy the system
+              does not follow.
             */}
-            This conversation was opened but nothing was ever said in it.
+            {conversation.messagesPurgedAt
+              ? `This conversation's transcript was deleted on ${formatDateTime(
+                  conversation.messagesPurgedAt,
+                  timezone,
+                )}, under the transcript retention window. What it cost is kept; what was said in it is not.`
+              : 'This conversation was opened but nothing was ever said in it.'}
           </p>
         </Card>
       ) : (

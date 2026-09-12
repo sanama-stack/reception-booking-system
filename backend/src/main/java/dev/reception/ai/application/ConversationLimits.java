@@ -37,4 +37,22 @@ public final class ConversationLimits {
      * messages anyway (docs/05-ai-architecture.md §4).
      */
     public static final int CONTEXT_WINDOW_MESSAGES = 20;
+
+    /**
+     * How long a transcript is kept, measured from a conversation's last activity.
+     *
+     * <p>Ninety days, which is not a number chosen here: docs/05-ai-architecture.md §11 has carried
+     * it since phase 09, and deferred only the job that enforces it. This constant is that sentence
+     * made executable.
+     *
+     * <p>It lives with the ceilings rather than in {@code AiProperties} for the reason that governs
+     * every number in this file, and here it is at its strongest: a retention window is a promise
+     * about other people's data. Configurable, it could be quietly widened to a year on one host by
+     * an environment variable nobody reviews. As a constant, lengthening it is a diff.
+     *
+     * <p>The <em>timer</em> is configuration and lives in {@code application.yml} — how often the
+     * purge wakes up changes nothing about what is kept, exactly as the notification poller's
+     * interval is configuration while its retry schedule is not.
+     */
+    public static final int TRANSCRIPT_RETENTION_DAYS = 90;
 }

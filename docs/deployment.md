@@ -69,6 +69,12 @@ every cookie in it stops working.
 These are not hardening suggestions. Each is a file that, as committed, either refuses to serve TLS
 or exposes something to the internet that was written for a laptop.
 
+**§3.2 is fixed.** It is the one that has moved since this document was written: the compose files
+now bind to loopback and the deployed topology publishes no database port at all, held there by
+`make check-bindings`. It is kept in place, marked, rather than deleted — the reasoning is what the
+current shape rests on, and a numbered list that silently loses an item is harder to read against
+an older session's notes than one that says which item went.
+
 ### 3.1 The Caddyfile cannot serve TLS as written
 
 [infra/caddy/Caddyfile](../infra/caddy/Caddyfile) opens with:
@@ -113,41 +119,53 @@ the local value is `max-age=0` — a browser ignores HSTS on a response that did
 HTTPS, so locally the header is inert whatever it says. **Here it stops being inert**, which is the
 one header value this document changes: see §4.
 
-### 3.2 Postgres and Mailpit publish themselves to the world
+### 3.2 ~~Postgres and Mailpit publish themselves to the world~~ — fixed 2026-09-12
 
-[docker-compose.yml](../docker-compose.yml) publishes three ports unconditionally:
+**Fixed 2026-09-12 by principal decision — the file moved, not the sentence.** This section
+described a blocker and prescribed two changes; both are now in the repository, and it is kept
+rather than deleted because the reasoning is still what the current shape rests on.
+
+[docker-compose.yml](../docker-compose.yml) used to publish three ports unconditionally:
 
 ```yaml
 postgres:  ports: ["${POSTGRES_PORT:-9085}:5432"]
 mailpit:   ports: ["${MAILPIT_SMTP_PORT:-9084}:1025", "${MAILPIT_UI_PORT:-9083}:8025"]
 ```
 
-On a laptop that is correct and deliberate — the comment on the Postgres line says so, and the
-backend running from an IDE needs the published port to reach the database at all. On a public host
-it publishes **the database and a web UI holding every email the system has ever sent** on
-`0.0.0.0`.
+On a laptop that was correct and deliberate — the backend running from an IDE needs the published
+port to reach the database at all. On a public host it published **the database and a web UI holding
+every email the system has ever sent** on `0.0.0.0`.
 
 **A host firewall is not enough on its own.** Docker writes its own `iptables` rules in the
 `DOCKER-USER` chain, and a published port is reachable through them even when `ufw` says the port is
 denied. This surprises people regularly and it is not a Docker bug — publishing a port is a request
 to make it reachable.
 
-Two changes, and the second is the one that actually holds:
+Both prescribed changes were made:
 
-1. **Bind to loopback** rather than every interface — `127.0.0.1:9085:5432` — so a published port is
-   reachable only from the host itself.
-2. **Do not publish them at all.** Nothing in the deployed topology needs either: the backend
-   reaches `postgres:5432` and `mailpit:1025` over the compose network by service name, and
-   `docker-compose.apps.yml` already points it there. Reach the database with
-   `docker compose exec postgres psql` (which is what `make psql` does) or over an SSH tunnel.
+1. **Bound to loopback** — `127.0.0.1:${POSTGRES_PORT}:5432`, and the same for both Mailpit ports,
+   so a published port is reachable only from the host itself. **Measured rather than assumed:**
+   with the two bindings running side by side on one machine, the unqualified Mailpit UI answered
+   `200` and Postgres accepted a connection on the host's LAN address; bound to loopback, both
+   refused.
+2. **Not published at all in the deployed topology.** [docker-compose.apps.yml](../docker-compose.apps.yml)
+   now removes the database mapping with Compose's `!reset` tag and replaces Mailpit's with
+   `!override`, keeping only the UI — the E2E flow asserts against it. Reach the database with
+   `docker compose exec postgres psql`, which is what `make psql` already does.
 
-This is also where [06-security.md](./06-security.md) §12 and the compose file disagree, and the
-document is the one that is wrong. §12 says *"the database port is exposed to the host only in the
-`local` compose profile"*. **There is no such conditionality in the file** — `docker-compose.yml`
-publishes it in every topology that includes it, and `docker-compose.apps.yml` does not take it
-away. The control §12 describes does not exist; the sentence describes an intention. This is the
-same shape as the finding §13 of that document records about the security headers, which were
-described for a phase before any file set them.
+**The merge is subtler than it looks, and the gate exists because of it.** Compose *appends*
+sequences, so `ports: []` in an overlay leaves the base file's mappings exactly where they were —
+a change that reads as correct and does nothing. `!reset` discards the key and **ignores any payload
+that follows it**; `!override` is the one that replaces. Both were verified against
+`docker compose config` rather than reasoned about, and `make check-bindings` was shown red against
+the `ports: []` version specifically.
+
+This was also where [06-security.md](./06-security.md) §12 and the compose file disagreed. §12 said
+*"the database port is exposed to the host only in the `local` compose profile"* and **no file
+implemented any such conditionality**. The principal's call was that the file moves: §12 now
+describes what the files do, `make check-bindings` asserts it in both topologies, and CI runs it —
+so this particular sentence can no longer drift from the thing it describes. The general gap
+remains open (**G26**): no other sentence in that document is checked against its own absence.
 
 ### 3.3 Mailpit is not a mail server
 
@@ -265,7 +283,7 @@ deployment; check the three values yourself.
 ```bash
 git clone … && cd reception-booking-system
 cp .env.example .env
-# edit .env per §4, and apply the three file changes in §3
+# edit .env per §4, and apply the file changes still open in §3 (3.1, 3.3, 3.4 — 3.2 is done)
 ```
 
 Bring it up with both compose files, which is what `make up-all` does:
@@ -304,7 +322,13 @@ registers through the application like any other.
 The distinction this project has learned to draw the hard way — a verified fixture is not a verified
 assertion.
 
-**Measured, on a running containerised stack, this session:**
+**Measured, on this machine, 2026-09-12 — the published bindings.** With the pre-change and
+post-change bindings running side by side, the unqualified Mailpit UI answered `200` and Postgres
+accepted a connection on the host's LAN address; bound to `127.0.0.1`, both refused. Two probes and
+not one, because a single refusal is equally consistent with the service simply being down — the
+old binding answering on the same address is what makes the new one's refusal mean something.
+
+**Measured, on a running containerised stack, in the session that wrote this document:**
 
 - **The per-IP rate limits survive a reverse proxy, and a spoofed header does not defeat them.**
   This is the single most load-bearing claim in the document, because
@@ -358,11 +382,13 @@ rotating the Manage Link secret invalidates every outstanding link, so every cus
 locked out of their own appointment until the next email. Both are survivable and neither is
 graceful. A versioned-key scheme is a recorded V1.1 item.
 
-**Nothing deletes an `ai_message`.** A transcript holds the customer's name and phone number as they
-typed them, and the retention window and scheduled purge are written into phase 11's scope and **not
-built**. Every conversation the Receptionist has ever had is still in the database. On a laptop with
-seed data that is a rounding error; on a host serving real customers it is the item on this list
-that concerns other people's personal data rather than your own uptime.
+**~~Nothing deletes an `ai_message`.~~ Built, and no longer on this list.** A transcript holds the
+customer's name and phone number as they typed them, and for ten phases nothing had ever deleted
+one. `TranscriptPurgeJob` now runs hourly and deletes every transcript ninety days past its
+conversation's last activity; the conversation row is kept, marked with `messages_purged_at`, for
+its cost accounting. `AI_RETENTION_ENABLED` switches the job off and **is not a way to widen the
+window** — ninety days is a constant in `ConversationLimits`, deliberately not settable from
+`.env`. A host that sets that variable to `false` is back on this list and nothing will say so.
 
 **No email verification, no account lockout, no 2FA.** All three are named and accepted in
 [06-security.md](./06-security.md) §15, with the reasoning for each.

@@ -11,6 +11,12 @@ book appointments through an AI receptionist backed by a deterministic schedulin
 The tenant. Every other record in the system belongs to exactly one Business.
 _Avoid_: Tenant, organization, company, account, shop
 
+**Business FAQ**:
+A question and its answer, owned by a Business. Folded into the Receptionist's system prompt rather
+than exposed as a Tool or rendered on the public booking page, so it grounds what the Receptionist
+says without being a page a Customer reads.
+_Avoid_: Knowledge base, help article, canned answer, policy
+
 **User**:
 An authenticated principal who signs in to the dashboard. Belongs to a Business through a Membership.
 _Avoid_: Account, admin, staff
@@ -97,6 +103,20 @@ A named, validated backend capability the Receptionist may invoke. Tools are the
 can read or change Business state.
 _Avoid_: Function, action, skill, command
 
+**Conversation**:
+One exchange between one Customer and the Receptionist, from the moment the chat panel opens a
+session until it is closed or hits a ceiling. It carries its own budget, its message count, and the
+set of Appointments it has proven it may act on — nothing else in the system grants that authority,
+and no Tool can write it.
+_Avoid_: Chat, session, thread, dialogue
+
+**Transcript**:
+The ordered record of a Conversation: every Customer message, every Receptionist reply and every Tool
+call with its arguments and its result. It is what an owner reads when the Receptionist has done
+something surprising, and it is **deleted ninety days after the Conversation's last activity** — the
+Conversation itself is kept, because it holds what the Receptionist cost and no free text.
+_Avoid_: History, log, messages, chat record
+
 **Classic Flow**:
 The deterministic, non-conversational booking path (service → employee → date → slot → confirm) that calls
 the same endpoints the Receptionist's Tools call.
@@ -108,3 +128,9 @@ _Avoid_: Manual booking, fallback, traditional flow
 A single intended message to one Customer about one Appointment, recorded before it is sent and drained
 by a poller. Its record is the source of truth for what was sent, not the mail server.
 _Avoid_: Email, message, alert, reminder job
+
+**Outbox**:
+The Notification table read as a queue — rows written in the same transaction as the Appointment that
+caused them, then claimed and sent by a poller. The pattern is the reason a confirmation cannot be
+lost by a booking that succeeded, and cannot be sent by one that rolled back.
+_Avoid_: Queue, job table, spool, mail queue

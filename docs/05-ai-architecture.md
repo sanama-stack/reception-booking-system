@@ -267,4 +267,20 @@ call, arguments and result — scoped to `business_id`. Owners can read their ow
 dashboard, which is both a product feature and the primary debugging tool when the Receptionist behaves
 oddly.
 
-Retention: 90 days, documented; the purge job itself is V1.1.
+**Retention: 90 days, and the purge job now exists.** It was deferred to V1.1 when this sentence
+was first written; phase 11 pulled it forward by principal decision, on the grounds that a
+transcript holds a Customer's name and phone number as they typed them and nothing in the system
+had ever deleted one.
+
+`TranscriptPurgeJob` runs hourly and `TranscriptPurge` takes one bounded batch per tick. The window
+is measured from a conversation's **last activity**, not from each message's own age: anchored per
+message, a conversation straddling the boundary would lose its opening turns and keep the rest —
+a transcript beginning mid-sentence, which is the half-scrubbed state purging was chosen over
+redaction to avoid.
+
+The `ai_messages` rows go; the `ai_conversations` row is kept and marked with `messages_purged_at`,
+so the token and cost accounting survives and the dashboard can say what happened rather than
+render an empty transcript for a reader to guess at. Ninety days lives in
+`ConversationLimits.TRANSCRIPT_RETENTION_DAYS` rather than in configuration, for the reason every
+ceiling in that file does — and here at its strongest, because a retention window is a promise
+about other people's data and an environment variable is not a diff.

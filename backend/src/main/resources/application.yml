@@ -139,6 +139,20 @@ app:
     # model needs these set alongside it — which is why the column is called estimated_cost_cents.
     prompt-cents-per-million-tokens: ${OPENAI_PROMPT_CENTS_PER_MTOK:15}
     completion-cents-per-million-tokens: ${OPENAI_COMPLETION_CENTS_PER_MTOK:60}
+    retention:
+      # The purge's timer, not the window. Ninety days lives in ConversationLimits and is
+      # deliberately not settable here: a retention window is a promise about other people's data,
+      # and this is the file where it could be quietly widened to a year on one host. The interval
+      # is safe to tune because it changes nothing about what is kept — only how soon after the
+      # ninetieth day a transcript goes.
+      enabled: ${AI_RETENTION_ENABLED:true}
+      interval-ms: 3600000
+      # A minute, so a restart does not spend its first moment deleting while Flyway, the connection
+      # pool and the availability engine are all still warming up.
+      initial-delay-ms: 60000
+      # One batch per tick. The first run against a database that has never been purged is the
+      # largest of its life, and an unbounded DELETE would hold locks across every transcript in it.
+      batch-size: 200
 
 logging:
   level:

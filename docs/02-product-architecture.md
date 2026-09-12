@@ -30,9 +30,16 @@ authentication use httpOnly cookies with no token ever reaching JavaScript.
 ```
 
 **Every port in that diagram is container-internal.** They are what each process listens on inside the
-compose network, and only Caddy's is published — the browser arrow reaches it at `localhost:9080`, not
-`:8080`, and Mailpit's UI is `localhost:9083`, not `:8025`. The published block is `9080`–`9085`; the
-README carries the full table.
+compose network. The browser arrow reaches Caddy at `localhost:9080`, not `:8080`, and Mailpit's UI at
+`localhost:9083`, not `:8025`.
+
+**In this topology only two of them are published at all, and only one beyond loopback.** Caddy's
+`9080` is on every interface because it is the origin; Mailpit's UI is on `127.0.0.1:9083` because a
+developer reads it and the E2E flow asserts against it. **The database is not published here** — the
+backend is a container and resolves `postgres:5432` on the compose network, so nothing on the host
+needs it ([06-security.md](./06-security.md) §12). The wider `9080`–`9085` block belongs to the
+`make up` topology, where the two applications run on the host and must reach Postgres and Mailpit
+through it; the README carries the full table and `make check-bindings` asserts both shapes.
 
 Five containers, no more. Nothing is present to make the diagram look impressive: Caddy exists because of
 the cookie decision, Mailpit because notifications must be demonstrable.

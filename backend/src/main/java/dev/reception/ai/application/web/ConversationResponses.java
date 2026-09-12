@@ -19,6 +19,14 @@ public final class ConversationResponses {
 
     private ConversationResponses() {}
 
+    /**
+     * @param messagesPurgedAt when the retention purge took this conversation's transcript, or null
+     *     if it still has one. Projected because a screen cannot tell the truth about a state the
+     *     API cannot name: {@code messageCount} is not decremented by the purge, so without this
+     *     field an empty transcript beneath a non-zero count is indistinguishable from a
+     *     conversation that was opened and never spoken in — and the transcript screen says exactly
+     *     that about it
+     */
     public record ConversationSummary(
             UUID id,
             String status,
@@ -28,7 +36,8 @@ public final class ConversationResponses {
             int estimatedCostCents,
             UUID customerId,
             Instant startedAt,
-            Instant lastMessageAt) {
+            Instant lastMessageAt,
+            Instant messagesPurgedAt) {
 
         public static ConversationSummary of(AiConversation conversation) {
             return new ConversationSummary(
@@ -40,7 +49,8 @@ public final class ConversationResponses {
                     conversation.estimatedCostCents(),
                     conversation.customerId(),
                     conversation.startedAt(),
-                    conversation.lastMessageAt());
+                    conversation.lastMessageAt(),
+                    conversation.messagesPurgedAt());
         }
     }
 

@@ -7,8 +7,12 @@ All paths are relative to `/api` behind the single origin. JSON in, JSON out, UT
 | Surface | Prefix | Authentication | Tenant resolved from |
 |---|---|---|---|
 | Auth | `/auth/*` | none / refresh cookie | n/a |
-| Tenant | `/business`, `/services`, `/employees`, `/appointments`, `/customers`, `/analytics`, `/availability`, `/conversations` | access cookie | the authenticated Membership |
+| Tenant | `/business`, `/services`, `/employees`, `/appointments`, `/customers`, `/analytics`, `/availability`, `/calendar`, `/conversations` | access cookie | the authenticated Membership |
 | Public | `/public/*` | none | the `{slug}` in the path |
+
+`/health` is the one endpoint outside all three. It is operational rather than product surface — no
+tenant, no authentication, and the only route Caddy's own healthcheck reads — and it is specified in
+[phase-01-foundation.md](./phases/phase-01-foundation.md) rather than here.
 
 **No endpoint anywhere accepts `business_id` from the caller.** This is the rule the whole isolation design
 rests on; an endpoint that breaks it is a defect regardless of what checks it performs afterwards.
@@ -223,6 +227,20 @@ reintroduce the race the exclusion constraint eliminates.
 ```
 
 `rates` values are `null`, not `0`, when the denominator is zero.
+
+### Calendar (read-only)
+
+| Method | Path | Purpose |
+|---|---|---|
+| GET | `/calendar?from=&to=` | Every appointment in a date range, for the calendar views |
+
+`from` and `to` are calendar dates **in the business timezone**, `to` inclusive. The range is capped
+at **35 days** — a six-week month grid is the widest view that exists — and a range that is longer,
+or inverted, is a `422` rather than a quietly corrected one.
+
+**One request per view, never one per day.** That is a correctness requirement rather than a
+performance one: a day fetched on its own cannot know about an appointment that starts the previous
+evening and runs past midnight in the business timezone. See `CalendarService`.
 
 ### Conversations (read-only)
 
