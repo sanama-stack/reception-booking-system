@@ -569,7 +569,20 @@ argument that it was right.
       endpoint cannot be silently unlogged. **Shown red five ways**, and one of them found a hole in
       the test rather than the code: a password logged from `login()` **passed**, because the
       credential sweep drove register, refresh and logout and not the one endpoint that receives a
-      password
+      password. **§8 done 2026-09-13**, and **neither of its two claims was checked by anything that
+      ran**: the only test referencing `SystemPromptBuilder` is `@Tag("probe")`, excluded from the
+      suite, and it asserts nothing. *"Customer text never enters the system prompt"* was true and is
+      now asserted as an **equality** across a real turn rather than as an absence — which earns its
+      place, since a plant appending the **model's** reply passed the sentinel check and was caught
+      only by the equality. *"Business text is delimited and labelled as data"* was **true of one
+      field of four, and it was the smallest**: `ai_additional_info` was fenced at 2,000 characters
+      while the description (5,000), the cancellation policy (5,000) and up to fifty FAQs at 1,300
+      each went in bare — roughly thirty times as much owner free text, and the FAQ is the field
+      05-ai-architecture.md §7's own injection table names as an attack. All four go through one
+      helper now. **Shown red five ways**, the sharpest being a fence emitted with the text landing
+      *after* it closes, which a check that searched for `<<<` would have passed. **This is a system
+      prompt change and the level-3 corpus has NOT been run against it** — `-PincludeTags=llm` needs
+      a key and credits, and that is the principal's call. See G32
 - [x] Redaction filter verified across appenders — **2026-09-12.** Three tests already covered this
       ground and **none could catch the failure that matters**: deleting the `<jsonGeneratorDecorator>`
       from the appender that runs in production left `PiiValueMaskerTest`, `ConsoleRedactionTest` and

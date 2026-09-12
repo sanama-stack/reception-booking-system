@@ -202,6 +202,36 @@ Covered fully in [05-ai-architecture.md](./05-ai-architecture.md) §7. The secur
 - Write tools require the appointment id to be pre-authorised in the conversation.
 - No tool performs bulk operations, accepts a filter expression, or executes anything resembling a query.
 - Customer text never enters the system prompt; business text is delimited and labelled as data.
+  Both halves asserted by
+  [`SystemPromptSafetyTest`](../backend/src/test/java/dev/reception/ai/application/SystemPromptSafetyTest.java),
+  which fills every owner-writable free-text field with its own sentinel and requires each to land
+  *between* a pair of data markers — a behavioural check, because a test that read the builder for
+  the string `<<<` would pass for a marker emitted somewhere the text is not.
+
+> **Corrected in phase 11: the second half was true of one field of four, and it was the smallest.**
+> `ai_additional_info` was delimited and labelled at 2,000 characters. The business description
+> (5,000), the cancellation policy (5,000) and up to fifty FAQs at 1,300 characters each went into
+> the prompt as **bare text under a heading** — some thirty times as much owner-written free text as
+> the field that was fenced, and [05-ai-architecture.md](./05-ai-architecture.md) §7's own injection
+> table names *"injection stored in an FAQ answer by a malicious owner"* as an attack. Its answer
+> there is blast radius, which is the **containment** argument; this section claims the **labelling**
+> one, and that was not built. All four now go through one `appendDataRegion` helper.
+>
+> **Neither claim was checked by anything that ran.** The only test referencing `SystemPromptBuilder`
+> was `ProbeFixtureDumpTest`, which is `@Tag("probe")` — excluded from the suite by `build.gradle.kts`
+> — and which writes a file rather than asserting anything.
+>
+> **The first half was true, and is now asserted as an equality rather than an absence.** *"The
+> customer's words are not in the prompt"* is also true of a prompt that failed to build, of one
+> truncated before the section, and of a turn that never happened. Two builds that are byte-identical
+> across a real conversation is the property itself. It earns its place: a plant that appended the
+> **model's** reply rather than the customer's passed the sentinel check and was caught only by the
+> equality.
+>
+> **One edge is named rather than handled.** Truncation at `MAX_PROMPT_CHARACTERS` can cut a region
+> before its closing marker. The sections that can reach the cap are these ones; a prompt that long
+> means a business configured past the budget, and the honest fix is the budget rather than a guess
+> about which marker to close.
 - Per-conversation and per-business ceilings bound both blast radius and cost.
 - The confirmation UI renders from API data, so a model that claims a booking that did not happen produces
   a visible absence rather than a convincing lie.
