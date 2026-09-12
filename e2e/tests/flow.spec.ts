@@ -178,7 +178,18 @@ test('a business is configured, booked twice, managed, cancelled and reported on
     await page.goto('/appointments');
     await expect(page.getByText(tenant.customerName).first()).toBeVisible({ timeout: 30_000 });
     await expect(page.getByText(RECEPTIONIST_CUSTOMER).first()).toBeVisible();
-    await expect(page.getByText(/cancelled/i).first()).toBeVisible();
+
+    // Scoped to the Classic Flow customer's own row. A page-wide /cancelled/i matches the status
+    // filter's <option value="CANCELLED">, which lives inside a closed <select> and is therefore
+    // never visible — the assertion retried against it nineteen times and never looked at a
+    // booking. Row scoping also makes it say the thing worth saying: THIS appointment, the one the
+    // customer cancelled through the Manage Link, is the cancelled one.
+    const classicRow = page.getByRole('row').filter({ hasText: tenant.customerName });
+    await expect(classicRow.getByText(/cancelled/i).first()).toBeVisible();
+
+    // And the Receptionist's is not, which is what makes the line above mean something.
+    const aiRow = page.getByRole('row').filter({ hasText: RECEPTIONIST_CUSTOMER });
+    await expect(aiRow.getByText(/cancelled/i)).toHaveCount(0);
 
     // The AI badge lives on the calendar, not on the list — see §4 of the handoff.
     await page.goto('/calendar');
