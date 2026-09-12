@@ -109,3 +109,138 @@ export async function signIn(page: Page, email: string, password: string) {
   await page.getByRole('button', { name: /sign in/i }).click();
   await page.waitForURL('**/dashboard', { timeout: 30_000 });
 }
+
+// ---------------------------------------------------------------------------
+// The rows the id-taking routes need (G25)
+// ---------------------------------------------------------------------------
+
+/** One of each thing a `/{id}` route renders, for a tenant that has just registered. */
+export interface DetailRows {
+  appointmentId: string;
+  customerId: string;
+  serviceId: string;
+  employeeId: string;
+  conversationId: string;
+}
+
+/**
+ * Reads the body before asserting, so a failure says what the server actually answered.
+ *
+ * `expect(response.ok())` on its own reports a bare status, and the status is the least useful
+ * half of a validation failure — the field and the message are in the body.
+ */
+async function json<T>(
+  page: Page,
+  method: 'get' | 'post' | 'put',
+  path: string,
+  data?: unknown,
+  timeout = 30_000,
+): Promise<T> {
+  const response = await page.request[method](
+    `/api${path}`,
+    data === undefined ? { timeout } : { data, timeout },
+  );
+  const body = await response.text();
+  expect(
+    response.ok(),
+    `${method.toUpperCase()} ${path} answered ${response.status()}: ${body.slice(0, 500)}`,
+  ).toBeTruthy();
+  return JSON.parse(body) as T;
+}
+
+/**
+ * Creates one employee, one service, one appointment, one customer and one conversation.
+ *
+ * **Through the API rather than the UI, deliberately.** The sweep's question is whether a rendered
+ * detail page fits in 360 px, and driving five forms to reach five pages would spend most of the
+ * run proving things `flow.spec.ts` already proves — and would fail for form reasons in a spec that
+ * measures layout.
+ *
+ * `page.request` carries the session cookies the registration left behind, so these are the same
+ * authenticated calls the screens themselves make.
+ *
+ * The conversation is the one that cannot be created by a plain write: it has to be *talked* into
+ * existing. That is also why it is worth having — the transcript renders each tool call's arguments
+ * and results as pretty-printed JSON, which is the widest content this application draws anywhere,
+ * and an empty conversation would give the sweep nothing to measure.
+ */
+export async function seedDetailRows(
+  page: Page,
+  tenant: ReturnType<typeof freshTenant>,
+  slug: string,
+): Promise<DetailRows> {
+  const employee = await json<{ id: string }>(page, 'post', '/employees', {
+    fullName: tenant.employeeName,
+  });
+
+  // All seven days at the business's own opening hours (BusinessDefaults: 09:00-17:00, Mon-Fri).
+  // The engine intersects the two, so this is five working days a week — and a fortnight always
+  // contains some, which is what stops the slot search below coming back empty.
+  await json(page, 'put', `/employees/${employee.id}/schedule`, {
+    schedule: [1, 2, 3, 4, 5, 6, 7].map((dayOfWeek) => ({
+      dayOfWeek,
+      startsAt: '09:00',
+      endsAt: '17:00',
+    })),
+  });
+
+  const service = await json<{ id: string }>(page, 'post', '/services', {
+    name: tenant.serviceName,
+    durationMinutes: 30,
+    price: SERVICE_PRICE,
+  });
+  // A service nobody can perform has no availability, so the booking below would have nothing to
+  // choose — the same assignment the flow makes on the service form.
+  await json(page, 'put', `/services/${service.id}/employees`, { employeeIds: [employee.id] });
+
+  const from = isoDay(0);
+  const to = isoDay(13);
+  const availability = await json<{
+    days: { slots: { startsAt: string; employee: { id: string } }[] }[];
+  }>(page, 'get', `/availability?serviceId=${service.id}&from=${from}&to=${to}`);
+
+  const slot = availability.days.flatMap((day) => day.slots)[0];
+  expect(slot, `no bookable slot between ${from} and ${to} for a business open every day`).toBeTruthy();
+
+  const booked = await json<{ appointment: { id: string; customer: { id: string } } }>(
+    page,
+    'post',
+    '/appointments',
+    {
+      serviceId: service.id,
+      employeeId: slot!.employee.id,
+      startsAt: slot!.startsAt,
+      customerName: tenant.customerName,
+      customerPhone: tenant.customerPhone,
+    },
+  );
+
+  const session = await json<{ conversationId: string; sessionToken: string }>(
+    page,
+    'post',
+    `/public/businesses/${slug}/chat/session`,
+    {},
+  );
+  // Three tool round trips against the fake provider before it answers, so this is slower than any
+  // other call here and gets its own timeout — the same 60s the flow allows its chat leg.
+  await json(
+    page,
+    'post',
+    `/public/businesses/${slug}/chat`,
+    { sessionToken: session.sessionToken, message: `Hi, I would like a ${tenant.serviceName}.` },
+    120_000,
+  );
+
+  return {
+    appointmentId: booked.appointment.id,
+    customerId: booked.appointment.customer.id,
+    serviceId: service.id,
+    employeeId: employee.id,
+    conversationId: session.conversationId,
+  };
+}
+
+/** A date `offsetDays` from now, as the availability query spells one. */
+function isoDay(offsetDays: number): string {
+  return new Date(Date.now() + offsetDays * 86_400_000).toISOString().slice(0, 10);
+}

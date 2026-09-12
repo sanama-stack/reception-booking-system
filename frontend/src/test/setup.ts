@@ -1,6 +1,7 @@
 import '@testing-library/jest-dom/vitest';
 import { afterEach, vi } from 'vitest';
 import { cleanup } from '@testing-library/react';
+import { clearRouteParams, routeParams } from './navigation';
 
 /**
  * `next/navigation`, stubbed once for the whole suite.
@@ -10,6 +11,10 @@ import { cleanup } from '@testing-library/react';
  * screen never renders far enough to show the state under test. This is the smallest thing that
  * lets a real screen render — it records what a screen asked for rather than pretending to
  * navigate.
+ *
+ * `useParams` reads {@link routeParams}, so a `[id]` page can be put on a real route. It answered
+ * `{}` for every page before, which left such a page requesting `/appointments/undefined` — a
+ * request the harness matches by prefix anyway, so the test passed *because* the id was missing.
  */
 vi.mock('next/navigation', () => ({
   useRouter: () => ({
@@ -22,7 +27,7 @@ vi.mock('next/navigation', () => ({
   }),
   usePathname: () => '/',
   useSearchParams: () => new URLSearchParams(),
-  useParams: () => ({}),
+  useParams: () => routeParams,
   redirect: vi.fn(),
   notFound: vi.fn(),
 }));
@@ -59,6 +64,10 @@ if (dialog && typeof dialog.showModal !== 'function') {
 }
 
 afterEach(cleanup);
+
+// The route is per-test state like the document is. Left in place, a `[id]` page in the next test
+// would render against the previous one's id.
+afterEach(clearRouteParams);
 
 // `serve()` in the harness installs a `fetch`. Left in place it would answer the next test file's
 // requests from the last case of the previous one.

@@ -105,13 +105,11 @@ export const EMPTY_STATES: EmptyStateScreen[] = [
   },
   {
     file: 'app/(dashboard)/appointments/[id]/page.tsx',
-    notYet:
-      "The appointment detail page's “No history”. Needs a full `AppointmentWithHistory` fixture, which nothing else here has yet.",
+    assertedIn: ['app/(dashboard)/appointments/[id]/page.test.tsx'],
   },
   {
     file: 'app/(dashboard)/appointments/[id]/reschedule-section.tsx',
-    notYet:
-      'Its “This service no longer exists” is the interesting one and needs an `AppointmentDetail` fixture.',
+    assertedIn: ['app/(dashboard)/appointments/[id]/reschedule-section.test.tsx'],
   },
   {
     file: 'app/(dashboard)/appointments/appointments-screen.tsx',
@@ -119,7 +117,7 @@ export const EMPTY_STATES: EmptyStateScreen[] = [
   },
   {
     file: 'app/(dashboard)/appointments/new/page.tsx',
-    notYet: 'Reads three resources before it can render either empty state.',
+    assertedIn: ['app/(dashboard)/appointments/new/page.test.tsx'],
   },
   {
     file: 'app/(dashboard)/calendar/calendar-screen.tsx',
@@ -143,7 +141,9 @@ export const EMPTY_STATES: EmptyStateScreen[] = [
   },
   {
     file: 'app/(dashboard)/employees/[id]/availability-section.tsx',
-    notYet: 'Two literal titles plus an `explainEmptyReason` one; needs the availability fixture.',
+    assertedIn: ['app/(dashboard)/employees/[id]/availability-section.test.tsx'],
+    dynamic:
+      'Its third empty state is `explainEmptyReason`’s, asserted once in components/empty-reason.test.tsx — the preview, the booking flow and the public page all render that copy and none of them chooses it.',
   },
   {
     file: 'app/(dashboard)/employees/[id]/time-off-section.tsx',
@@ -183,10 +183,15 @@ export const EMPTY_STATES: EmptyStateScreen[] = [
 ];
 
 /**
- * How many empty states are carried unasserted — a ratchet, not a target.
+ * How many empty states are carried unasserted — a ratchet, not a target. **Zero since 2026-09-12.**
  *
  * Pinned exactly, so a new screen shipping an unasserted empty state turns the gate red rather
  * than joining a number nobody reads. Lowering it is the work; raising it is a decision somebody
  * has to make on purpose, in a diff.
+ *
+ * It stays here at zero rather than being deleted along with the last entry it counted. The four
+ * it described were closed by writing the fixtures they were waiting for — `src/test/fixtures.ts`
+ * — and the next screen to ship an unasserted empty state should meet the same gate rather than a
+ * constant somebody removed because it had briefly stopped mattering.
  */
-export const UNASSERTED_EMPTY_STATES = 4;
+export const UNASSERTED_EMPTY_STATES = 0;

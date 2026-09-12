@@ -96,6 +96,28 @@ establish that, so the sweep now prints every route's `scrollWidth/clientWidth` 
 number of routes measured against the number declared**, which an empty loop cannot satisfy. The
 plant proves the measurement can fail; this proves it was taken.
 
+**Extended to the five id-taking routes on 2026-09-12 — G25.** `/appointments/{id}`,
+`/customers/{id}`, `/services/{id}`, `/employees/{id}` and `/conversations/{id}` were outside it
+because each needs a row the freshly-registered tenant does not have, and they are the routes most
+likely to be too wide: they render history tables, a week of schedule, and — on the conversation —
+each tool call's arguments and results as pretty-printed JSON, the widest content this application
+draws anywhere. `seedDetailRows` creates them through the **API** rather than through five forms,
+because driving the forms would spend the run re-proving what the flow already proves and would fail
+for form reasons in a spec that measures layout. The conversation is the one that cannot be created
+by a plain write — it has to be *talked* into existing, against the fake provider. **Twenty-six
+routes declared; the count assertion moves with them.**
+
+**Green in CI 2026-09-12**, run `34704699908`: **26 routes, every one `360/360`**, the five
+`/{id}` rows among them, read off the per-route table in the *The flow* step's log rather than off
+the job's colour. The sweep took **5.4s** against the twenty-one-route run's 3.9 — the seeding and
+five more page loads — and the count assertion is what makes that number mean something.
+
+Before that run the helper's requests had been verified against a live stack, registration through
+to all five detail endpoints answering `200` and a transcript holding eight messages including
+`TOOL` rows with `toolArguments` and `toolResult`. That established the requests and **not** the
+measurement, because no browser can run here; the row stayed open until CI printed twenty-six. Worth
+keeping as the shape of the thing: a verified fixture is not a verified assertion.
+
 **It cannot be run on a developer machine here.** Chrome starts and is `SIGKILL`ed by the sandbox,
 re-confirmed on 2026-09-12. CI is the only place it runs.
 
@@ -237,7 +259,8 @@ Wired into CI's Frontend job beside the existing gates. **This does not replace 
 stays the check that proves the demo works end to end.
 
 **Built 2026-09-12, and green in CI** — run `34702330928`, 18 files and 68 tests in the Frontend
-job beside lint, typecheck, format and the build.
+job beside lint, typecheck, format and the build. **22 files and 76 tests** as of run
+`34704699908`, which is where the last four empty states landed.
 
 **The counterfactual is load-bearing and CI proves it.** GitHub's runners are UTC. The timezone
 tests assert the ambient zone is +04:00 *before* they assert anything else, so had `env: { TZ }` in
@@ -253,14 +276,28 @@ first asserts the counterfactual is in force, so a `TZ` that stopped reaching th
 suite red instead of turning every assertion into a tautology. Shown able to fail: replacing the
 calendar's zone with the browser's turned both assertions red.
 
-**Loading and error are covered for every screen; empty is covered for fifteen of nineteen.** The
-first two come from `ResourceGate` everywhere but one screen, so they are the same by construction
-and are asserted once at the gate — and `src/test/screens/coverage.test.ts` is what makes that
-claim true rather than assumed, failing in both directions when a component reads a resource and is
-not classified. `DetailDrawer` is the exception, hand-rolled because both states must sit inside the
-dialog under a heading and above a Close button, and is asserted directly. *Empty* cannot be shared
-and is asserted screen by screen; **four are carried unasserted**, counted in
-`UNASSERTED_EMPTY_STATES` so a fifth turns the gate red rather than joining a number nobody reads.
+**Loading, error and empty are now covered for every screen.** The first two come from
+`ResourceGate` everywhere but one screen, so they are the same by construction and are asserted once
+at the gate — and `src/test/screens/coverage.test.ts` is what makes that claim true rather than
+assumed, failing in both directions when a component reads a resource and is not classified.
+`DetailDrawer` is the exception, hand-rolled because both states must sit inside the dialog under a
+heading and above a Close button, and is asserted directly. *Empty* cannot be shared and is asserted
+screen by screen.
+
+**The last four closed on 2026-09-12, and `UNASSERTED_EMPTY_STATES` is zero.** They were carried
+waiting on fixtures the suite did not have; the fixtures are written and shared in
+`src/test/fixtures.ts`, because all four wanted the same service and the same person. The constant
+stays at zero rather than being deleted with the last row it counted, so the next screen shipping an
+unasserted empty state meets the same gate. Two of the four are dead ends and two are open
+questions, and they are asserted as different things: a deleted service leaves the move panel
+nothing to compute a length from, while a cleared date is one field away from working. Each case
+also asserts what is *not* offered, so a screen showing the message and the controls at once is red.
+
+**`useParams` now answers from `src/test/navigation.ts` rather than `{}`.** With `{}` the
+appointment detail page asked its server for `/appointments/undefined` — a path the harness matches
+by prefix, so the test would have passed *because* the id was missing, and gone on passing had the
+page stopped reading its own route. The request path is asserted, and that assertion was shown red
+against the old stub.
 
 **The 360 px row could not live here, and that is a measurement.** In jsdom a `div` explicitly
 1200 px wide reports `scrollWidth`, `offsetWidth` and `clientWidth` of **0**, so the natural
@@ -362,13 +399,18 @@ argument that it was right.
       `calendar/day-view.test.tsx`, the suite at `Asia/Tbilisi` against UTC businesses, the
       counterfactual asserted in force before anything rests on it, and the calendar assertions
       shown red against a planted browser-zone fallback
-- [ ] Empty / loading / error state tests per screen — **loading and error: every screen. Empty:
-      fifteen of nineteen**, the other four counted in `UNASSERTED_EMPTY_STATES` and named in the
-      catalogue
+- [x] Empty / loading / error state tests per screen — **all three, every screen**.
+      `UNASSERTED_EMPTY_STATES` is **zero** as of 2026-09-12; the last four were closed by writing
+      the fixtures they were waiting for, and the gate was shown red against a title reworded in a
+      test and not in the screen
 - [x] 360 px width assertions replacing the hand-run sweep — **21 routes, every one `360/360`** in
       run `34702330928`, printed per route in the log. jsdom cannot measure layout at all, so this
       lives in the Playwright `mobile` project; a 900 px plant runs on every execution so the
       sweep cannot become vacuous
+- [x] **G25 — the five id-taking routes inside the sweep.** **26 routes, every one `360/360`** in
+      run `34704699908`, the five `/{id}` rows printed among them. The conversation's transcript is
+      the one that mattered: it draws each tool call's arguments and results as pretty-printed JSON,
+      which is the widest content in the application, and it holds inside its own scroll container
 
 ### Seed
 - [x] `make seed`, `local`-profile-guarded
