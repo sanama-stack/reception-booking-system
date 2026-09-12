@@ -238,11 +238,10 @@ argument that it was right.
 
 ## Testing
 
-- [ ] Reflection-driven isolation suite over every tenant-scoped endpoint — **the owner-session
-      half is done**: every endpoint is classified, every id endpoint is probed, every read is
-      offered a foreign `businessId`. The seven `PUBLIC_SLUG` and five `PUBLIC_MANAGE_TOKEN`
-      endpoints are classified but not yet swept; `PublicIsolationTest` covers five cases of
-      the twelve by hand
+- [x] Reflection-driven isolation suite over every tenant-scoped endpoint — every endpoint
+      classified against Spring's routing table, every id endpoint probed with a stolen id, every
+      read offered a foreign `businessId`, and all twelve public endpoints probed for their own
+      shape
 - [x] Cross-tenant native-insert rejection — `CrossTenantAssignmentTest`, with a same-tenant
       control so the three refusals cannot be passing against an unwritable table
 - [x] AI tool schemas contain no tenant parameter — `ToolSchemaTest`, over every published schema
@@ -263,8 +262,7 @@ argument that it was right.
 
 - [ ] `git clone && make up && make seed` produces a fully working, populated system
 - [ ] The demo script in the README runs end to end without deviation
-- [ ] Every tenant-scoped endpoint is probed by the isolation suite — not yet: the public
-      surface is classified but unswept (see the Testing checklist)
+- [x] Every tenant-scoped endpoint is probed by the isolation suite
 - [x] The E2E flow passes in CI
 - [ ] The concurrency test passes repeatedly
 - [ ] All security items are implemented or explicitly listed as accepted risks
@@ -291,7 +289,8 @@ argument that it was right.
       preceded by a control with the caller's own id
 - [x] `business_id`-in-request rejection tests — `SmuggledBusinessIdTest` for the runtime half,
       `TenantRepositoryShapeTest` for the compile-time half
-- [ ] Public cross-tenant leakage tests
+- [x] Public cross-tenant leakage tests — `PublicSurfaceSweepTest`, a probe per public endpoint with
+      a registry the catalogue holds complete; `PublicIsolationTest` keeps the hand-written cases
 - [x] Native cross-tenant insert test — `CrossTenantAssignmentTest`
 - [x] AI schema tenant-parameter assertion — `ToolSchemaTest`
 - [x] Playwright E2E flow
