@@ -77,7 +77,8 @@ Plus a 360 px run of the public page.
 
 ### The 360 px sweep
 
-**Written 2026-09-12, and not yet run.** The `mobile` project grew from one route to **twenty-one**
+**Green in CI 2026-09-12**, run `34702330928`: **21 routes, every one `360/360`**. The `mobile`
+project grew from one route to **twenty-one**
 — three signed out, seventeen behind the sign-in, and the public booking page — replacing the
 phase-10 sweep that was measured by hand.
 
@@ -87,8 +88,16 @@ runs on every execution, so this sweep cannot quietly become vacuous the way the
 Three conditions hold before anything is measured — the URL is still the route asked for, something
 rendered, and nothing is still loading — each ruling out a way to pass having measured nothing.
 
-**It has never executed.** A browser cannot be launched on this machine: Chrome starts and is
-`SIGKILL`ed by the sandbox, re-confirmed on 2026-09-12. CI is the only place it runs.
+**It prints what it measured, and the reason is worth keeping.** Its first CI run passed in **3.9
+seconds** — for a registration and twenty-one page loads — and nothing in the log could say whether
+it had swept anything, because the `list` reporter prints the test and not its steps. The time was
+honest; a warm production build over localhost really is that fast. But a green tick could not
+establish that, so the sweep now prints every route's `scrollWidth/clientWidth` and **asserts the
+number of routes measured against the number declared**, which an empty loop cannot satisfy. The
+plant proves the measurement can fail; this proves it was taken.
+
+**It cannot be run on a developer machine here.** Chrome starts and is `SIGKILL`ed by the sandbox,
+re-confirmed on 2026-09-12. CI is the only place it runs.
 
 **Green in CI 2026-09-12**, run `34697065351`: both specs pass, the flow in 30.4s. It lives in
 `e2e/`, runs against `make up-e2e` — an isolated compose project with its own database — and the
@@ -227,8 +236,13 @@ Targeted, not comprehensive. The cases worth having are the ones a person got wr
 Wired into CI's Frontend job beside the existing gates. **This does not replace the E2E flow**, which
 stays the check that proves the demo works end to end.
 
-**Built 2026-09-12.** Vitest 5 and Testing Library, 18 files and 68 tests, green locally with lint,
-typecheck and format alongside. Three things are worth carrying forward.
+**Built 2026-09-12, and green in CI** — run `34702330928`, 18 files and 68 tests in the Frontend
+job beside lint, typecheck, format and the build.
+
+**The counterfactual is load-bearing and CI proves it.** GitHub's runners are UTC. The timezone
+tests assert the ambient zone is +04:00 *before* they assert anything else, so had `env: { TZ }` in
+`vitest.config.mts` failed to reach the worker there, the job would have gone red rather than
+passing against a business and a browser that happened to agree. Three things are worth carrying forward.
 
 **The timezone row is done, and proven the way it was specified.** The suite runs at
 `Asia/Tbilisi` — +04:00, no DST — and every fixture belongs to a business at **UTC**, so a helper
@@ -295,8 +309,8 @@ argument that it was right.
 - [ ] Log redaction test
 - [ ] `prod` profile refuses default secrets
 - [x] The three performance checks
-- [ ] Frontend unit tests green in CI, including the timezone counterfactual — green locally,
-      never run in CI
+- [x] Frontend unit tests green in CI, including the timezone counterfactual — and the runner is
+      UTC, so the counterfactual assertion is what proves `TZ` reached the worker
 - [ ] `ai_message` retention purges past the window and spares what is inside it
 - [ ] Revenue reports the remainder after a currency change
 - [ ] Full suite green from a clean clone
@@ -311,7 +325,7 @@ argument that it was right.
 - [ ] All security items are implemented or explicitly listed as accepted risks
 - [ ] No secret is in the repository or its history
 - [x] The three performance checks pass
-- [ ] Frontend unit tests run in CI's Frontend job
+- [x] Frontend unit tests run in CI's Frontend job
 - [ ] `revenue` names its remainder after a currency change, per ADR-0010
 - [ ] No `ai_message` outlives the documented retention window
 - [ ] `README.md`, `.env.example` and `docs/deployment.md` are complete
@@ -342,8 +356,8 @@ argument that it was right.
 - [ ] Rate-limit tests for every public endpoint
 - [x] Security-header test
 - [ ] Log-redaction test
-- [ ] Vitest + Testing Library wired into the Frontend CI job — **the step is written and the
-      suite is green locally; CI has not run it yet**
+- [x] Vitest + Testing Library wired into the Frontend CI job — 18 files, 68 tests, green in run
+      `34702330928`, read out of the job log rather than off the job's colour
 - [x] Timezone rendering test, proven against its counterfactual — `lib/time/index.test.ts` and
       `calendar/day-view.test.tsx`, the suite at `Asia/Tbilisi` against UTC businesses, the
       counterfactual asserted in force before anything rests on it, and the calendar assertions
@@ -351,9 +365,10 @@ argument that it was right.
 - [ ] Empty / loading / error state tests per screen — **loading and error: every screen. Empty:
       fifteen of nineteen**, the other four counted in `UNASSERTED_EMPTY_STATES` and named in the
       catalogue
-- [ ] 360 px width assertions replacing the hand-run sweep — **written, twenty-one routes, never
-      run**: jsdom cannot measure layout, so this went to the Playwright `mobile` project, and no
-      browser can be launched on this machine
+- [x] 360 px width assertions replacing the hand-run sweep — **21 routes, every one `360/360`** in
+      run `34702330928`, printed per route in the log. jsdom cannot measure layout at all, so this
+      lives in the Playwright `mobile` project; a 900 px plant runs on every execution so the
+      sweep cannot become vacuous
 
 ### Seed
 - [x] `make seed`, `local`-profile-guarded
