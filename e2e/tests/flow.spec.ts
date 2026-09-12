@@ -99,8 +99,13 @@ test('a business is configured, booked twice, managed, cancelled and reported on
     await book.getByLabel('Email').fill(tenant.customerEmail);
     await book.getByRole('button', { name: 'Confirm booking' }).click();
 
-    await expect(book.getByText('Booked')).toBeVisible({ timeout: 30_000 });
-    classicCode = (await book.getByText(/^[A-Z0-9]{6,10}$/).first().innerText()).trim();
+    // The confirmation's own heading, not getByText('Booked'): that matches the substring in
+    // "What would you like booked?" and in "fully booked", and a strict-mode violation THROWS
+    // rather than retrying — so the 30s wait never waited at all.
+    await expect(
+      book.getByRole('heading', { name: `${tenant.serviceName} with ${tenant.employeeName}` }),
+    ).toBeVisible({ timeout: 30_000 });
+    classicCode = await confirmationCode(book);
     expect(classicCode, 'the Classic Flow shows a Confirmation Code').not.toBe('');
     await publicPage.close();
   });
@@ -117,8 +122,10 @@ test('a business is configured, booked twice, managed, cancelled and reported on
 
     // The fake provider needs three tool round trips before it answers, so this is slower than a
     // form post and deliberately gets its own timeout.
-    await expect(chat.getByText('Booked')).toBeVisible({ timeout: 60_000 });
-    receptionistCode = (await chat.getByText(/^[A-Z0-9]{6,10}$/).first().innerText()).trim();
+    await expect(
+      chat.getByRole('heading', { name: `${tenant.serviceName} with ${tenant.employeeName}` }),
+    ).toBeVisible({ timeout: 60_000 });
+    receptionistCode = await confirmationCode(chat);
     expect(receptionistCode, 'the Receptionist shows a Confirmation Code').not.toBe('');
     expect(receptionistCode, 'the two bookings are different appointments').not.toBe(classicCode);
     await chatContext.close();
@@ -183,6 +190,18 @@ test('a business is configured, booked twice, managed, cancelled and reported on
       .toBeGreaterThan(before);
   });
 });
+
+/**
+ * The Confirmation Code, read from inside the card that captions it.
+ *
+ * Scoped rather than matched by shape: a bare /^[A-Z0-9]{6,10}$/ over the whole page can land on
+ * any short upper-case string that happens to be rendered, and would do it silently.
+ */
+async function confirmationCode(page: import('@playwright/test').Page): Promise<string> {
+  const card = page.getByText('Your confirmation code').locator('..');
+  await expect(card).toBeVisible({ timeout: 30_000 });
+  return (await card.getByText(/^[A-Z0-9]{6,10}$/).first().innerText()).trim();
+}
 
 /** The Revenue tile's number, as a number. */
 async function revenue(page: import('@playwright/test').Page): Promise<number> {
