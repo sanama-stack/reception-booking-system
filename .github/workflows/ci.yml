@@ -90,6 +90,65 @@ jobs:
         working-directory: frontend
         run: pnpm build
 
+  e2e:
+    name: End-to-end
+    runs-on: ubuntu-latest
+    needs: [backend, frontend]
+    steps:
+      - uses: actions/checkout@v7
+
+      # Its own compose project, its own database volume, its own ports — and the fake AI provider
+      # in place of OpenAI (ADR-0011), which is what makes the Receptionist leg deterministic and
+      # free. The application images are the ones the Compose smoke job and the deploy path build.
+      - name: Bring the E2E topology up
+        run: make up-e2e
+
+      - uses: pnpm/action-setup@v6
+        with:
+          version: 11.10.0
+
+      - name: Set up Node
+        uses: actions/setup-node@v7
+        with:
+          node-version: '22'
+          cache: pnpm
+          cache-dependency-path: e2e/pnpm-lock.yaml
+
+      - name: Install
+        working-directory: e2e
+        run: pnpm install --frozen-lockfile
+
+      - name: Typecheck
+        working-directory: e2e
+        run: pnpm typecheck
+
+      - name: Install Chromium
+        working-directory: e2e
+        run: pnpm exec playwright install --with-deps chromium
+
+      - name: The flow
+        working-directory: e2e
+        run: pnpm test
+
+      # The trace is the only way to read a failure that happened inside a browser on a runner.
+      - name: Playwright report on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: |
+            e2e/playwright-report/
+            e2e/test-results/
+          retention-days: 7
+
+      - name: Container logs on failure
+        if: failure()
+        run: make logs-e2e
+
+      - name: Tear down
+        if: always()
+        run: make down-e2e
+
   compose:
     name: Compose smoke test
     runs-on: ubuntu-latest

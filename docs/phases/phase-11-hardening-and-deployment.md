@@ -75,6 +75,14 @@ register → configure → book classic → book by chat → assert both emails 
 
 Plus a 360 px run of the public page.
 
+**Green in CI 2026-09-12**, run `34697065351`: both specs pass, the flow in 30.4s. It lives in
+`e2e/`, runs against `make up-e2e` — an isolated compose project with its own database — and the
+Receptionist leg calls no model. Three gaps close with it: **G19** (the deterministic model is built
+*and consumed*), **G22** (the E2E topology has been started), and **G21** — a real browser has now
+driven registration, hydration, forms, the chat panel and the calendar against a **production build
+under the strict CSP**, which is exactly what that gap said had never happened (`CSP_SCRIPT_EXTRA`
+is `""` in `docker-compose.apps.yml`, which the E2E overlay does not override).
+
 **Corrected 2026-09-12.** The line above said *"run against the scripted model"*, which named a
 mechanism that cannot be reached: `ScriptedChatModel` is on the test classpath and Playwright drives
 a booted application. [ADR-0011](../adr/0011-the-e2e-fake-provider-lives-behind-the-base-url.md)
@@ -230,11 +238,16 @@ argument that it was right.
 
 ## Testing
 
-- [ ] Reflection-driven isolation suite over every tenant-scoped endpoint
-- [ ] Cross-tenant native-insert rejection
-- [ ] AI tool schemas contain no tenant parameter
-- [ ] Full E2E flow green in CI against the fake provider (ADR-0011)
-- [ ] 360 px public-page run
+- [x] Reflection-driven isolation suite over every tenant-scoped endpoint — every endpoint
+      classified against Spring's routing table, every id endpoint probed with a stolen id, every
+      read offered a foreign `businessId`, and all twelve public endpoints probed for their own
+      shape
+- [x] Cross-tenant native-insert rejection — `CrossTenantAssignmentTest`, with a same-tenant
+      control so the three refusals cannot be passing against an unwritable table
+- [x] AI tool schemas contain no tenant parameter — `ToolSchemaTest`, over every published schema
+      at any depth, in both spellings
+- [x] Full E2E flow green in CI against the fake provider (ADR-0011)
+- [x] 360 px public-page run
 - [ ] Rate limits verified for every public endpoint
 - [x] Security-header test
 - [ ] Log redaction test
@@ -249,8 +262,8 @@ argument that it was right.
 
 - [ ] `git clone && make up && make seed` produces a fully working, populated system
 - [ ] The demo script in the README runs end to end without deviation
-- [ ] Every tenant-scoped endpoint is probed by the isolation suite
-- [ ] The E2E flow passes in CI
+- [x] Every tenant-scoped endpoint is probed by the isolation suite
+- [x] The E2E flow passes in CI
 - [ ] The concurrency test passes repeatedly
 - [ ] All security items are implemented or explicitly listed as accepted risks
 - [ ] No secret is in the repository or its history
@@ -270,15 +283,19 @@ argument that it was right.
 ## Checklist
 
 ### Testing
-- [ ] Reflection-based endpoint discovery for the isolation suite
-- [ ] Isolation probe per endpoint asserting `404`
-- [ ] `business_id`-in-request rejection tests
-- [ ] Public cross-tenant leakage tests
-- [ ] Native cross-tenant insert test
-- [ ] AI schema tenant-parameter assertion
-- [ ] Playwright E2E flow
-- [ ] Mailpit API assertions inside E2E
-- [ ] Mobile-viewport E2E run
+- [x] Reflection-based endpoint discovery for the isolation suite — `EndpointCoverageTest` over
+      `RequestMappingHandlerMapping`, failing in both directions
+- [x] Isolation probe per endpoint asserting `404` — `TenantIsolationSweepTest`, 27 probes, each
+      preceded by a control with the caller's own id
+- [x] `business_id`-in-request rejection tests — `SmuggledBusinessIdTest` for the runtime half,
+      `TenantRepositoryShapeTest` for the compile-time half
+- [x] Public cross-tenant leakage tests — `PublicSurfaceSweepTest`, a probe per public endpoint with
+      a registry the catalogue holds complete; `PublicIsolationTest` keeps the hand-written cases
+- [x] Native cross-tenant insert test — `CrossTenantAssignmentTest`
+- [x] AI schema tenant-parameter assertion — `ToolSchemaTest`
+- [x] Playwright E2E flow
+- [x] Mailpit API assertions inside E2E
+- [x] Mobile-viewport E2E run
 - [ ] Rate-limit tests for every public endpoint
 - [x] Security-header test
 - [ ] Log-redaction test
