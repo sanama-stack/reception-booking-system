@@ -6,8 +6,11 @@
 > that **[the previous handoff][previous]'s §9.1 was wrong about this machine** and the whole
 > session ran locally as a result.
 >
-> **Three commits on `dev`, not pushed. CI has not seen any of this.** Everything below is read off
-> a local run.
+> **A second piece of work followed, on the principal's decision: §12 of the security document was
+> a control no file implemented, and the call was that the file moves.** §9 is that — the compose
+> tightening, the measurement that made it more than a guess, and the gate that now holds it.
+>
+> **Five commits on `dev`, pushed. PR [#34] open.**
 
 [previous]: ./2026-09-12-the-audit-that-found-nothing-in-the-file.md
 
@@ -18,15 +21,16 @@
 | | |
 |---|---|
 | `origin/main` | **`1db8a49`** — unmoved |
-| `dev` | **`9b69b67`**, three commits ahead of `origin/dev`, **unpushed**. Tree clean |
+| `dev` | **`09e6fc0`**, five commits, pushed. PR [#34] open against `main`. Tree clean |
 | Backend | **937 tests, 0 failed, 102 classes** — the full suite, run here in 5m42s |
 | Frontend | **23 files, 80 tests** — was 22/76. One new file, four new tests |
 | Migrations | **`V10__ai_message_retention.sql`.** New ADR: none |
 | Issues | [#17] and [#15] open, untouched. **No model was called** |
-| Phase 11 | **46 boxes ticked, 26 open.** Three ticked here; the Security section is down to five rows |
+| Phase 11 | **46 boxes ticked, 26 open.** Three ticked here. *Walk 06-security.md* is still open but §12 of it is now done and gated (§9) |
 
 [#15]: https://github.com/sanama-stack/reception-booking-system/issues/15
 [#17]: https://github.com/sanama-stack/reception-booking-system/issues/17
+[#34]: https://github.com/sanama-stack/reception-booking-system/pull/34
 
 ---
 
@@ -128,7 +132,7 @@ command in §8 carries an explicit `JAVA_HOME`.
 
 ---
 
-## 5. Five traps
+## 5. Seven traps
 
 **T69 — `./gradlew` on this machine needs `JAVA_HOME` pointed at JDK 21.** The default `java` is
 25, Gradle 8.14 does not support it, and the failure prints the version string as though it were
@@ -153,15 +157,40 @@ sat in the candidate set forever. A cleanup job's hardest case is the row with n
 insert at once. The suite's existing fixtures use `java.sql.Timestamp.from(…)`; `OutboxFixture` is
 the precedent.
 
+**T74 — Compose APPENDS sequences when it merges overlays, so `ports: []` removes nothing.** It
+reads as "this topology publishes nothing" and leaves the base file's mappings exactly where they
+were. `!reset` discards the key; `!override` replaces it. **And `!reset` ignores any payload after
+it** — `ports: !reset` followed by a list publishes nothing at all, which is how the Mailpit UI
+briefly disappeared from the E2E topology here. Both were settled against `docker compose config`
+rather than against the documentation, and `make check-bindings` is shown red against the
+`ports: []` version specifically, because that is the one that looks right.
+
+**T75 — a port bound to `0.0.0.0` is reachable from the network even when `ufw` denies it.** Docker
+writes its own rules in the `DOCKER-USER` chain, consulted below the firewall's. Not a Docker bug:
+publishing a port is a request to make it reachable. The default when no host is given is every
+interface, which is why the `127.0.0.1:` prefix is the whole content of those lines.
+
+**T76 — one probe cannot tell "bound to loopback" from "not running".** Both refuse. The
+measurement in §9 means something only because the *old* binding was answering on the same LAN
+address at the same moment. This is T64 again — the rate-limit probe that needed a second real
+client — in a different costume, and it will keep recurring: **an assertion that something is
+unreachable needs a control that is reachable.**
+
+**Carried T1–T68. New: T69–T76.**
+
 ---
 
 ## 6. Every open item
 
-### 6.1 Not pushed
+### 6.1 Pushed, and CI is the outstanding answer
 
-**Three commits sit on `dev` and CI has not seen them.** The compose smoke test and the E2E leg are
-the two things a local suite does not cover, and the E2E reads `/conversations/{id}` — which now
-carries a new field. Nothing suggests it breaks; nothing has run it either.
+**Five commits are on `dev` and PR [#34] is open.** The two jobs a local suite cannot stand in for
+are the Compose smoke test — which now also runs `make check-bindings` and brings up a topology
+whose port mappings changed — and the E2E leg, which reads `/conversations/{id}` (a new field) and
+asserts against the Mailpit UI (a mapping that moved to loopback and, under `up-all`, is now the
+only one Mailpit publishes).
+
+**Those two are exactly where this session's changes could fail and nothing here would know.**
 
 ### 6.2 Gaps
 
@@ -173,7 +202,12 @@ the purge off and **nothing anywhere would say so** — no health check, no star
 documented control with nothing checking it holds. It is named rather than fixed, because the fix
 is a decision about where such a check belongs.
 
-**No gap is closed here.**
+**G26's second instance is closed, and the gap is not.** §9 implements
+[06-security.md](../06-security.md) §12 and puts `make check-bindings` behind it, so that sentence
+can no longer drift from the files. **Every other sentence in that document still has nothing
+checking it** — which is the gap, and it is what *Walk 06-security.md and verify each control* is
+going to keep finding. Two instances are now fixed (headers, bindings) by two bespoke gates. A third
+will want the same, and at that point the question is whether the pattern deserves one mechanism.
 
 ### 6.3 Carried
 
@@ -195,9 +229,9 @@ touched Java. It has now been touched. That stack's database has no `messages_pu
 
 1. **Push and open the PR.** Nothing else in this session is unfinished, and the two jobs a local
    run cannot stand in for are the compose smoke test and E2E.
-2. **The final `/docs` consistency pass**, which closes phase 11's Documentation section. Its
-   inputs were G26 and §3.2 of [the previous handoff][previous]; **G26 now has a third instance**
-   (§6.2) and the `06-security.md` §12 mismatch still needs a decision before it needs an edit.
+2. **The final `/docs` consistency pass**, which closes phase 11's Documentation section. **It is
+   no longer blocked**: the `06-security.md` §12 mismatch that needed a decision got one and is
+   built (§9). What remains is the pass itself, with G26's third instance (§6.2) as an input.
 3. **The security block**: rate limits per public endpoint, log redaction, the `prod`
    default-secret refusal test, the full-history secret scan, error-response leakage.
 4. **Observability**, all four rows — and the health-endpoint row that [the previous
@@ -225,7 +259,67 @@ cd frontend && pnpm test
 
 ---
 
-## 9. Confidence
+## 9. The compose tightening
+
+**The decision.** [The previous handoff][previous] §3.2 found that
+[06-security.md](../06-security.md) §12 claimed the database port is exposed to the host *"only in
+the `local` compose profile"* and that **no file implemented any such conditionality**. It named the
+mismatch and did not fix it, because fixing it is a decision about which side moves. The principal's
+call: **the file moves.** The sentence was not weakened; the control was built.
+
+### 9.1 What changed
+
+- `docker-compose.yml` binds Postgres and both Mailpit ports to `127.0.0.1`. Caddy stays on all
+  interfaces, deliberately and now with a comment saying why — it is the origin.
+- `docker-compose.apps.yml` removes the database mapping with `!reset` and replaces Mailpit's with
+  `!override`, keeping only the UI. In the deployed topology **nothing on the host reaches the
+  database at all**; the backend is a container and resolves `postgres:5432`.
+- The Mailpit UI stays published, on loopback, in every topology — a developer reads it after
+  `make up-all` and the E2E flow asserts every confirmation email against it.
+
+`make migrate`, `make seed` and `make psql` are unaffected: the first two run against the base file
+alone, and `psql` goes through `docker compose exec`.
+
+### 9.2 The measurement, and the control that made it mean something
+
+Two stacks side by side on this machine — the one that had been running since before the change,
+with the old unqualified binding, and a throwaway project brought up from the new file:
+
+| Probe | Old binding | New binding |
+|---|---|---|
+| Mailpit UI on the host's **LAN address** | **`200`** — every email the system has ever sent | refused |
+| Postgres on the host's **LAN address** | **connection accepted** | refused |
+| Both on `127.0.0.1` | reachable | reachable |
+
+**The first column is the one that is easy to skip**, and without it the second proves nothing: a
+refusal is equally consistent with the service not running. T76.
+
+### 9.3 `make check-bindings`
+
+The control is asserted rather than described — because a fix without a gate leaves the *next*
+such sentence exactly as unguarded, which is G26. It reads `docker compose config`, needs no
+containers, runs in under a second, and **prints every published mapping it measured** before
+passing.
+
+**All three topologies**, and the third is the T66 lesson repaid: `check-ports` had guarded one
+coupling at `make up`, a target CI never invokes, so the shape that deploys never met the gate.
+`up`, `up-all` and `up-e2e` all depend on this one, and CI runs it in the Compose smoke test.
+
+**Shown red three ways**, each reverted and `cmp`-verified: an unqualified Postgres mapping, a
+loopback-bound Caddy (which would take the origin off the network), and — the useful one —
+`ports: []` in the overlay, which *looks* like it removes a mapping and, because Compose appends
+sequences, does not.
+
+### 9.4 What it did not do
+
+**`up-all` was not run here** and could not be: it builds both application images, which is T62.
+The merged configuration was verified with `docker compose config` for all three topologies and the
+loopback behaviour was measured against real containers from the same base file — but *"the
+five-container topology still comes up"* is CI's Compose smoke test to prove, not this machine's.
+
+---
+
+## 10. Confidence
 
 **High — that the purge deletes what is past the window and spares what is inside it.** Nine tests,
 each deletion paired with a survival, and three planted breakages that each went red naming the
@@ -247,4 +341,15 @@ the reason this is medium rather than low.
 conversations a tick by construction, but the largest batch anything has actually executed here is
 three.
 
-**None — that CI is green on it.** Not pushed.
+**High — that no service but Caddy is published beyond loopback, in all three topologies.** Read
+out of `docker compose config` by a gate that prints what it measured, and shown red three times.
+
+**High — that the loopback binding does what it is being relied on to do.** Measured against real
+containers on this machine, with the old binding answering on the same address as the control.
+
+**Medium — that `make up` and `make up-all` still come up.** The base topology's images were
+started from this file during the measurement and were healthy; the five-container topology was
+not run here (§9.4). CI's Compose smoke test is what settles it.
+
+**None — the CI result.** Pushed, running at the time of writing. The handoff is deliberately not
+claiming a colour it has not seen.
