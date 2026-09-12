@@ -24,8 +24,9 @@
 > prompt, which this project's own rule says needs the level-3 corpus run. **It has not been run.**
 > See §5.2 and G32.
 >
-> **Committed, not pushed.** Five commits on `dev`, now **20 ahead of `origin/main`** and 18 ahead
-> of `origin/dev`. `main` untouched. 1024 backend tests, 0 failed. Phase 11 still at **61 of 72**.
+> **Committed, not pushed.** Four commits of work plus this file, leaving `dev` **23 ahead of
+> `origin/main`** and 21 ahead of `origin/dev`. `main` untouched. 1024 backend tests, 0 failed.
+> Phase 11 still at **61 of 72**.
 
 [prev]: ./2026-09-13-the-controls-that-kept-passing.md
 [previous]: ./2026-09-13-the-controls-that-kept-passing.md
@@ -37,7 +38,7 @@
 | | |
 |---|---|
 | `origin/main` | **`6d01bf8`**, unmoved. Still no pull request |
-| `dev` | **20 ahead of `origin/main`**, 18 ahead of `origin/dev`. The work ends at **`f5fa215`** |
+| `dev` | **23 ahead of `origin/main`**, 21 ahead of `origin/dev`. The work ends at **`f5fa215`**; everything after it is this handoff |
 | CI | **has still seen none of it.** Five sessions now |
 | Backend | **1024 tests, 0 failed, 115 classes** — was 999 / 112. Three new classes |
 | Frontend | **82 tests, 0 failed**, untouched |
