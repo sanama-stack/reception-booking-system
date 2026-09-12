@@ -1,27 +1,30 @@
 # Session handoff — 2026-09-12 — the probe that only looked one way
 
-> **Purpose.** The isolation suite is built and green. §2 is what it is and why discovery alone
-> could not have produced it; §3 is the five plants it was tested with, **one of which failed to go
-> red and exposed a real weakness in my own probes**; §4 is the traps; §5 is ten phase-11
-> boxes, two of them ticked on work that already existed and was read before being ticked. **§11 was
-> added after the push** and is the one to read first — the End-to-end job went red and the cause was
-> a step in the flow that asserted nothing.
+> **Purpose.** The isolation suite is built, green, **and merged to `main`**; **G23 is closed**.
+>
+> Read in this order. **§11 first** — the End-to-end job went red on a commit that had already
+> passed, and the cause was a step in the flow that asserted nothing. Then §3, the five plants the
+> suite was tested with, **one of which failed to go red and exposed a weakness in my own probes**.
+> Then §2 for what the suite is and why reflection alone could not have produced it, §4 for three
+> traps (a fourth, T55, is in §11.2), §5 for the ten phase-11 boxes, and §12 for how it landed.
 >
 > **Built no product code.** `backend/src/main` and `frontend/src` end **byte-for-byte** as they
-> started. Five commits, all of them `backend/src/test` and one documentation commit.
+> started — `git diff 0063265..a816174 -- backend/src/main frontend/src` is empty. Eight commits:
+> five the isolation suite, one the E2E fix, two documentation.
 >
-> **The suite found no defects.** Every planted leak was caught; nothing unplanted was. That is the
-> second session running in which the new test found nothing, and it is worth stating rather than
-> glossing — see §6. **The push that followed did find one**, in the E2E flow rather than the
+> **The suite found no defects in the application.** Every planted leak was caught; nothing unplanted
+> was. That is the second session running in which the new test found nothing, and §6 is what that
+> does and does not establish. **The push that followed found a real one** — in the E2E flow, not the
 > application: §11.
 >
-> **Nothing is pushed.** `dev` is **five ahead of `origin/dev`** by the principal's decision: PR
-> [#30] is open for the E2E flow and pushing would silently widen it. That choice is §8's first item.
+> **Nothing is outstanding.** `origin/main` and `origin/dev` are level. The tree is clean, all four
+> jobs are green, and the merge is `a71d17a`.
 >
-> > **Resolved later the same day.** The principal chose to push and widen. `dev` is at `3d2b567`,
-> > PR [#30] carries **23 commits** and covers both halves, and **all four jobs are green on it** —
-> > but not on the first attempt. Pushing turned the End-to-end job red and **found a real defect in
-> > the flow**, described in §11. Read §11 before §10's confidence claims.
+> > **How the session actually went**, because the order matters more than the outcome: the five
+> > suite commits were **held unpushed** while the principal decided whether to widen PR [#30] or
+> > open a second one. The decision was *push and widen* — and the push is what turned the E2E job
+> > red. Had they gone onto a separate branch, the same defect would have been found at the same
+> > moment; had nobody pushed at all, it would have been merged unnoticed.
 
 [previous]: ./2026-09-12-every-failure-was-the-test.md
 [#30]: https://github.com/sanama-stack/reception-booking-system/pull/30
@@ -32,14 +35,15 @@
 
 | | |
 |---|---|
-| `origin/main` | **`78ecb5d`**, unchanged |
-| `origin/dev` | **`0063265`** — unchanged this session |
-| `dev` = `origin/dev` | **`3d2b567`** — pushed the same day, plus one commit that is §11's fix |
-| PR [#30] | open, `dev` → `main`, **all four checks green** at `3d2b567`. Widened the same day to cover both halves — 23 commits (§11) |
+| `origin/main` | **`a71d17a`** — *Merge pull request #30*. Contains everything below |
+| `origin/dev` | **`a816174`**, **level with `main`**, nothing unpushed, tree clean |
+| PR [#30] | **merged** 2026-09-12, 24 commits, a merge commit rather than a squash — as #28 and #29 |
+| CI | **all four jobs green** on `a816174`, the head that was merged |
+| Branch protection | **`Backend`, `Frontend`, `Compose smoke test`, `End-to-end`**, `strict: true`. G23 closed (§12) |
 | Backend | **928 tests, 0 failures**, run twice in full. Was 915 mid-session, 860 inherited |
 | Frontend | not touched, not rebuilt |
 | Migrations | **none.** New ADR: none |
-| Issues | [#17] and [#15] open, untouched. **No model was called** |
+| Issues | [#17] and [#15] open, untouched. **No model was called**; no credit check was made |
 | Phase 11 | **34 boxes ticked, 37 open.** Ten ticked here |
 
 [#15]: https://github.com/sanama-stack/reception-booking-system/issues/15
@@ -189,8 +193,9 @@ with a reason, and they are the part of this suite that a reviewer should read.
 
 Carried: **G1**, **G3**, **G8**, **G9**, **G10**, **G11**, **G13**, **G14**.
 
-**G23 — the End-to-end job is still not a required status check.** Unchanged from [the previous
-handoff][previous]. A repository-settings change, and the principal's.
+**G23 — closed** (§12). `End-to-end` joined `Backend`, `Frontend` and `Compose smoke test` on
+`main`'s required checks, `strict: true`, and the rest of the protection was read back afterwards and
+is unchanged.
 
 **New: G24 — the body half of the smuggling sweep covers two endpoints, not all of them.** `POST
 /services` and `POST /employees` are checked in SQL for where the row landed. Every other write is
@@ -211,14 +216,16 @@ a customer's name and number; **nothing deletes an `ai_message`**; rate-limit bu
 
 ## 8. Next steps, in order
 
-1. ~~**Decide how these five commits land.**~~ **Taken the same day — push and widen.** PR [#30] is
-   23 commits and covers both halves; see §11 for what the push turned up.
-2. **G23**, still. One settings change — and §11 is the argument for it: the job that caught the
-   defect is the one that cannot block a merge.
-3. **The frontend test runner.** Named in the phase document, overlaps nothing here.
-4. `docs/deployment.md`.
-5. **G24**, if the compile-time argument is judged insufficient.
-6. **The principal's**: credits for [#17]'s remaining arm; [#15]'s title.
+Nothing from this session is half-finished, so this list is the phase's, not a continuation.
+
+1. **The frontend test runner.** The largest untouched block in phase 11 — Vitest and Testing
+   Library in CI, the timezone counterfactual, empty/loading/error states per screen. Overlaps
+   nothing built here.
+2. `docs/deployment.md`, and the `.env.example` audit beside it.
+3. **G24**, if the compile-time argument is judged insufficient.
+4. **`ai_message` retention**, which is the oldest carried item on the list and the only open one
+   that touches data the system keeps about real people.
+5. **The principal's**: credits for [#17]'s remaining arm; [#15]'s title.
 
 ---
 
@@ -255,6 +262,20 @@ invocation, counted out of the JUnit XML rather than read off a colour.
 
 **High — that it asserts something.** Five plants, four of which turned it red, each reverted and
 the revert confirmed by an empty `git diff` over `src/main`. The fifth is §3.2 and changed the test.
+
+> **This sentence appears in [the previous handoff][previous] about the E2E flow, where it was
+> wrong** — and the two claims are not the same claim, so do not read the correction there as
+> applying here. That one inferred "it asserts something" from the test having failed eleven times
+> during development, which is evidence about the steps that failed and none at all about a step that
+> never did. This one is a direct measurement: four leaks were planted **into code that was already
+> green**, and the suite went red on each. Failing during development is not evidence. Failing on
+> demand is.
+
+**Medium — that the E2E flow asserts something, step by step.** One of its steps was a no-op for as
+long as the flow has existed (§11), and `retries: 0` means no run has ever repeated itself to check.
+The fix is verified — the job is green on `a816174` — but only that one step has been audited this
+way. **Nobody has read the other steps for the same defect**, and the method for finding it (plant a
+failure, confirm the step notices) has never been applied to the flow at all.
 
 **High — that the endpoint list is complete.** It comes from the same object Spring routes requests
 with, and a planted endpoint broke the gate by name.
@@ -313,3 +334,30 @@ nothing, and `retries: 0` means no run has ever been repeated to check itself.
 regardless, so whether the run goes red depends on whether a later step happens to notice. Reach for
 the artifact before the word "flaky" — the screenshot named the cause in one reading, and the log
 pointed at the wrong subsystem.
+
+---
+
+## 12. How it landed
+
+**G23 closed first, deliberately.** The required-checks change was made **before** the merge, not
+after, so that `main` gained the gate while there was still something to gate. `End-to-end` now sits
+beside `Backend`, `Frontend` and `Compose smoke test` with `strict: true`, which also requires a PR
+to be up to date with `main` before it can merge.
+
+It was made through `PATCH …/branches/main/protection/required_status_checks` — the sub-resource
+endpoint — rather than the full `PUT …/protection`. The full call requires every field in the body
+and silently resets whatever is omitted; the sub-resource one cannot. The whole protection was read
+back afterwards and compared: review count, `dismiss_stale_reviews`, `enforce_admins`, force-pushes
+and deletions are all where they were.
+
+**Then the merge**, `gh pr merge 30 --merge` → **`a71d17a`**, a merge commit rather than a squash,
+which is how #28 and #29 went in. **No `--admin`**, per the trap the previous-but-one session paid
+for: a `gh pr merge` refusal there named a cause that was not the cause, and `--admin` would have
+bypassed a protection that was not blocking anything.
+
+### 12.1 One thing this merge did not do
+
+`End-to-end` was already green on `a816174` when the requirement was added minutes earlier, so this
+merge **satisfied** the new gate rather than exercising it. **The first merge the E2E job can
+actually block is the next one.** Worth knowing before anyone cites today as evidence that the gate
+works.

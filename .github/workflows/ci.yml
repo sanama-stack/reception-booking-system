@@ -86,6 +86,13 @@ jobs:
         working-directory: frontend
         run: pnpm format:check
 
+      # Vitest + Testing Library, thin and targeted (docs/phases/phase-11-...md, *The frontend test
+      # runner*). It runs at TZ=Asia/Tbilisi, set in vitest.config.mts rather than here, so the
+      # business-timezone tests mean the same thing on a laptop as they do on this runner.
+      - name: Unit tests
+        working-directory: frontend
+        run: pnpm test
+
       - name: Build
         working-directory: frontend
         run: pnpm build
