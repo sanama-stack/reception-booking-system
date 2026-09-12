@@ -502,7 +502,19 @@ argument that it was right.
       phase 01 all still said *any secret*. All four corrected
 - [x] Security headers in Caddy
 - [ ] Full-history secret scan
-- [ ] Error-response leakage review
+- [x] Error-response leakage review — **2026-09-12**, as `ErrorLeakageTest` rather than as a
+      reading. `ProblemJsonTest` had asserted the contract against an unknown endpoint — a 404
+      raised by the dispatcher, which never had a stack trace, a statement or a class name to
+      give away. §11's claims are about an exception escaping a controller, and nothing
+      exercised that path. Six tests, **shown red six ways**, driving real exceptions through
+      the real chain: the catch-all, a nested cause chain, an unmapped integrity violation
+      carrying the failing statement, and the mapped overlap one. The throwing controller is
+      registered in that test's context alone, so `EndpointCoverageTest` and
+      `PublicSurfaceSweepTest` would fail loudly rather than the public surface widening quietly.
+      Two things the plants settled. **Dropping the catch-all does not leak — it lies**: the
+      exception reaches the servlet error dispatch, which is not in the permitAll list, and the
+      client is told **401**. And the suite has a floor, because every leakage assertion is a
+      `doesNotContain` and a 404 satisfies all of them
 - [x] `ai_message` retention window, documented and enforced by a scheduled purge — `V10`,
       `TranscriptPurge` and `TranscriptPurgeJob`. Documented in
       [06-security.md](../06-security.md) §14 and [05-ai-architecture.md](../05-ai-architecture.md)

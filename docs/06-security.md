@@ -164,6 +164,11 @@ green when the masking is deleted from the appender that ships.
 - `detail` is written for a human and reveals nothing about system internals.
 - Unhandled exceptions become a generic `500` carrying only the request id, which is the key to the log.
 
+`ErrorLeakageTest` drives real exceptions through the real chain and asserts each of these, because the
+only path that can leak is an exception escaping a controller — a `404` from the dispatcher never had a
+stack trace to give away. The request id in the body is asserted **equal to the `X-Request-Id` header**:
+one that differs from the header is worse than none, since it is the whole of what a `500` gives a caller.
+
 ## 12. Database security
 
 - The application connects as a role with `DML` and no `DDL` rights outside migrations; Flyway uses a
