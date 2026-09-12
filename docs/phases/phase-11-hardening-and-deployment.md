@@ -167,6 +167,48 @@ Demo credentials printed at the end of the seed and listed in the README.
   Purge rather than redact: the owner's audit need is served by `/conversations`, which is read while
   the conversation is recent, and a half-scrubbed transcript is harder to reason about than an absent one
 
+#### Transcript retention — **built 2026-09-12**
+
+`V10`, `TranscriptPurge` (the batch) and `TranscriptPurgeJob` (the hourly timer), split for the
+reason `NotificationDispatcher` is split from `NotificationPoller`: a `@Scheduled` method calling a
+`@Transactional` one on `this` bypasses the proxy and runs with no transaction at all.
+
+**Ninety days was not chosen here.** [05-ai-architecture.md](../05-ai-architecture.md) §11 has
+carried it since phase 09 and deferred only the job — *"the purge job itself is V1.1"*. This
+closes that sentence rather than answering a new question.
+
+**The window is measured from the conversation's last activity, not each message's own age**, and
+that is the load-bearing choice. Anchored per message, a conversation straddling the boundary loses
+its opening turns and keeps the rest — a transcript beginning mid-sentence, which is exactly the
+half-scrubbed state the bullet above rejects. `TranscriptRetentionTest` pins it with a conversation
+whose messages are four hundred days old and whose last turn was yesterday: nothing is deleted.
+
+**The `ai_conversations` row is kept, marked** — principal decision, 2026-09-12. It carries counters
+and a cost estimate and no free text, and it is the record of what the Receptionist cost the
+business. What made this more than a bookkeeping choice is what it does to the *screen*:
+`message_count` is denormalised and the purge does not decrement it, so a purged conversation would
+have rendered "Rows 8" directly above the transcript's existing empty state — *"This conversation
+was opened but nothing was ever said in it."* A contradiction, and a lie. `messages_purged_at` is
+on the wire so the screen can say which of the two states it is looking at, and
+`transcript.test.tsx` asserts the old sentence is **absent** on a purged conversation.
+
+**The window is a constant, the switch is configuration.** `ConversationLimits.TRANSCRIPT_RETENTION_DAYS`
+holds ninety days; `AI_RETENTION_ENABLED` turns the job off for tests and for a developer who does
+not want a background thread deleting planted rows. A retention window is a promise about other
+people's data, and the difference between widening it in a diff and widening it in an environment
+variable on one host is the whole reason for the split. The UI deliberately does **not** name the
+number either — it renders the date the server sent — because a `90` written in Java and again in
+TypeScript with nothing checking that the copies agree is the coupling the `.env.example` audit
+spent a session on.
+
+**Verified on this machine, which the previous handoff expected to be impossible.** §9.1 of it
+reasoned that retention needs Java and a migration, that the E2E images cannot be rebuilt here, and
+that the assertion would therefore have to be written first and ticked by CI. That is true of the
+*containerised* stack and not of the *test* suite: Testcontainers needs `postgres:16-alpine`,
+`axllent/mailpit:v1.21` and `testcontainers/ryuk`, all three of which were already in the local
+image cache, so nothing had to be pulled or built. 937 backend tests green locally, and the nine
+new ones shown red three separate ways.
+
 ### Observability
 
 - Structured JSON logs carrying request id and `business_id`
@@ -348,7 +390,12 @@ argument that it was right.
 - [x] The three performance checks
 - [x] Frontend unit tests green in CI, including the timezone counterfactual — and the runner is
       UTC, so the counterfactual assertion is what proves `TZ` reached the worker
-- [ ] `ai_message` retention purges past the window and spares what is inside it
+- [x] `ai_message` retention purges past the window and spares what is inside it —
+      `TranscriptRetentionTest`, nine tests, and **every deletion assertion is paired with a
+      survival assertion** so neither a purge that does nothing nor one that empties the table can
+      pass. Shown red three ways: anchored on message age instead of conversation activity (2 red),
+      with the `messages_purged_at` guard removed (2 red), and with the purge made a no-op (6 red),
+      each reverted byte-identically
 - [ ] Revenue reports the remainder after a currency change
 - [ ] Full suite green from a clean clone
 
@@ -364,7 +411,9 @@ argument that it was right.
 - [x] The three performance checks pass
 - [x] Frontend unit tests run in CI's Frontend job
 - [ ] `revenue` names its remainder after a currency change, per ADR-0010
-- [ ] No `ai_message` outlives the documented retention window
+- [x] No `ai_message` outlives the documented retention window — ninety days after a
+      conversation's last activity, enforced hourly by `TranscriptPurgeJob`. The window is
+      `ConversationLimits.TRANSCRIPT_RETENTION_DAYS`, a constant, so widening it is a diff
 - [ ] `README.md`, `.env.example` and `docs/deployment.md` are complete
 - [ ] **Every box in [07-mvp-scope.md](../07-mvp-scope.md) § MVP Definition of Done is ticked** — or the
       defect it covers is carried under that document's *Accepted, measured, open defects*, which
@@ -426,7 +475,10 @@ argument that it was right.
 - [x] Security headers in Caddy
 - [ ] Full-history secret scan
 - [ ] Error-response leakage review
-- [ ] `ai_message` retention window, documented and enforced by a scheduled purge
+- [x] `ai_message` retention window, documented and enforced by a scheduled purge — `V10`,
+      `TranscriptPurge` and `TranscriptPurgeJob`. Documented in
+      [06-security.md](../06-security.md) §14 and [05-ai-architecture.md](../05-ai-architecture.md)
+      §11, whose "the purge job itself is V1.1" this closes
 
 ### Observability
 - [ ] JSON logging with request id and `business_id`

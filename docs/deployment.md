@@ -358,11 +358,13 @@ rotating the Manage Link secret invalidates every outstanding link, so every cus
 locked out of their own appointment until the next email. Both are survivable and neither is
 graceful. A versioned-key scheme is a recorded V1.1 item.
 
-**Nothing deletes an `ai_message`.** A transcript holds the customer's name and phone number as they
-typed them, and the retention window and scheduled purge are written into phase 11's scope and **not
-built**. Every conversation the Receptionist has ever had is still in the database. On a laptop with
-seed data that is a rounding error; on a host serving real customers it is the item on this list
-that concerns other people's personal data rather than your own uptime.
+**~~Nothing deletes an `ai_message`.~~ Built, and no longer on this list.** A transcript holds the
+customer's name and phone number as they typed them, and for ten phases nothing had ever deleted
+one. `TranscriptPurgeJob` now runs hourly and deletes every transcript ninety days past its
+conversation's last activity; the conversation row is kept, marked with `messages_purged_at`, for
+its cost accounting. `AI_RETENTION_ENABLED` switches the job off and **is not a way to widen the
+window** — ninety days is a constant in `ConversationLimits`, deliberately not settable from
+`.env`. A host that sets that variable to `false` is back on this list and nothing will say so.
 
 **No email verification, no account lockout, no 2FA.** All three are named and accepted in
 [06-security.md](./06-security.md) §15, with the reasoning for each.

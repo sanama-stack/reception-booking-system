@@ -361,8 +361,21 @@ delivering mail for every tenant at once, and there is no per-tenant query again
 | `estimated_cost_cents` | int | Feeds the daily cap |
 | `authorized_appointment_ids` | uuid[] | Which appointments this conversation may act on |
 | `started_at`, `last_message_at` | timestamptz | |
+| `messages_purged_at` | timestamptz | Nullable; when retention deleted this conversation's `ai_messages` |
 
-Index `(business_id, started_at DESC)`, `(session_token_hash)`.
+Index `(business_id, started_at DESC)`, `(session_token_hash)`, and `(last_message_at) WHERE
+messages_purged_at IS NULL` for the retention purge.
+
+**Retention: ninety days after a conversation's last activity, the `ai_messages` rows are deleted
+and this row is kept, marked.** The transcript is what holds a Customer's name and phone number as
+they typed them; the parent holds counters and a cost estimate, which is the record of what the
+Receptionist cost the business and outlives the transcript's usefulness as evidence.
+
+`messages_purged_at` is what lets a reader tell a purged conversation from one nobody ever spoke
+in. `message_count` is **not** decremented by the purge, so without this column "a count of eight
+and no messages" reads as a broken foreign key — and the transcript screen, which has an empty
+state saying *nothing was ever said in it*, would say exactly that about a conversation that was
+full.
 
 `authorized_appointment_ids` is the persisted form of the Q3 authorization decision: it is appended to only
 by a successful `create_appointment` or `lookup_appointment` in this conversation. **The model can never
@@ -436,6 +449,9 @@ business_hours  business_     business_    services      employees      customer
 | `V5__customers_and_appointments.sql` | `customers`, `appointments` (+ exclusion constraint), `appointment_events` |
 | `V6__notifications.sql` | `notifications` |
 | `V7__ai.sql` | `ai_conversations`, `ai_messages` |
+| `V8__appointment_max_length.sql` | `CHECK` pinning the maximum appointment length the availability bound depends on |
+| `V9__appointment_buffer_ceilings.sql` | Two `CHECK`s pinning the buffer ceilings the same bound depends on |
+| `V10__ai_message_retention.sql` | `ai_conversations.messages_purged_at` and the partial index the retention purge claims on |
 
 Migrations are additive and never edited after being applied anywhere. Each phase owns its migration; no
 phase edits an earlier one.

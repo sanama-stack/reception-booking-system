@@ -201,7 +201,14 @@ correctness does not depend on every call site remembering.
 
 - `appointment_events` is an append-only record of who changed what and when, including whether the actor
   was the AI.
-- `ai_messages` records every tool call and result.
+- `ai_messages` records every tool call and result — **for ninety days.** A transcript holds the
+  Customer's name and phone number as they typed them, so it is deleted ninety days after the
+  conversation's last activity by `TranscriptPurgeJob`, an hourly scheduled purge. The
+  `ai_conversations` row survives, marked with `messages_purged_at`: it carries counters and a cost
+  estimate and no free text. Purged rather than redacted — a half-scrubbed transcript is harder to
+  reason about than an absent one — and the window is a constant in `ConversationLimits`, not an
+  environment variable. Proven by `TranscriptRetentionTest`, which asserts both directions: what is
+  taken past the window, and what is spared inside it.
 - `created_at` / `updated_at` on every table.
 - Authentication events (login, refresh, revocation) are logged with user id and IP.
 
