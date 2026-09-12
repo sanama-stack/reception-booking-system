@@ -59,8 +59,33 @@ Four layers, each independently sufficient to catch a bug in the others:
    conversation record (AI). It is never a request parameter, body field, header, or tool argument.
 2. **Query shape.** Every tenant-owned repository method takes `businessId` first.
 3. **Database.** Composite foreign keys `(business_id, id)` make a cross-tenant row physically unwritable.
-4. **Tests.** A dedicated suite enumerates every tenant-scoped endpoint, calls it as Business A with a
-   Business B resource id, and asserts `404`. New endpoints without a probe fail review.
+4. **Tests.** A dedicated suite enumerates every tenant-scoped endpoint and probes it in the shape its
+   own classification calls for. `EndpointCatalogue` records one judgement per endpoint — what isolation
+   means here, and which of Business B's rows the probe borrows — and `EndpointCoverageTest` holds it
+   against Spring's routing table in both directions, so a new controller method breaks the build until
+   somebody classifies it. **Classify or fail.**
+
+> **Corrected in phase 11: classified was not the same as probed.** This section said "a dedicated suite
+> enumerates every tenant-scoped endpoint, calls it as Business A with a Business B resource id, and
+> asserts `404`" — which describes the 27 endpoints that take a path id and was never true of the other
+> kinds. Two of the catalogue's six classifications, `OWNER_COLLECTION` and `OWNER_SINGLETON`, **were
+> driven by nothing**: fifteen endpoints carried a written probe description — *"A's response must contain
+> nothing of B's"* — that no test in the tree referenced. The guarantee was that every endpoint is
+> classified, not that every classification runs. `TenantIsolationSweepTest` now sweeps both from the
+> catalogue, and a registry check fails if a catalogued endpoint has no control, because a
+> `@TestFactory` that yields nothing passes.
+>
+> **`GET /availability` was misclassified**, which is worse than unclassified. It has taken a required
+> `serviceId` and two optional ids in the query string since phase 05, and was recorded as a collection
+> that "takes no id" with nothing to borrow — a written judgement that closed the question wrongly and
+> would stop the next reader looking. It is now `OWNER_QUERY_ID` and probed with B's real id. The reads
+> behind it were correct all along; nothing had ever asked.
+>
+> **And the probe for it needed two layers removed before it would go red**, which is this section's own
+> claim measured rather than asserted. Unscoping `ServiceCatalogService#read` alone left it green,
+> because `AssignmentService#employeesFor` runs an independent tenant check on the same id. It failed
+> only when both were removed. "Each independently sufficient to catch a bug in the others" is a real
+> property of this path, demonstrated by plant.
 
 ## 5. Public endpoint security
 

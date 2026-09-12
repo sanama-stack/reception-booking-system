@@ -544,7 +544,21 @@ argument that it was right.
       configuration check was a behavioural sweep that **reported green over the whole authenticated
       surface**: Spring Security answers `401` before MVC's CORS interceptor runs, so a planted
       `@CrossOrigin` on `AnalyticsController` changed no response, while the same annotation on
-      `HealthController` was caught at once
+      `HealthController` was caught at once. **§3 and §4 done 2026-09-13.** The suspicion was that
+      `EndpointCatalogue` is a typed list and therefore §5's failure again; it is the opposite — a
+      typed judgement reconciled against Spring's routing table in both directions, which is the
+      right answer. The defect was one level further in: **classified was not the same as probed.**
+      `OWNER_COLLECTION` and `OWNER_SINGLETON` — fifteen of sixty-five endpoints — carried a written
+      probe description that **no test in the tree referenced**, so a new collection endpoint was
+      classified, the build stayed green, and nothing ran. Both are now swept from the catalogue,
+      with a registry check because a `@TestFactory` that yields nothing passes. **`GET
+      /availability` was misclassified**, which is worse than unclassified: it has taken a required
+      `serviceId` in the query string since phase 05 and was recorded as a collection that "takes no
+      id". Now `OWNER_QUERY_ID`. **Shown red five ways**, and two of them are the interesting ones —
+      an empty collection fails the *control* rather than the assertion, and the availability probe
+      stayed green with `ServiceCatalogService#read` unscoped, because `AssignmentService` checks the
+      same id independently; it went red only when both were removed, which is §4's "each
+      independently sufficient" demonstrated rather than asserted
 - [x] Redaction filter verified across appenders — **2026-09-12.** Three tests already covered this
       ground and **none could catch the failure that matters**: deleting the `<jsonGeneratorDecorator>`
       from the appender that runs in production left `PiiValueMaskerTest`, `ConsoleRedactionTest` and
