@@ -153,11 +153,81 @@ def check_migrations():
     report("migration inventory", len(on_disk), "migrations", bad, lambda b: f"{b[1]} — {b[0]}")
 
 
+# --- 5. the error-code table in docs/04-api-overview.md matches the enum, and so does the UI ----
+# ErrorCode.java is the authority: both error paths write `code.status()`, so what the enum
+# declares is what reaches the wire and every other list is a copy. There were two copies and
+# nothing compared them to it or to each other.
+#
+# What that cost, measured before this was written: §3's table still held two phase-01 statuses the
+# implementation had moved away from — INVALID_CONFIRMATION_CODE ships 401 against a documented
+# 404, AI_LIMIT_REACHED ships 409 against a documented 429 — and was missing UNSUPPORTED_MEDIA_TYPE
+# and INTERNAL_ERROR outright, the latter appearing nowhere in docs/ at all. The frontend union was
+# copied from that table rather than from the enum, in the table's own order, so it inherited the
+# omissions. A wrong status also costs more than the row: client.ts counted "two other 401s" where
+# the enum has three, and §3 was no use as a second opinion because it published the third as a 404.
+#
+# STATUSES ARE COMPARED, NOT JUST NAMES. Both drifts here were in the status column while every
+# name agreed, so a check on names alone would have gone green over the worse half (T176's shape:
+# ask what each side says, not merely whether the same words appear on both).
+#
+# CLIENT_ONLY is the hand-written part, and the irreducible one — exactly as pipeline-parity's
+# three-row table is. Something has to say that a code the server cannot send is legitimate in the
+# frontend union rather than drift, and that statement cannot be derived from either side.
+CLIENT_ONLY = {
+    # Thrown by the client when the fetch itself failed: status 0, and no body to read a code from.
+    'NETWORK_ERROR',
+}
+
+HTTP_STATUS = {
+    'BAD_REQUEST': 400, 'UNAUTHORIZED': 401, 'FORBIDDEN': 403, 'NOT_FOUND': 404,
+    'CONFLICT': 409, 'UNSUPPORTED_MEDIA_TYPE': 415, 'UNPROCESSABLE_ENTITY': 422,
+    'TOO_MANY_REQUESTS': 429, 'INTERNAL_SERVER_ERROR': 500, 'SERVICE_UNAVAILABLE': 503,
+}
+
+
+def check_error_codes():
+    enum_src = open(os.path.join(ROOT, 'backend/src/main/java/dev/reception/common/error/ErrorCode.java'),
+                    encoding='utf-8').read()
+    enum, bad = {}, []
+    for m in re.finditer(r'^    ([A-Z_]+)\(HttpStatus\.([A-Z_]+)', enum_src, re.M):
+        name, constant = m.group(1), m.group(2)
+        if constant not in HTTP_STATUS:
+            # Not a pass and not a crash: the check has met a status it cannot score.
+            bad.append(("HttpStatus." + constant + " is unknown to this check", name))
+            continue
+        enum[name] = HTTP_STATUS[constant]
+
+    doc_src = open(os.path.join(ROOT, 'docs/04-api-overview.md'), encoding='utf-8').read()
+    table = re.search(r'^### Error codes$.*?(?=^---)', doc_src, re.M | re.S)
+    documented = (dict((m.group(1), int(m.group(2)))
+                       for m in re.finditer(r'^\| `([A-Z_]+)` \| (\d{3}) \|', table.group(0), re.M))
+                  if table else {})
+
+    ts_src = open(os.path.join(ROOT, 'frontend/src/lib/api/client.ts'), encoding='utf-8').read()
+    union = re.search(r'^export type ErrorCode =(.*?);$', ts_src, re.M | re.S)
+    declared = set(re.findall(r"'([A-Z_]+)'", union.group(1))) if union else set()
+
+    bad += [("declared in ErrorCode.java, missing from docs/04-api-overview.md §3", c)
+            for c in enum if c not in documented]
+    bad += [("in docs/04-api-overview.md §3, declared nowhere in ErrorCode.java", c)
+            for c in sorted(documented) if c not in enum]
+    bad += [("§3 documents %d, the enum ships %d" % (documented[c], enum[c]), c)
+            for c in sorted(documented) if c in enum and documented[c] != enum[c]]
+    bad += [("the server can send it, frontend/src/lib/api/client.ts cannot name it", c)
+            for c in enum if c not in declared]
+    bad += [("in the frontend union, and neither a server code nor declared CLIENT_ONLY", c)
+            for c in sorted(declared) if c not in enum and c not in CLIENT_ONLY]
+
+    report("error code inventory", len(enum), "error codes", bad, lambda b: f"{b[1]} — {b[0]}")
+
+
+
 print("Documentation consistency (docs/tools/consistency)")
 check_links()
 check_sections()
 check_adrs()
 check_migrations()
+check_error_codes()
 
 if failures:
     print(f"\nFAILED: {', '.join(failures)}")

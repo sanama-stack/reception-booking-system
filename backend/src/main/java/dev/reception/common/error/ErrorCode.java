@@ -4,10 +4,21 @@ import org.springframework.http.HttpStatus;
 
 /**
  * The machine-readable {@code code} extension on every problem+json body
- * (docs/04-api-overview.md §3).
+ * (docs/04-api-overview.md §3), and the source of the HTTP status that goes with it: both error
+ * paths write {@code code.status()}, so what is declared here is what reaches the wire.
  *
- * <p>Seeded in phase 01 with the codes the scaffolding itself can produce. Later phases add their
- * own; the enum is the single published list.
+ * <p>Seeded in phase 01 with the codes the scaffolding itself can produce; later phases add their
+ * own. <strong>This enum is the authority, and it is not the only list.</strong> §3 publishes a
+ * table of the same codes and the frontend declares a union of them — and for ten phases nothing
+ * related the three. The table kept two phase-01 statuses the implementation had moved away from
+ * ({@link #INVALID_CONFIRMATION_CODE} ships {@code 401} against a documented {@code 404},
+ * {@link #AI_LIMIT_REACHED} ships {@code 409} against a documented {@code 429}) and never gained
+ * {@link #UNSUPPORTED_MEDIA_TYPE} or {@link #INTERNAL_ERROR} at all; the frontend's union was
+ * copied from that table rather than from here, in the table's own order, so it inherited the
+ * omissions. {@code docs/tools/consistency/check.py} compares all three now, on names and statuses.
+ *
+ * <p><strong>Adding a constant here means adding a row to §3's table.</strong> That is the whole
+ * of the obligation, and the check is what enforces it.
  */
 public enum ErrorCode {
 

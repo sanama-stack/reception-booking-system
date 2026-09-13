@@ -75,11 +75,24 @@ Validation failures add entries to `errors`: `{ "field": "durationMinutes", "mes
 | `BEYOND_MAX_ADVANCE` | 422 | Beyond the booking horizon |
 | `CANCELLATION_WINDOW_CLOSED` | 422 | Customer cancelling too late; the business is exempt |
 | `INVALID_STATUS_TRANSITION` | 422 | Not a legal move in the appointment state machine |
-| `INVALID_CONFIRMATION_CODE` | 404 | Code and phone did not match — same response as "no such appointment" |
+| `INVALID_CONFIRMATION_CODE` | 401 | Code and phone did not match — and the same answer for a code that names no appointment at all, so the endpoint cannot be asked which codes exist |
 | `MANAGE_TOKEN_INVALID` | 401 | Manage Link expired or tampered with |
 | `RATE_LIMITED` | 429 | Includes `Retry-After` |
+| `UNSUPPORTED_MEDIA_TYPE` | 415 | A state-changing request used a content type an HTML form can produce. The half of the CSRF defence Spring does not give the body-less endpoints (docs/06-security.md §13) — a JSON client never meets it |
 | `AI_UNAVAILABLE` | 503 | Model provider failed; client should offer the Classic Flow |
-| `AI_LIMIT_REACHED` | 429 | Conversation or daily business cost ceiling reached |
+| `AI_LIMIT_REACHED` | 409 | Conversation or daily business cost ceiling reached. Deliberately not a `429`: nothing sends `Retry-After` and waiting does not help — the ceiling is a state, not a rate |
+| `INTERNAL_ERROR` | 500 | The fallback. Carries the request id and nothing else — no stack trace, no SQL, no class names (docs/06-security.md §11) |
+
+`ErrorCode` is where these are declared and is what puts the status on the wire — both error paths
+read `code.status()`, so this table is a published copy and never the authority. It is compared
+against the enum in both directions, on names **and** statuses, by `docs/tools/consistency/check.py`.
+
+That check exists because two of these rows were phase-01 design intent the implementation then
+moved away from, in silence: `INVALID_CONFIRMATION_CODE` was specified `404` and ships `401`, and
+`AI_LIMIT_REACHED` was specified `429` and ships `409`. Both rows survived their own implementing
+phase untouched — phase 08 rewrote this document's prose *about* the confirmation code and left the
+row beside it — and the frontend's `ErrorCode` union was copied from this table rather than from the
+enum, so it inherited the omissions rather than the truth.
 
 ---
 
