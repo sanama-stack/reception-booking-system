@@ -145,6 +145,27 @@ e2e: ## Run the end-to-end flow against the E2E topology (needs `make up-e2e`)
 # `--with-deps` is deliberately absent: it installs OS packages, which is a Linux runner's
 # problem and not something a developer's machine should be asked to do by `make`. CI
 # installs the browser in its own step.
+#
+# ON macOS THE INSTALL STEP CAN HANG, AND IT IS NOT THIS PROJECT'S BUG. Observed 2026-09-13:
+# `playwright install` downloads its file completely, writes it, and then blocks at 0% CPU
+# indefinitely — chromium twice and ffmpeg once, in the same place each time. Nothing is printed,
+# so it reads as a slow download rather than a stuck one. Two things tell them apart: the cache
+# directory stays near-empty during a real download (the zip goes to a temp path first), and a
+# genuine stall shows the process at 0% CPU with its file no longer growing. Check the process,
+# not the cache directory.
+#
+# The way out, if it happens: fetch the zip directly — cdn.playwright.dev serves it in seconds —
+# extract it with `ditto -x -k` into ~/Library/Caches/ms-playwright/<browser>-<revision>, and
+# `touch INSTALLATION_COMPLETE` inside that directory, which is the marker the registry checks.
+# Then run `pnpm test` in e2e/ rather than this target, to skip the install step entirely. ffmpeg
+# is not needed at all: playwright.config.ts sets `video: 'off'`.
+#
+# DO NOT kill the hung downloader before copying what it fetched. Its temp directory is cleaned up
+# on exit, so the kill destroys the completed download with it — paid for twice on the day this
+# note was written.
+#
+# CI does not hit this: the Linux runner installs the browser in its own step, which is exactly why
+# it is written here instead of being left for the next person to rediscover.
 	cd e2e && pnpm install --frozen-lockfile && pnpm exec playwright install chromium && pnpm test
 
 down: ## Stop everything (keeps the database volume)
