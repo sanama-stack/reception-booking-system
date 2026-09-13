@@ -45,13 +45,29 @@
 
 | | |
 |---|---|
-| `origin/dev` | **`82fc678`** — the seven commits are pushed. Nothing is unpushed |
-| CI | **Green on all six jobs.** Backend, Frontend, Documentation consistency, Compose smoke test, End-to-end, **Pipeline parity** |
-| MVP Definition of Done | **26 of 30.** Was 0 of 30 this morning, and has been 0 since `aa84b19` |
+| `origin/dev` | **`158a53a`** — six commits this sitting, all pushed. **Nothing is unpushed** |
+| CI | **Green on all six jobs**, on the final commit: Backend, Frontend, Documentation consistency, Compose smoke test, End-to-end, **Pipeline parity** |
+| MVP Definition of Done | **26 of 30.** Was **0 of 30** this morning, and had been 0 since `aa84b19` |
 | Phase 11 | **67 of 72** — 62 at the start of the day |
-| Backend | 1063 tests, 0 failed, **and now green on a runner rather than a laptop** |
+| Backend | 1063 tests, 0 failed, **green on a runner rather than a laptop** |
+| New guards | `check-java` (G46) and `check-project` (G47), both proven by running them in every state they claim to distinguish |
 | Issues | [#15] and [#17] open, both commented this sitting. Still credit-blocked |
-| Credits | **Still none.** The only thing standing between this list and 30 of 30 |
+| Credits | **Still none.** The only thing between this project and 30 of 30 |
+
+The sitting's commits, oldest first:
+
+```text
+b2acc5c  Let #15's instrument see the resolver, and prove both harnesses in CI
+fb4f2b2  Close the session handoff: the instrument that could not see the resolver
+82fc678  Walk the thirty, and tick twenty-four against named evidence
+c550d34  Close the clean-checkout row by doing it, and the CI row by pushing
+f4cb723  Name the JDK instead of printing its version, and guard all three targets
+158a53a  Refuse a compose project another checkout is running
+```
+
+**`src/main` was not touched once.** Two instrument fixes, one documentation walk, two build guards.
+No prompt changed, nothing was measured, and no model was called — [prev] covers the first two
+commits and why the model work is where it is.
 
 ---
 
@@ -244,6 +260,26 @@ which of the two is wrong.
 inconvenient.** It does not collide and fail; it succeeds, against the other checkout's data. A
 verification run is exactly when somebody has two checkouts.
 
+**T168 — fix it where it is caused, not where it was noticed.** G46 arrived as *"`make seed` fails"*
+because seeding is what was being done at the time. Three targets shell out to the host's Gradle and
+all three failed identically; guarding only `seed` would have left the other two to be rediscovered
+separately, by somebody paying the same cycle. The same reading applied to G47: the report was about
+a clone joining a stack, the cause was every target that starts a container.
+
+**T169 — the obvious fix for a hazard can be more expensive than the hazard.** G47's obvious remedy
+is to drop `name: reception` and let compose use the directory. That would have re-pointed **every
+existing checkout** at a new, empty volume — trading a documented hazard that has bitten nobody for
+data everybody loses exactly once, silently, on their next `make up`. The override already existed;
+what was missing was the refusal. **Check what a fix does to the installed base, not only to the
+reported symptom.**
+
+**T170 — a red CI run is not evidence about the commit beneath it.** The push carrying `check-java`
+came back red on *Compose smoke test*, and the guard was the obvious suspect — it had just been
+added, and the failing job is the one that runs `make up-all`. It was Docker Hub resetting the
+connection while pulling `eclipse-temurin:21-jdk-alpine`, and `check-java` is not even a prerequisite
+of `up-all`. **Read the log before attributing the failure**, and re-run before concluding; a
+transient that clears on re-run looks exactly like a bug that was fixed by accident.
+
 ---
 
 ## 7. Gaps
@@ -270,7 +306,56 @@ uncatchable — compose does not label volumes — and is recorded at §5.2 rath
 
 ---
 
-## 8. Confidence
+## 8. Commands
+
+The two new guards, and the states they distinguish:
+
+```bash
+make check-java      # the JDK that would launch Gradle is one Gradle runs on
+make check-project   # no other checkout is running this compose project
+```
+
+Neither needs to be called directly — `test`, `migrate` and `seed` depend on the first; `up`,
+`up-all`, `migrate` and `seed` on the second. Both are in `make help`.
+
+A second checkout of this repository, which is now a supported thing rather than a hazard:
+
+```bash
+COMPOSE_PROJECT_NAME=reception-scratch make up
+```
+
+Re-running the walk that closed the clean-checkout row:
+
+```bash
+git clone --branch dev <origin> /tmp/clean && cd /tmp/clean
+COMPOSE_PROJECT_NAME=reception-clean make up-all
+COMPOSE_PROJECT_NAME=reception-clean JAVA_HOME=$(/usr/libexec/java_home -v 21) make seed
+curl -sS localhost:9080/api/health
+# and afterwards, or it keeps the ports:
+COMPOSE_PROJECT_NAME=reception-clean docker compose -f docker-compose.yml -f docker-compose.apps.yml down -v
+```
+
+**`down -v` on the clone, and check the project name twice before running it.** The whole reason
+`check-project` exists is that the wrong one there deletes the machine's real database.
+
+When there are credits, in this order — unchanged from [prev] §8:
+
+```bash
+# 1. [#15] -- RE-BASELINE the current prompt. Not a candidate. ~12 min.
+PROBE_CONVERSATIONS=150 ./gradlew test -PincludeTags=probe \
+  --tests '*WeekdayResolutionRateTest' --rerun
+
+# 2. [#17] -- finish the arm the outage cut at 15 of 50. ~25 min.
+PROBE_CONVERSATIONS=50 PROBE_DATE_STYLE=WEEKDAY ./gradlew test -PincludeTags=probe \
+  --tests '*RescheduleDateFidelityRateTest' --rerun
+
+# 3. the level-3 corpus, which decides three Definition-of-Done rows. Cents.
+./gradlew test -PincludeTags=llm --tests '*LiveReceptionistTest' --rerun
+```
+
+---
+
+## 9. Confidence
 
 **Certain on the 26.** Every ticked row names its evidence, and the two that were measured rather
 than cited are reproducible in one command each.
@@ -278,7 +363,18 @@ than cited are reproducible in one command each.
 **Certain on the clean-checkout walk.** It ran, the endpoints answered, and the two-tenant database is
 what rules out contamination.
 
-**Certain CI is green** on `82fc678`, all six jobs, read off the run rather than inferred.
+**Certain CI is green** on `158a53a`, all six jobs, read off the run rather than inferred — and on
+`82fc678` before it.
+
+**One red run in between, and it was not ours.** `f4cb723` failed *Compose smoke test* on a Docker
+Hub token reset while pulling `eclipse-temurin:21-jdk-alpine`. Re-run, green, no change. Recorded
+because a red run sitting under a build-system commit is exactly the thing that gets misattributed —
+T170.
+
+**Certain both guards work**, because each was run in every state it claims to distinguish rather
+than in the one that was convenient: four for `check-java`, six for `check-project`, including the
+E2E project name, which had to be checked because that topology's isolation is bought with the very
+variable the new guard reads.
 
 **Explicitly unproven: anything about Receptionist behaviour.** No model was called this sitting
 either. The four open rows are open for that reason and no other.
@@ -289,7 +385,7 @@ did not both work as written.
 
 ---
 
-## 9. What is the principal's
+## 10. What is the principal's
 
 1. **Credits.** Seventh handoff. It is now the **only** thing between this project and 30 of 30 —
    every other box is closed. Roughly 40 minutes of runs: [#15]'s re-baseline, [#17]'s cut-short arm,
@@ -298,4 +394,22 @@ did not both work as written.
    do not.
 3. ~~**G47**~~ — done, and the name deliberately did **not** move; moving it would have re-pointed
    every existing checkout at an empty volume. The guard refuses instead.
-4. **G43** — branch protection, unchanged.
+4. **G43** — branch protection, unchanged. `Pipeline parity` has now run green four times on
+   GitHub, so the question is no longer whether the job works; it is whether a red one should be
+   able to block a merge. That setting lives outside the repository and nothing here can assert it.
+5. **G45** — whether a recorded rate should have to name the commit it was taken at. Raised by
+   [#15]'s 142/150 surviving a new tool and a prompt edit while still being described as *current*;
+   it costs a convention, not code.
+
+---
+
+### The one-paragraph version, for whoever opens this next
+
+The Definition of Done is **26 of 30** and everything closable without a funded OpenAI key is closed.
+The four that remain are three Receptionist behaviour rows and the README demo script, all one
+blocker, all properly carried — a rate and an issue under *Accepted, measured, open defects*, and the
+corpus under *Gates that cannot be run*. `origin/dev` is `158a53a`, CI is green on all six jobs,
+nothing is unpushed, and `src/main` has not been touched since [prev]. **Do not start by changing a
+prompt.** §8 lists the three runs to make when there are credits, in order, and the first is a
+re-baseline rather than a candidate — the number this project has been comparing against was measured
+before the tool it now ships.
