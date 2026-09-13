@@ -29,6 +29,7 @@ export function Confirmation({
   business,
   email,
   onBookAnother,
+  kind = 'booked',
 }: {
   appointment: BookedAppointment;
   business: PublicBusiness;
@@ -46,13 +47,28 @@ export function Confirmation({
   email?: string | null;
   /** Omitted where there is nothing to reset — in the chat panel, booking again is done by asking. */
   onBookAnother?: () => void;
+  /**
+   * Which event this card is for. `'moved'` is a reschedule the Receptionist performed.
+   *
+   * **It changes what the card is called and what it says about the code — nothing it asserts.** A
+   * moved appointment is a confirmed appointment fully described, and every figure below is read
+   * from the same `BookedAppointment` either way. The Confirmation Code is deliberately *not*
+   * reissued by a reschedule, so on a move it is the code the Customer already has: still worth
+   * showing beside the new time, but not the one-and-only moment to write it down.
+   */
+  kind?: 'booked' | 'moved';
 }) {
   const { timezone } = appointment;
+  const moved = kind === 'moved';
 
   return (
     <div className="flex flex-col gap-4">
       <Card className="border-success/30">
-        <p className="text-success text-sm font-medium tracking-wide uppercase">Booked</p>
+        <p className="text-success text-sm font-medium tracking-wide uppercase">
+          {/* The manage page's own word for this outcome, so one event reads the same on both
+              surfaces. */}
+          {moved ? 'Moved' : 'Booked'}
+        </p>
         <h2 className="text-ink mt-2 text-xl font-semibold tracking-tight">
           {appointment.service.name} with {appointment.employee.fullName}
         </h2>
@@ -67,7 +83,9 @@ export function Confirmation({
         </p>
 
         <div className="border-border mt-5 border-t pt-5">
-          <p className="text-ink text-sm font-medium">Your confirmation code</p>
+          <p className="text-ink text-sm font-medium">
+            {moved ? 'Your confirmation code is unchanged' : 'Your confirmation code'}
+          </p>
           <p
             // Selectable as a unit, so a tap-and-hold on a phone grabs the whole code rather than
             // one character of it.
@@ -76,8 +94,9 @@ export function Confirmation({
             {appointment.confirmationCode}
           </p>
           <p className="text-ink-muted mt-2 text-sm leading-relaxed">
-            Keep this. Together with the phone number you booked with, it is how you prove this
-            appointment is yours — to {business.name}, or to change it later.
+            {moved
+              ? `Moving an appointment does not issue a new code. Together with the phone number you booked with, this is still how you prove this appointment is yours — to ${business.name}, or to change it again.`
+              : `Keep this. Together with the phone number you booked with, it is how you prove this appointment is yours — to ${business.name}, or to change it later.`}
           </p>
         </div>
       </Card>

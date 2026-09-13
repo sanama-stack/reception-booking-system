@@ -39,17 +39,34 @@ const WARN_BELOW_REMAINING = 8;
 const SLOW_TURN_MS = 6000;
 
 /**
+ * A server-sourced card, and which event it is a card for.
+ *
+ * The pair is one field rather than two nullable ones so that a card without a kind, or a kind
+ * without a card, cannot be written down.
+ */
+interface AppointmentCard {
+  kind: 'booked' | 'moved';
+  appointment: BookedAppointment;
+}
+
+/**
  * One line in the panel.
  *
- * `appointment` is populated **only** from `ChatReply.appointmentCreated`, which the server
- * populates only from a successful `create_appointment`. It is not derived from `text` and there is
- * no code path that could make it so.
+ * `appointments` is populated **only** from `ChatReply.appointmentCreated` and
+ * `ChatReply.appointmentUpdated`, which the server populates only from a successful
+ * `create_appointment` or `reschedule_appointment`. It is not derived from `text` and there is no
+ * code path that could make it so.
+ *
+ * A list because one turn may do both — five tool calls are allowed, and "move my Tuesday one and
+ * book me a Friday too" is one sentence. The wire carries two fields and not a sequence, so a turn
+ * that did both renders in a fixed order rather than the order it happened; each card names its own
+ * service, date and time, so the fixed order misleads nobody.
  */
 interface Bubble {
   key: number;
   author: 'customer' | 'receptionist';
   text: string;
-  appointment: BookedAppointment | null;
+  appointments: AppointmentCard[];
 }
 
 /**
@@ -252,7 +269,7 @@ export function ReceptionistPanel({ slug, business }: { slug: string; business: 
 
     setDraft('');
     setDegradation(null);
-    append({ author: 'customer', text: message, appointment: null });
+    append({ author: 'customer', text: message, appointments: [] });
     setPending(true);
 
     try {
@@ -277,8 +294,16 @@ export function ReceptionistPanel({ slug, business }: { slug: string; business: 
       append({
         author: 'receptionist',
         text: answer.reply,
-        // From the field, never from `answer.reply`. This is the hallucination control.
-        appointment: answer.appointmentCreated,
+        // From the fields, never from `answer.reply`. This is the hallucination control, and a
+        // move earns it on the same terms a booking does.
+        appointments: [
+          ...(answer.appointmentUpdated
+            ? [{ kind: 'moved' as const, appointment: answer.appointmentUpdated }]
+            : []),
+          ...(answer.appointmentCreated
+            ? [{ kind: 'booked' as const, appointment: answer.appointmentCreated }]
+            : []),
+        ],
       });
       setStatus(answer.conversationStatus);
       setMessagesRemaining(answer.messagesRemaining);
@@ -421,7 +446,7 @@ export function ReceptionistPanel({ slug, business }: { slug: string; business: 
   );
 }
 
-/** One turn, and the confirmation card where the server said a booking happened. */
+/** One turn, and the cards where the server said a booking or a move happened. */
 function Line({ bubble, business }: { bubble: Bubble; business: PublicBusiness }) {
   if (bubble.author === 'customer') {
     return (
@@ -438,11 +463,15 @@ function Line({ bubble, business }: { bubble: Bubble; business: PublicBusiness }
           {bubble.text}
         </p>
       )}
-      {bubble.appointment && (
+      {bubble.appointments.map((card) => (
         /*
           The Classic Flow's own confirmation, not a second card that resembles it. A booking is
-          the same event whichever door it came in through, and `appointmentCreated` is
-          `BookedAppointment` on the wire precisely so one component renders either.
+          the same event whichever door it came in through, and `appointmentCreated` and
+          `appointmentUpdated` are both `BookedAppointment` on the wire precisely so one component
+          renders any of them.
+
+          `kind` changes what the card is *called* and nothing it asserts: a move is a confirmed
+          appointment fully described, so every figure on it is read from the same record.
 
           `email` is omitted rather than passed as `null`: this panel does not know whether an
           address was given, because the customer gave it to the model rather than to a form here.
@@ -451,8 +480,13 @@ function Line({ bubble, business }: { bubble: Bubble; business: PublicBusiness }
 
           No `onBookAnother`: booking another is done by saying so, and the composer is right below.
         */
-        <Confirmation appointment={bubble.appointment} business={business} />
-      )}
+        <Confirmation
+          key={card.appointment.id + card.kind}
+          appointment={card.appointment}
+          business={business}
+          kind={card.kind}
+        />
+      ))}
     </div>
   );
 }

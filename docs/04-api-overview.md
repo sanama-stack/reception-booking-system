@@ -364,7 +364,8 @@ authority, which is what an ordinary visitor gets anyway.
 { "reply": "I have 17:00 and 18:00 with Lika tomorrow. Which suits you?",
   "conversationStatus": "ACTIVE",
   "messagesRemaining": 34,
-  "appointmentCreated": null }
+  "appointmentCreated": null,
+  "appointmentUpdated": null }
 ```
 
 **No `conversationId` in the body, and phase 09 dropped it deliberately.** The session token already names
@@ -377,8 +378,18 @@ a claim and a body can simply not carry one.
 confirmation card from **backend data** rather than parsing the model's prose. The provenance is what makes
 the field a hallucination control; the casing is what makes it a public response.
 
-It is **the same shape** `POST …/appointments` returns above — the record itself, not a second one with
-matching key names — so one component renders a booking whichever door it came in through:
+`appointmentUpdated` is the same field for a move, populated only when `reschedule_appointment` succeeded.
+It was added in phase 11: `reschedule_appointment` had always returned the `starts_at` the server landed
+on, and the orchestration loop dropped it — so after a reschedule the model's sentence was the only account
+of the new time a customer could read, which is the surface [#17](https://github.com/sanama-stack/reception-booking-system/issues/17)
+measures. A move now produces a card on the same terms a booking does.
+
+**Two fields, not one.** A single turn may book *and* move — five tool calls are allowed, and "move my
+Tuesday one and book me a Friday too" is one sentence — and a shared field would keep only whichever
+happened last. They carry no ordering between them: the wire has two fields, not a sequence.
+
+Both are **the same shape** `POST …/appointments` returns above — the record itself, not a second one with
+matching key names — so one component renders any of them, whichever door the appointment came in through:
 
 ```json
 { "id": "…", "confirmationCode": "7QK4M2XR",
@@ -394,6 +405,14 @@ string beside a `BookedService`, `price` and `currency` flat beside a `Money`, a
 Same-named fields of different types are worse than differently-named ones, because a reader assumes they
 agree, and a flat allow-list of key names cannot see the difference. `PublicChatTest` now compares the two
 responses as structures rather than field by field.
+
+`confirmationSent` on a move carries `reschedule_appointment`'s `reschedule_email_sent`, not
+`create_appointment`'s `confirmation_email_sent`. The tools name that fact per action on purpose — those
+names are read by a model — so the projection is told which key to read rather than assuming one: an absent
+key reads as `false`, which would have told every moving customer that no message was coming. That is the
+defect [ADR-0007](./adr/0007-booking-response-says-whether-a-confirmation-was-sent.md) and
+[ADR-0008](./adr/0008-the-manage-page-says-whether-an-address-is-on-file.md) exist to prevent, arriving
+through a shared projection; `PublicChatTest` asserts the true case, which is the only one that can fail.
 
 `messagesRemaining` is counted by the server because the ceiling counts tool rows the client never sees; a
 panel counting its own bubbles would be wrong, and wrong optimistically.

@@ -131,11 +131,14 @@ class PublicFieldAllowListTest extends IntegrationTest {
             // public routes — the booking grid and the reschedule grid behind a Manage Link.
             availability("availability"),
             availability("manageAvailability"),
-            // BookedAppointment, from both doors. The Classic Flow returns it; the Receptionist
-            // returns the same record nested under appointmentCreated, which is why the second call
-            // here reads as a path rather than a copied list.
+            // BookedAppointment, from three doors. The Classic Flow returns it; the Receptionist
+            // returns the same record nested under appointmentCreated and, for a move, under
+            // appointmentUpdated — which is why these read as paths rather than copied lists. A
+            // move is a confirmed Appointment fully described, so it is this record and not a
+            // narrower one; confirmationSent then carries reschedule_email_sent.
             bookedAppointment("booked"),
             bookedAppointment("chatReply.appointmentCreated"),
+            bookedAppointment("chatReply.appointmentUpdated"),
             // ManagedAppointment, from all four endpoints that return one.
             managedAppointment("lookup"),
             managedAppointment("manage"),
@@ -144,7 +147,13 @@ class PublicFieldAllowListTest extends IntegrationTest {
             // PublicChatResponses (phase 09). sessionToken is a capability and is returned exactly
             // once, by design — the row keeps only its SHA-256.
             at("chatSession", "conversationId", "sessionToken"),
-            at("chatReply", "reply", "conversationStatus", "messagesRemaining", "appointmentCreated")));
+            at(
+                    "chatReply",
+                    "reply",
+                    "conversationStatus",
+                    "messagesRemaining",
+                    "appointmentCreated",
+                    "appointmentUpdated")));
 
     /**
      * {@link PublicResponses.BookedAppointment}, wherever it appears.

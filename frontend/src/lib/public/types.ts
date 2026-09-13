@@ -178,6 +178,16 @@ export interface SendChatMessage {
  * It is `BookedAppointment` — the same type the Classic Flow's confirmation screen renders, not a
  * second shape that resembles it. A booking is the same event whichever door it came in through.
  *
+ * **`appointmentUpdated` is the same control for a move**, and it is the same type for the same
+ * reason: a rescheduled appointment is a confirmed appointment fully described. Before it existed,
+ * `reschedule_appointment` returned the date the server had landed on and nothing carried it here,
+ * so the model's sentence was the only account of the new time a customer could read — which is the
+ * surface issue #17 measures.
+ *
+ * Two fields rather than one, because a single turn may book *and* move and a shared field would
+ * keep only whichever happened last. They carry no ordering between them: the wire has two fields,
+ * not a sequence.
+ *
  * `messagesRemaining` is the server's count, not ours. The ceiling counts tool rows the panel never
  * sees, so a panel counting its own bubbles would be wrong, and wrong optimistically.
  */
@@ -186,6 +196,7 @@ export interface ChatReply {
   conversationStatus: ConversationStatus;
   messagesRemaining: number;
   appointmentCreated: BookedAppointment | null;
+  appointmentUpdated: BookedAppointment | null;
 }
 
 /**

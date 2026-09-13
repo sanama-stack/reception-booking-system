@@ -190,6 +190,7 @@ public class ConversationService {
         int completionTokens = 0;
         int persistedMessages = 1;
         ObjectNode appointmentCreated = null;
+        ObjectNode appointmentUpdated = null;
         String reply = TOOL_CEILING_FALLBACK;
 
         // Counts tool CALLS, not iterations, and the difference is the whole of the ceiling. A model
@@ -221,7 +222,12 @@ public class ConversationService {
                 // The conversation stays ACTIVE and resumable: an outage is not the customer's
                 // fault and retrying is the right thing for them to do.
                 store.recordTurn(
-                        businessId, conversationId, persistedMessages, promptTokens, completionTokens, authority);
+                        businessId,
+                        conversationId,
+                        persistedMessages,
+                        promptTokens,
+                        completionTokens,
+                        authority);
                 throw new ApiException(
                         ErrorCode.AI_UNAVAILABLE,
                         "I can't reach the booking assistant just now. You can book directly on this "
@@ -301,16 +307,30 @@ public class ConversationService {
 
                 context.add(ChatMessage.toolResult(call.id(), result));
 
-                // Captured from the tool result, never parsed out of the model's text. This is the
-                // object the confirmation card is rendered from.
-                if ("create_appointment".equals(call.name()) && !result.has("error")) {
-                    appointmentCreated = result;
+                // Captured from the tool result, never parsed out of the model's text. These are
+                // the objects the confirmation card is rendered from.
+                //
+                // Two fields rather than one. A booking and a move are different events and the
+                // panel says different things about them — and a turn can hold both, because five
+                // tool calls are allowed and "move it, and book me another" is one sentence. Folding
+                // them into a single field would make the later write silently win.
+                if (!result.has("error")) {
+                    if ("create_appointment".equals(call.name())) {
+                        appointmentCreated = result;
+                    } else if ("reschedule_appointment".equals(call.name())) {
+                        appointmentUpdated = result;
+                    }
                 }
             }
         }
 
         AiConversation updated = store.recordTurn(
-                businessId, conversationId, persistedMessages, promptTokens, completionTokens, authority);
+                businessId,
+                conversationId,
+                persistedMessages,
+                promptTokens,
+                completionTokens,
+                authority);
 
         // Asked of the row the store just wrote, not of the copy this method has been holding since
         // before the model calls — which is stale by exactly the messages this turn added.
@@ -321,7 +341,8 @@ public class ConversationService {
             store.close(businessId, conversationId, ConversationStatus.CLOSED);
             status = ConversationStatus.CLOSED;
         }
-        return new ConversationTurn(conversationId, reply, appointmentCreated, status, remaining);
+        return new ConversationTurn(
+                conversationId, reply, appointmentCreated, appointmentUpdated, status, remaining);
     }
 
     private static long millisSince(long startedAtNanos) {

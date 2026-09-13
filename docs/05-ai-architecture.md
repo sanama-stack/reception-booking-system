@@ -174,6 +174,7 @@ is a request and a constraint is a guarantee:
 |---|---|
 | Never state a time not returned by `find_available_slots` | The booking re-validates; a fabricated time is rejected |
 | Never confirm before `create_appointment` returns success | The UI renders confirmation from `appointmentCreated`, not from prose |
+| Never confirm a move before `reschedule_appointment` returns success | The UI renders the moved card from `appointmentUpdated`, not from prose |
 | Never state a price, duration or policy not in context | Prices come only from tool results |
 | Never invent hours, parking, payment methods or policies | Nothing else is in the prompt to draw on |
 | If the answer is not in the context, say so and offer the phone number | — |
@@ -191,8 +192,14 @@ Five mechanisms, in order of strength:
 1. **Structural.** Slot times, prices and durations exist in the reply only because a tool returned them.
    A fabricated slot fails re-validation at booking and returns `409` or a `422`.
 2. **The confirmation is not prose.** The UI renders the booking card from the API's `appointmentCreated`
-   object. If the model says "you're booked" without a successful tool call, no card appears — the lie is
-   visible rather than convincing.
+   object, and the moved card from `appointmentUpdated`. If the model says "you're booked" or "you're moved"
+   without a successful tool call, no card appears — the lie is visible rather than convincing.
+
+   **This was missing for a move until phase 11.** `reschedule_appointment` returned the `starts_at` the
+   server had landed on, and the loop dropped it, so the strongest control in this list did not cover the
+   one path [#17](https://github.com/sanama-stack/reception-booking-system/issues/17) measures: a customer who was
+   moved had only the model's sentence to read the new date from. `ConversationService` now captures the
+   reschedule result on the same terms it captures a booking's.
 3. **Bounded knowledge.** The prompt contains the business's real data and nothing else, so there is no
    plausible-but-wrong general knowledge to reach for.
 4. **Explicit ignorance path.** "I don't know, here's the number" is a first-class, instructed answer.
