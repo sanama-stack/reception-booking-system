@@ -430,7 +430,11 @@ argument that it was right.
 - [ ] `README.md`, `.env.example` and `docs/deployment.md` are complete
 - [ ] **Every box in [07-mvp-scope.md](../07-mvp-scope.md) § MVP Definition of Done is ticked** — or the
       defect it covers is carried under that document's *Accepted, measured, open defects*, which
-      requires a rate, a date and an issue. **Do not tick that list as found.** It was audited on
+      requires a rate, a date and an issue, **or the gate that would decide it is carried under that
+      document's *Gates that cannot be run***, which requires what the gate checks, when it last ran
+      and what must happen for it to run again. *Third state added 2026-09-13:* the level-3 corpus
+      cannot run at all, and a box nothing can currently decide is neither a tick nor a measured
+      defect. **Do not tick that list as found.** It was audited on
       2026-09-11 and five rows were **weaker than decisions this project had already recorded**: as
       written they would have ticked on a technicality over
       [#17](https://github.com/sanama-stack/reception-booking-system/issues/17) — a defect the
@@ -581,8 +585,12 @@ argument that it was right.
       05-ai-architecture.md §7's own injection table names as an attack. All four go through one
       helper now. **Shown red five ways**, the sharpest being a fence emitted with the text landing
       *after* it closes, which a check that searched for `<<<` would have passed. **This is a system
-      prompt change and the level-3 corpus has NOT been run against it** — `-PincludeTags=llm` needs
-      a key and credits, and that is the principal's call. See G32. **§1 done 2026-09-13**, and it is the
+      prompt change and the level-3 corpus has NOT been run against it** — and it **cannot** be:
+      the OpenAI account has no credits, which was confirmed on 2026-09-13 by a run that cost
+      nothing because every call was refused. **Ruled the same day: level 3 is recorded as
+      unavailable**, under [07-mvp-scope.md](../07-mvp-scope.md) § *Gates that cannot be run*, rather
+      than carried as a pending decision. It was never a decision — the credits had run out on
+      2026-09-11, two days before this change was made. **§1 done 2026-09-13**, and it is the
       first section of this walk that was very nearly clean: its threat-model table names seven
       primary controls and **six of the seven already resolved to a test that runs**. The seventh
       did not. *"Rate limiting by IP"* is the control for the **availability** row, and the **by

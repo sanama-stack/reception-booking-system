@@ -167,6 +167,12 @@ Assertions target **tool call sequences and resulting database state**, not the 
 `@Tag("llm")`, excluded from CI, run manually before a release. Flaky-by-nature tests must never gate a
 pipeline.
 
+**Status: unavailable since 2026-09-10.** The account has no credits, and the system prompt has
+changed twice since the corpus last ran. Recorded as a gate that cannot be run in
+[07-mvp-scope.md](07-mvp-scope.md) § *Gates that cannot be run*, with what it would have checked and
+what must happen for it to run again — **a skip is not a pass**, and the sign-off says so rather than
+leaving a reader to infer it from a green build that excluded these tests by tag.
+
 **The corpus skips itself when it cannot ask the model, and says why.** No key was always a skip — a red
 build on a machine that was never meant to run these teaches people to ignore red builds. A key the
 provider *refuses* used to be the opposite: with the account's credits exhausted, all twelve tests failed
