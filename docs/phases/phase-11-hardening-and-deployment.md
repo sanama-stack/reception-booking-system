@@ -408,11 +408,16 @@ argument that it was right.
       empty list (1 red), each reverted byte-identically. **The first plant is the point**: it is
       caught only by the assertion on `excluded[*].amount`, because "the list is empty" is what the
       no-remainder test asserts on purpose. A count would not have caught it either
-- [ ] Full suite green from a clean clone
+- [x] Full suite green from a clean clone — **2026-09-13**, CI run on `82fc678`: all six jobs green,
+      including `Pipeline parity` on its first ever run. A CI runner *is* a clean clone, which is the
+      sense this row is tickable in; the clone-to-running walk of the **stack** is the row above
 
 ## Definition of Done
 
-- [ ] `git clone && make up && make seed` produces a fully working, populated system
+- [x] `git clone && make up && make seed` produces a fully working, populated system — **2026-09-13**,
+      walked from a fresh clone of `origin/dev` at `82fc678`. Seeded to the two demo tenants, health
+      green, `/book/salon-aria` `200`, services and prices served by the public API. **`make seed`
+      failed first**, and the failure is G46
 - [ ] The demo script in the README runs end to end without deviation
 - [x] Every tenant-scoped endpoint is probed by the isolation suite
 - [x] The E2E flow passes in CI
@@ -430,13 +435,14 @@ argument that it was right.
       conversation's last activity, enforced hourly by `TranscriptPurgeJob`. The window is
       `ConversationLimits.TRANSCRIPT_RETENTION_DAYS`, a constant, so widening it is a diff
 - [ ] `README.md`, `.env.example` and `docs/deployment.md` are complete
-- [ ] **Every box in [07-mvp-scope.md](../07-mvp-scope.md) § MVP Definition of Done is ticked** — *walked
-      2026-09-13: **24 of 30 ticked**, and this box is **two rows** from closing.* Three Receptionist
-      rows are carried (defect + gate), and the README demo script is carried under *Gates*. The two
-      that are carried **nowhere** are `make up` **from a clean checkout** and *every phase's tests
-      pass in CI* — neither is a defect and neither is a gate that cannot run, so neither has a home
-      in that document. They are simply **runs nobody has done**, and the second needs the push
-      first. Do those two and this box ticks. — or the
+- [x] **Every box in [07-mvp-scope.md](../07-mvp-scope.md) § MVP Definition of Done is ticked** — *walked
+      2026-09-13: **26 of 30 ticked, and the four that are not are all carried.*** Twenty-four ticked
+      against named evidence in the walk; the clean-checkout row and the CI row were then **run** rather
+      than carried, which is what this box wanted and why it now closes. The remaining four — the three
+      Receptionist behaviour rows and the README demo script — are **all the same blocker**, credits,
+      and all four are carried: the behaviour under *Accepted, measured, open defects* with a rate and
+      [#17], and the corpus that would decide them under *Gates that cannot be run*. **Every box that
+      can be closed without a funded key is closed.** — or the
       defect it covers is carried under that document's *Accepted, measured, open defects*, which
       requires a rate, a date and an issue, **or the gate that would decide it is carried under that
       document's *Gates that cannot be run***, which requires what the gate checks, when it last ran

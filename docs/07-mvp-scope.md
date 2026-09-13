@@ -260,20 +260,27 @@ The MVP is complete when **all** of the following are true. Each line is verifia
       is derived rather than empty, and every exemption carries a reason
 
 ### Engineering
-- [ ] `make up` brings the whole system up from a clean checkout — *walked 2026-09-13:* **not run.**
-      The target exists and `check-ports`, `check-bindings` and `check-fake-provider` guard parts of it,
-      but nobody has done the clone-to-running walk. It is the one row here that cannot be closed by
-      reading, and it cannot be trusted from this working copy — **a clean clone gets `origin`, which is
-      six commits behind local `dev`**
+- [x] `make up` brings the whole system up from a clean checkout — *ticked 2026-09-13, by doing it.*
+      A fresh `git clone` of `origin/dev` at `82fc678` into a scratch directory, **not** this working
+      copy: `make up` created `.env` from `.env.example` and brought up Postgres, Mailpit and Caddy on
+      fresh volumes; `make up-all` then built backend and frontend **from the clone's own context** —
+      compose declares no `image:`, so it could not reuse an image built here — and all five containers
+      reported healthy. `/api/health` answered `{"status":"UP","components":{"database":"UP","mail":"UP"}}`,
+      `/book/salon-aria` answered `200`, and the public API returned the business and its services. The
+      clone's database held **exactly the two demo tenants**, which is what proves the volume was
+      genuinely fresh rather than the five-tenant one on this machine. Torn down with `-v` afterwards;
+      the pre-existing volumes were untouched. **Two deviations were required and both are recorded as
+      gaps — G46 and G47**
 - [x] Seed data creates two businesses in different verticals — *ticked 2026-09-13.* `DemoSeedTest`:
       **Salon Aria** (Asia/Tbilisi, GEL, GE) and **Dato's Auto** (Europe/Berlin, EUR, DE) — two
       verticals, two timezones, two currencies — with every seeded appointment asserted inside both the
       business's hours and the employee's schedule, and seeding twice leaving one copy
-- [ ] Every phase's tests pass in CI, including the concurrency test and the tenant-isolation suite —
-      *walked 2026-09-13:* **not tickable, and not for a test reason.** Both named suites pass locally
-      (1063 backend tests, 0 failed) and both have passed in CI before. **CI has not run since
-      `6321485`**, and local `dev` is six commits ahead of `origin/dev`. A green laptop is not this row;
-      the row says *in CI*. It closes on a push, which is waiting on G43
+- [x] Every phase's tests pass in CI, including the concurrency test and the tenant-isolation suite —
+      *ticked 2026-09-13.* The seven commits were pushed and CI ran on `82fc678`: **all six jobs green**
+      — Backend (`ConcurrentBookingTest` and `TenantIsolationSweepTest` among 1063), Frontend,
+      Documentation consistency, Compose smoke test, End-to-end, and **`Pipeline parity` on its first
+      ever run on GitHub**. That last one is why this row is worth more than it was: the Makefile and the
+      workflow are now asserted to run the same suites, in both directions, by a job rather than by hand
 - [x] One Playwright E2E run covers chat → booking → dashboard — *ticked 2026-09-13 for coverage.*
       `e2e/tests/flow.spec.ts` is a single run whose steps are: register, employee, service, **Classic
       booking**, **Receptionist booking**, confirmation and Manage Link, **the owner's dashboard with
