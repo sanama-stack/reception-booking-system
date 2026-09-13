@@ -3,14 +3,13 @@ package dev.reception.tenancy;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import dev.reception.support.IntegrationTest;
+import dev.reception.support.MappedSurface;
 import java.util.Set;
 import java.util.TreeSet;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
-import org.springframework.web.method.HandlerMethod;
-import org.springframework.web.servlet.mvc.method.RequestMappingInfo;
 import org.springframework.web.servlet.mvc.method.annotation.RequestMappingHandlerMapping;
 
 /**
@@ -106,27 +105,15 @@ class EndpointCoverageTest extends IntegrationTest {
      * classes outside {@code dev.reception}. Filtering on the package means a new springdoc version
      * that renames its paths changes nothing here, and an endpoint of ours can never be excluded by
      * resembling one of theirs.
+     *
+     * <p>{@link MappedSurface#declaringAMethod()} drops the mappings Spring pairs with no verb.
+     * {@code EndpointCatalogue} is keyed by verb, so a methodless mapping could not be classified in
+     * it even if it arrived — and it cannot arrive here anyway, because Spring's {@code /error} is
+     * the only one and it is framework-declared. {@code MappedSurfaceTest} asserts both halves of
+     * that sentence: that the methodless set is exactly {@code /error}, and that none of ours is in
+     * it.
      */
     private Set<String> mappedEndpoints() {
-        Set<String> endpoints = new TreeSet<>();
-        mappings.getHandlerMethods().forEach((info, handler) -> {
-            if (!isOurs(handler)) {
-                return;
-            }
-            for (String pattern : patternsOf(info)) {
-                info.getMethodsCondition().getMethods().forEach(method -> endpoints.add(method + " " + pattern));
-            }
-        });
-        return endpoints;
-    }
-
-    private static boolean isOurs(HandlerMethod handler) {
-        return handler.getBeanType().getPackageName().startsWith("dev.reception");
-    }
-
-    private static Set<String> patternsOf(RequestMappingInfo info) {
-        return info.getPathPatternsCondition() == null
-                ? Set.of()
-                : info.getPathPatternsCondition().getPatternValues();
+        return MappedSurface.of(mappings).ours().declaringAMethod().signatures();
     }
 }

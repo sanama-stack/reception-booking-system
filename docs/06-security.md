@@ -595,9 +595,18 @@ as nothing at all.
 > actuator holds `GET /actuator`, mapped even though `management.endpoints.web.exposure.include` is
 > set to the empty string, because the links document is registered independently of what it has to
 > link to; a `RouterFunction` bean would hold a third set that no control here can see at all. A
-> mapping that declares no HTTP method is invisible for a different reason again: every one of these
-> derivations pairs a pattern with a verb, and Spring's `/error` offers no verb to pair, so it does
-> not arrive to be excluded. [`MappedSurfaceTest`](../backend/src/test/java/dev/reception/common/web/MappedSurfaceTest.java)
+> mapping that declares no HTTP method was invisible for a different reason again: every one of these
+> derivations paired a pattern with a verb, and Spring's `/error` offers no verb to pair, so it did
+> not arrive to be excluded. **That third one is now an exclusion rather than a blind spot.** The
+> derivation itself was the copy-paste — six identical `patternsOf` methods, nine copies of the
+> package filter, three copies of an endpoint record — and it is now one class,
+> [`MappedSurface`](../backend/src/test/java/dev/reception/support/MappedSurface.java), which reports
+> a methodless mapping under the verb `ANY` instead of swallowing it. Every control that wants only
+> verb-declaring endpoints now says `declaringAMethod()` at its own call site and writes down what
+> that costs; `RateLimitCoverageTest`, the one control not filtered by package, cites the assertion
+> that makes its exclusion safe. A control that forgets to narrow gets `ANY` endpoints in its results
+> rather than a quietly shorter list.
+> [`MappedSurfaceTest`](../backend/src/test/java/dev/reception/common/web/MappedSurfaceTest.java)
 > enumerates all three classes, asserts by equality that each is still what it says, asserts that the
 > five empty mappings are **empty rather than merely described so**, and pins the two invisible
 > surfaces by the property that makes them harmless — neither `/error` nor `/actuator` is reachable

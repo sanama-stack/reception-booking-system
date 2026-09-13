@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import dev.reception.common.ratelimit.RateLimitPolicy;
 import dev.reception.common.ratelimit.RateLimitProperties;
 import dev.reception.support.IntegrationTest;
+import dev.reception.support.MappedSurface;
 import dev.reception.support.ResourceSurface;
 import java.util.List;
 import java.util.Map;
@@ -244,15 +245,7 @@ class ApiDocumentationExposureTest extends IntegrationTest {
      */
     private Set<String> publicDocumentationPaths() {
         Set<String> candidates = new TreeSet<>(ResourceSurface.samplePaths(context));
-        mappings.getHandlerMethods().forEach((info, handler) -> {
-            if (handler.getBeanType().getPackageName().startsWith("dev.reception")
-                    || info.getPathPatternsCondition() == null
-                    || info.getMethodsCondition().getMethods().stream()
-                            .noneMatch(method -> method.asHttpMethod() == HttpMethod.GET)) {
-                return;
-            }
-            candidates.addAll(info.getPathPatternsCondition().getPatternValues());
-        });
+        candidates.addAll(MappedSurface.of(mappings).framework().answering("GET").patterns());
 
         Set<String> reachable = new TreeSet<>();
         candidates.forEach(path -> {

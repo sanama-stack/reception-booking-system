@@ -3,6 +3,7 @@ package dev.reception.common.web;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import dev.reception.support.IntegrationTest;
+import dev.reception.support.MappedSurface;
 import jakarta.servlet.ServletContext;
 import jakarta.servlet.http.HttpServletRequest;
 import java.util.LinkedHashMap;
@@ -30,39 +31,48 @@ import org.springframework.web.servlet.HandlerMapping;
 import org.springframework.web.servlet.function.support.RouterFunctionMapping;
 import org.springframework.web.servlet.handler.AbstractHandlerMethodMapping;
 import org.springframework.web.servlet.handler.AbstractUrlHandlerMapping;
-import org.springframework.web.servlet.mvc.method.RequestMappingInfo;
 import org.springframework.web.servlet.mvc.method.annotation.RequestMappingHandlerMapping;
 
 /**
  * <strong>Everything this application serves is inside one of the derived controls, or named here
  * with the reason it is outside — and the reason is asserted rather than asserted-by-comment.</strong>
  *
- * <p>Five tests now derive their subject from {@link RequestMappingHandlerMapping} rather than from a
- * list somebody typed: tenancy coverage, rate-limit coverage, the form-post refusal, the CORS sweep
- * and the authentication-event sweep. Each narrows what it looks at, and every narrowing is correct
- * in its own place. <strong>What nothing recorded is the union of what they all step over</strong> —
- * and a control's blind spot is not visible from inside it, because the blind spot is exactly where
- * it reports nothing.
+ * <p>Eight tests derive their subject from {@link RequestMappingHandlerMapping} rather than from a
+ * list somebody typed: tenancy coverage, rate-limit coverage, the form-post refusal, the CORS sweep,
+ * the authentication-event sweep, the request-body walk, the documentation-exposure sweep and the
+ * public allow-list. Each narrows what it looks at, and every narrowing is correct in its own place.
+ * <strong>What nothing recorded is the union of what they all step over</strong> — and a control's
+ * blind spot is not visible from inside it, because the blind spot is exactly where it reports
+ * nothing.
  *
- * <p>There are three ways out of that union, and they are different in kind.
+ * <p>There are three ways out of that union, and they are different in kind. <strong>The first has
+ * since been closed at its source and the other two have not</strong>, which is why they are still
+ * described together here: the assertions below are what stands between each of them and a surface
+ * nothing reports.
  *
  * <ol>
- *   <li><strong>A mapping with no HTTP method condition is invisible to all five.</strong> Each of
- *       them iterates {@code info.getMethodsCondition().getMethods()} to pair a pattern with a verb;
- *       an empty condition yields an empty loop, so the endpoint contributes nothing and is not
- *       reported as anything. It is not filtered out — it never arrives. Spring's {@code /error} is
- *       mapped this way.
+ *   <li><strong>A mapping with no HTTP method condition was invisible to all of them —
+ *       closed.</strong> Each derivation iterated {@code info.getMethodsCondition().getMethods()} to
+ *       pair a pattern with a verb; an empty condition yielded an empty loop, so the endpoint
+ *       contributed nothing and was not reported as anything. It was not filtered out — it never
+ *       arrived. Spring's {@code /error} is mapped this way. The eight derivations are now one
+ *       ({@link dev.reception.support.MappedSurface}), and it reports such a mapping under the verb
+ *       {@code ANY} rather than swallowing it, so each control excludes it by name. {@link
+ *       #the_narrowing_every_derivation_makes_is_not_a_no_op()} is what keeps that true.
  *   <li><strong>Every derivation is scoped to {@code dev.reception}.</strong> That is the right
  *       decision — a springdoc release renaming its paths should not break a test about our tenancy
  *       — and its cost is the set of framework endpoints below. Rate-limit coverage was widened to
  *       include them in phase 11, after the package filter was found to be hiding {@code /openapi}
  *       serving the full specification to anybody, unlimited.
- *   <li><strong>All five read one {@link HandlerMapping} out of the eight this application
+ *   <li><strong>They read one {@link HandlerMapping} out of the eight this application
  *       builds.</strong> This is the widest of the three and the one that had not been written down
  *       at all. A path served by a resource handler is in no handler mapping; {@code GET /actuator}
  *       is in a handler mapping of the actuator's own; a {@code RouterFunction} bean would be in a
  *       third. None of them is filtered out by any control, because no control ever looks in the
- *       object that holds them.
+ *       object that holds them. {@code MappedSurface} reads any mapping keyed by {@code
+ *       RequestMappingInfo}, which is how the actuator's surface is pinned below with the same
+ *       derivation the controllers get — but that is one of the seven, and reading the rest is still
+ *       {@link #surfaceOf}'s job and nobody else's.
  * </ol>
  *
  * <p><strong>Naming an exclusion is not the same as making it safe, and this class tries for the
@@ -214,13 +224,8 @@ class MappedSurfaceTest extends IntegrationTest {
     @Test
     @DisplayName("no endpoint of ours is invisible for want of a declared HTTP method")
     void nothing_of_ours_is_mapped_without_a_method() {
-        Set<String> ours = new TreeSet<>();
-        mappings.getHandlerMethods().forEach((info, handler) -> {
-            if (handler.getBeanType().getPackageName().startsWith("dev.reception")
-                    && info.getMethodsCondition().getMethods().isEmpty()) {
-                ours.addAll(patternsOf(info));
-            }
-        });
+        Set<String> ours =
+                MappedSurface.of(mappings).ours().answering(MappedSurface.ANY).patterns();
 
         assertThat(ours)
                 .as(
@@ -237,22 +242,75 @@ class MappedSurfaceTest extends IntegrationTest {
     @Test
     @DisplayName("the mappings with no HTTP method are the ones named here")
     void the_methodless_mappings_are_the_ones_named_here() {
-        Set<String> methodless = new TreeSet<>();
-        mappings.getHandlerMethods().forEach((info, handler) -> {
-            if (info.getMethodsCondition().getMethods().isEmpty()) {
-                methodless.addAll(patternsOf(info));
-            }
-        });
+        Set<String> methodless = MappedSurface.of(mappings).answering(MappedSurface.ANY).patterns();
 
         assertThat(methodless)
                 .as(
                         """
-                        A mapping that declares no HTTP method is invisible to every endpoint \
-                        derivation in this suite. If this set has grown, the new entry is currently \
-                        outside all of them — decide what it is, then either give it a method or add \
-                        it to MAPPED_WITHOUT_A_METHOD with the reason it may stay invisible. Do not \
+                        A mapping that declares no HTTP method is excluded by every endpoint \
+                        derivation in this suite that is keyed by verb — by declaringAMethod(), or \
+                        by an answering(...) list that cannot contain ANY — and each of those owes \
+                        a reason at its call site. If this set has grown, the new entry is currently \
+                        outside all of them: decide what it is, then either give it a method or add \
+                        it to MAPPED_WITHOUT_A_METHOD with the reason it may stay excluded. Do not \
                         reach for the second: the first is almost always right.""")
                 .containsExactlyInAnyOrderElementsOf(MAPPED_WITHOUT_A_METHOD.keySet());
+    }
+
+    /**
+     * The control that keeps the exclusion an exclusion.
+     *
+     * <p>Until {@code MappedSurface} existed, these mappings were not excluded by the derivations —
+     * they never reached them. Each derivation paired a pattern with a verb by iterating the methods
+     * condition, so an empty condition was an empty loop, and the endpoint contributed nothing
+     * without anything recording that it had not. Every call site now says {@code
+     * declaringAMethod()} out loud.
+     *
+     * <p><strong>Which is worth nothing if the call stops removing anything.</strong> Teach {@code
+     * MappedSurface.of} to swallow methodless mappings again — the shape six copies of {@code
+     * patternsOf} had, and the obvious "simplification" for somebody who finds {@link
+     * MappedSurface#ANY} puzzling — and every {@code declaringAMethod()} in this repository becomes
+     * a no-op that still reads like a decision.
+     *
+     * <p><strong>Measured rather than assumed: that counterfactual turns 3 of this class's 12
+     * red</strong>, and this is the third. The other two are {@link
+     * #the_methodless_mappings_are_the_ones_named_here()} and {@link
+     * #the_framework_surface_is_the_one_named_here()}, which pin sets by equality and so notice that
+     * {@code /error} has left them. <strong>They report the symptom; this reports the cause.</strong>
+     * A set that lost an entry reads like the application changed — the first thing a reader will do
+     * is check whether {@code /error} is still mapped — and the failure here says instead that the
+     * narrowing stopped narrowing, which is the sentence that leads to the derivation.
+     *
+     * <p>Worth knowing which nine stay green, because two of them are about this exact blind spot:
+     * {@link #nothing_of_ours_is_mapped_without_a_method()} asserts an empty set and an empty set is
+     * what a blind derivation returns, and {@link #nothing_invisible_is_reachable_anonymously()}
+     * walks {@link #MAPPED_WITHOUT_A_METHOD} rather than the derivation. Both are correct and
+     * neither can see the regression. <strong>An assertion written about a blind spot is not
+     * automatically an assertion that can see it coming back.</strong>
+     */
+    @Test
+    @DisplayName("the narrowing every derivation makes still removes something, and only this")
+    void the_narrowing_every_derivation_makes_is_not_a_no_op() {
+        Set<String> everything = MappedSurface.of(mappings).signatures();
+        Set<String> withAVerb = MappedSurface.of(mappings).declaringAMethod().signatures();
+
+        Set<String> dropped = new TreeSet<>(everything);
+        dropped.removeAll(withAVerb);
+
+        assertThat(dropped)
+                .as(
+                        """
+                        declaringAMethod() removed nothing, so every call to it in this repository \
+                        is a narrowing that narrows nothing — and the mappings it is written to \
+                        exclude are back to being invisible rather than excluded. Either \
+                        MappedSurface has stopped reporting methodless mappings under ANY, or this \
+                        application no longer has one. The second is good news and this assertion \
+                        is then the thing to delete, together with MAPPED_WITHOUT_A_METHOD and every \
+                        declaringAMethod() call that cites it.""")
+                .isNotEmpty()
+                .containsExactlyInAnyOrderElementsOf(MAPPED_WITHOUT_A_METHOD.keySet().stream()
+                        .map(pattern -> MappedSurface.ANY + " " + pattern)
+                        .toList());
     }
 
     /**
@@ -297,21 +355,7 @@ class MappedSurfaceTest extends IntegrationTest {
     @Test
     @DisplayName("the endpoints outside dev.reception are the ones named here")
     void the_framework_surface_is_the_one_named_here() {
-        Set<String> framework = new TreeSet<>();
-        mappings.getHandlerMethods().forEach((info, handler) -> {
-            if (handler.getBeanType().getPackageName().startsWith("dev.reception")) {
-                return;
-            }
-            for (String pattern : patternsOf(info)) {
-                Set<String> methods = new TreeSet<>();
-                info.getMethodsCondition().getMethods().forEach(method -> methods.add(method.asHttpMethod().name()));
-                if (methods.isEmpty()) {
-                    framework.add("ANY " + pattern);
-                } else {
-                    methods.forEach(method -> framework.add(method + " " + pattern));
-                }
-            }
-        });
+        Set<String> framework = MappedSurface.of(mappings).framework().signatures();
 
         assertThat(framework)
                 .as(
@@ -391,14 +435,9 @@ class MappedSurfaceTest extends IntegrationTest {
     @Test
     @DisplayName("the actuator mounts what it is said to mount, and no more")
     void the_actuator_surface_is_the_one_named_here() {
-        Set<String> mounted = new TreeSet<>();
-        context.getBean(WebMvcEndpointHandlerMapping.class).getHandlerMethods().forEach((info, handler) -> {
-            for (String pattern : patternsOf(info)) {
-                info.getMethodsCondition()
-                        .getMethods()
-                        .forEach(method -> mounted.add(method.asHttpMethod().name() + " " + pattern));
-            }
-        });
+        Set<String> mounted = MappedSurface.of(context.getBean(WebMvcEndpointHandlerMapping.class))
+                .declaringAMethod()
+                .signatures();
 
         assertThat(mounted)
                 .as(
@@ -548,9 +587,4 @@ class MappedSurfaceTest extends IntegrationTest {
         return result == null || result.isGranted();
     }
 
-    private static Set<String> patternsOf(RequestMappingInfo info) {
-        return info.getPathPatternsCondition() == null
-                ? Set.of()
-                : info.getPathPatternsCondition().getPatternValues();
-    }
 }

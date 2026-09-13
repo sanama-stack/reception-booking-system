@@ -14,6 +14,7 @@ import dev.reception.appointments.BookingScenario;
 import dev.reception.notifications.ManageTokenService;
 import dev.reception.support.DatabaseCleaner;
 import dev.reception.support.IntegrationTest;
+import dev.reception.support.MappedSurface;
 import java.time.Clock;
 import java.time.Instant;
 import java.util.ArrayList;
@@ -451,12 +452,7 @@ class PublicFieldAllowListTest extends IntegrationTest {
     @Test
     @DisplayName("every mapped public endpoint is one this test actually drives")
     void every_mapped_public_endpoint_is_swept() {
-        Set<String> mapped = new java.util.TreeSet<>();
-        handlerMapping.getHandlerMethods().keySet().forEach(info -> info.getPathPatternsCondition()
-                .getPatternValues()
-                .stream()
-                .filter(pattern -> pattern.startsWith("/public/"))
-                .forEach(mapped::add));
+        Set<String> mapped = MappedSurface.of(handlerMapping).under("/public/").patterns();
 
         assertThat(mapped)
                 .as("A public endpoint that this test does not drive is a public response nobody has "

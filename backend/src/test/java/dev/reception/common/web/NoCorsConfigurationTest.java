@@ -3,6 +3,8 @@ package dev.reception.common.web;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import dev.reception.support.IntegrationTest;
+import dev.reception.support.MappedSurface;
+import dev.reception.support.MappedSurface.Endpoint;
 import java.util.List;
 import java.util.Set;
 import java.util.TreeMap;
@@ -21,7 +23,6 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.CrossOrigin;
-import org.springframework.web.servlet.mvc.method.RequestMappingInfo;
 import org.springframework.web.servlet.mvc.method.annotation.RequestMappingHandlerMapping;
 
 /**
@@ -167,10 +168,7 @@ class NoCorsConfigurationTest extends IntegrationTest {
                 .isNull();
 
         var declared = new TreeSet<String>();
-        mappings.getHandlerMethods().forEach((info, handler) -> {
-            if (!handler.getBeanType().getPackageName().startsWith("dev.reception")) {
-                return;
-            }
+        MappedSurface.of(mappings).ours().handlers().forEach(handler -> {
             if (handler.getMethodAnnotation(CrossOrigin.class) != null
                     || AnnotatedElementUtils.findMergedAnnotation(handler.getBeanType(), CrossOrigin.class) != null) {
                 declared.add(handler.getBeanType().getSimpleName() + "#" + handler.getMethod().getName());
@@ -294,42 +292,14 @@ class NoCorsConfigurationTest extends IntegrationTest {
      * Every endpoint this application maps, framework endpoints excluded. Reads as well as writes:
      * a {@code @CrossOrigin} on a read controller is a cross-origin read of tenant data, which is
      * the worse of the two.
+     *
+     * <p>{@link MappedSurface#declaringAMethod()} drops the mappings Spring pairs with no verb,
+     * because a preflight is sent <em>for</em> a verb and there is none here to send it for. The
+     * only such mapping is framework-declared Spring's {@code /error}, which {@link
+     * MappedSurface#ours()} has already removed; {@code MappedSurfaceTest} is where that set is held
+     * to its shape.
      */
     private Set<Endpoint> mappedEndpoints() {
-        Set<Endpoint> endpoints = new TreeSet<>();
-        mappings.getHandlerMethods().forEach((info, handler) -> {
-            if (!handler.getBeanType().getPackageName().startsWith("dev.reception")) {
-                return;
-            }
-            for (String pattern : patternsOf(info)) {
-                info.getMethodsCondition()
-                        .getMethods()
-                        .forEach(method -> endpoints.add(new Endpoint(method.asHttpMethod().name(), pattern)));
-            }
-        });
-        return endpoints;
-    }
-
-    private static Set<String> patternsOf(RequestMappingInfo info) {
-        return info.getPathPatternsCondition() == null
-                ? Set.of()
-                : info.getPathPatternsCondition().getPatternValues();
-    }
-
-    private record Endpoint(String method, String pattern) implements Comparable<Endpoint> {
-
-        /** Template variables filled with something that resolves to nothing. */
-        String samplePath() {
-            return pattern.replaceAll("\\{[^/]*}", "00000000-0000-0000-0000-000000000001");
-        }
-
-        String signature() {
-            return method + " " + pattern;
-        }
-
-        @Override
-        public int compareTo(Endpoint other) {
-            return signature().compareTo(other.signature());
-        }
+        return MappedSurface.of(mappings).ours().declaringAMethod().endpoints();
     }
 }
