@@ -7,6 +7,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.jayway.jsonpath.JsonPath;
 import dev.reception.appointments.BookingScenario;
+import dev.reception.scheduling.domain.EmptyReason;
 import dev.reception.support.AuthTestClient;
 import dev.reception.support.DatabaseCleaner;
 import dev.reception.support.IntegrationTest;
@@ -262,8 +263,13 @@ class ToolExecutionTest extends IntegrationTest {
     }
 
     /**
-     * A range wider than the engine's own ceiling. Narrowed rather than refused, and the response
-     * says so — silently answering a smaller question would make {@code truncated} a lie.
+     * A range wider than the tool's context budget — <em>not</em> the engine's ceiling, which is
+     * larger ({@value dev.reception.scheduling.application.AvailabilityService#MAX_RANGE_DAYS}) and
+     * refuses rather than narrows. This javadoc said "the engine's own ceiling" and was repeating
+     * the constant's own false claim.
+     *
+     * <p>Narrowed rather than refused, and the response says so — silently answering a smaller
+     * question would make {@code truncated} a lie.
      */
     @Test
     @DisplayName("a range longer than fourteen days is narrowed, and the reply says it was")
@@ -279,6 +285,58 @@ class ToolExecutionTest extends IntegrationTest {
                 .isEqualTo(FindAvailableSlotsTool.MAX_DAYS);
         assertThat(result.path("searched_to").asText())
                 .isEqualTo(aria.monday.plusDays(FindAvailableSlotsTool.MAX_DAYS - 1L).toString());
+    }
+
+    /**
+     * The branch that speaks a word the engine does not have.
+     *
+     * <p>Nothing exercised it before this test. It is reachable only one way: the engine finds
+     * Slots, so its {@code emptyReason} is null, and the time filter then removes every one of
+     * them — which is why {@code OUTSIDE_REQUESTED_TIMES} cannot be an {@link EmptyReason} and why
+     * the two assertions below are a pair rather than one test twice.
+     */
+    @Test
+    @DisplayName("a filter that removes every slot is reported as the tool's reason, not the engine's silence")
+    void everything_filtered_out_is_the_tools_own_reason() {
+        ObjectNode result = call(
+                "find_available_slots",
+                args(
+                        "service_id", aria.serviceId,
+                        "date_from", aria.monday.toString(),
+                        // The business closes at 17:00, so nothing starts at or after this. The
+                        // engine still finds the day's Slots; every one of them is filtered here.
+                        "earliest_time", "23:00"));
+
+        assertThat(result.path("slots")).isEmpty();
+        assertThat(result.path("empty_reason").asText())
+                .isEqualTo(FindAvailableSlotsTool.OUTSIDE_REQUESTED_TIMES);
+    }
+
+    @Test
+    @DisplayName("an engine reason reaches the model under the engine's own name")
+    void an_engine_reason_is_not_renamed() {
+        // A Monday that has already happened: OUTSIDE_HORIZON whatever the business's maximum
+        // advance is, which is what makes this deterministic on every day of the week.
+        ObjectNode result = call(
+                "find_available_slots",
+                args("service_id", aria.serviceId, "date_from", aria.pastMonday.toString()));
+
+        assertThat(result.path("slots")).isEmpty();
+        assertThat(result.path("empty_reason").asText()).isEqualTo(EmptyReason.OUTSIDE_HORIZON.name());
+    }
+
+    /**
+     * The tidying this forbids is the obvious one: moving {@code OUTSIDE_REQUESTED_TIMES} onto
+     * {@link EmptyReason} so that {@code empty_reason} has a single type behind it. It would make
+     * the enum's own contract false — the engine produces every constant on it, and never this one
+     * — and it would make the two cases above indistinguishable to anything reading the field.
+     */
+    @Test
+    @DisplayName("the tool's invented reason is not, and must not become, an engine reason")
+    void the_invented_reason_cannot_collide_with_an_engine_reason() {
+        assertThat(EmptyReason.values())
+                .extracting(Enum::name)
+                .doesNotContain(FindAvailableSlotsTool.OUTSIDE_REQUESTED_TIMES);
     }
 
     // ---------------------------------------------------------------- writes
