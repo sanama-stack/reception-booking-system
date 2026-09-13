@@ -11,6 +11,33 @@
 {
 	admin off
 	auto_https off
+
+	# The error logger, redacted the same way the access logger below is — and it is a SEPARATE
+	# logger, which is the trap. A site's `log` directive configures `http.log.access.logN` only.
+	# Caddy writes `http.log.error.logN` from the proxy handler whenever an upstream refuses,
+	# times out or returns a transport error, and that line carries the whole request including
+	# its uri. So a Caddyfile that filters only the access log still writes every Manage Link
+	# token to stdout the moment the backend is down — which is exactly when somebody is reading
+	# the logs. Found by probing with the backend stopped; an access-log-only filter looked
+	# complete against a healthy stack.
+	#
+	# `default` has to exclude the namespace as well, or the unfiltered copy is written anyway:
+	# Caddy sends a log entry to every logger whose include/exclude rules accept it, so adding a
+	# second logger ADDS a line rather than replacing one.
+	log default {
+		exclude http.log.error
+	}
+
+	log errors {
+		include http.log.error
+		output stdout
+		format filter {
+			wrap json
+			fields {
+				request>uri regexp "(^/manage/|[?&]token=)[^/?&]+" "${1}REDACTED"
+			}
+		}
+	}
 }
 
 :8080 {
@@ -56,8 +83,28 @@
 		-Server
 	}
 
+	# The access log, with the one thing in a URL that is a credential taken out of it.
+	#
+	# A Manage Link is a bearer capability: whoever holds the token can read, reschedule and cancel
+	# that appointment until 24 hours after it ends. It travels as a PATH SEGMENT in the page the
+	# Customer opens (/manage/<token>, built by NotificationEnqueuer) and as a QUERY PARAMETER on
+	# the two API calls that page makes. Caddy is the only access log in the system, and an
+	# unfiltered one writes every one of them to stdout verbatim — which is the container log,
+	# which is whatever a deployment ships its logs to. docs/06-security.md §6 said these were
+	# excluded from access logs; until phase 11 no file did that, and the two probes in
+	# `make check-headers` are what now holds it.
+	#
+	# One regexp does both shapes. `^/manage/` is anchored so it matches the frontend page and not
+	# /api/public/appointments/manage/availability, whose last segment is a route and not a secret;
+	# that path is covered by the `token=` alternative instead. Redacting it here rather than
+	# dropping the field keeps the log useful: which endpoint was hit, and by whom, still reads.
 	log {
 		output stdout
-		format json
+		format filter {
+			wrap json
+			fields {
+				request>uri regexp "(^/manage/|[?&]token=)[^/?&]+" "${1}REDACTED"
+			}
+		}
 	}
 }

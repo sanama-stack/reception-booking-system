@@ -80,6 +80,36 @@ export async function manageLinkFrom(request: APIRequestContext, id: string): Pr
   return match[0].replace(/&amp;/g, '&');
 }
 
+/**
+ * The ids of every message whose body carries `needle`.
+ *
+ * **This exists to assert an ABSENCE**, which is why it reads bodies rather than recipients.
+ * `waitForMail` asks "did this address get mail", and that question cannot express "the booking
+ * with no address on file sent nothing" — there is no address to ask about. A Confirmation Code
+ * appears in no other message, so it identifies a booking's mail without naming a recipient.
+ *
+ * It throws rather than returning `[]` when Mailpit will not answer. An empty list is the value
+ * that makes an absence assertion PASS, so returning it on failure would turn every outage into a
+ * green.
+ */
+export async function mailContaining(
+  request: APIRequestContext,
+  needle: string,
+): Promise<string[]> {
+  const listed = await request.get(`${MAILPIT}/api/v1/messages?limit=200`);
+  expect(listed.ok(), `Mailpit listed its messages (${listed.status()})`).toBeTruthy();
+  const body = (await listed.json()) as { messages?: Mail[] };
+
+  const hits: string[] = [];
+  for (const message of body.messages ?? []) {
+    const full = await request.get(`${MAILPIT}/api/v1/message/${message.ID}`);
+    expect(full.ok(), `Mailpit returned message ${message.ID} (${full.status()})`).toBeTruthy();
+    const content = (await full.json()) as { Text?: string; HTML?: string };
+    if (`${content.Text ?? ''}\n${content.HTML ?? ''}`.includes(needle)) hits.push(message.ID);
+  }
+  return hits;
+}
+
 /** Register, and return the slug the dashboard reports rather than one recomputed from the name. */
 export async function registerBusiness(
   page: Page,

@@ -80,8 +80,19 @@ public final class PublicRequests {
      *
      * <p>The token is never logged and never echoed back. It is a capability, and an error message
      * is one of the places a capability leaks (docs/06-security.md §6).
+     *
+     * <p><strong>Bounded, even though nothing here is required.</strong> The three maxima are the
+     * ones their twins elsewhere on this public surface already carry — {@code Lookup} above bounds
+     * the same code at 16 and the same number at 30, and {@code PublicChatRequests.StartSession}
+     * bounds the same token at 500. They were missing here until phase 11, and the reason they were
+     * missing is visible in the paragraph above: the argument against {@code @NotBlank} is sound and
+     * is about <em>presence</em>, and it quietly took the length bound with it. Presence and length
+     * are unrelated rules, and these two endpoints are unauthenticated (docs/06-security.md §7).
      */
-    public record Authority(String manageToken, String confirmationCode, String phone) {
+    public record Authority(
+            @Size(max = 500, message = "That is longer than a manage link.") String manageToken,
+            @Size(max = 16, message = "That is longer than a confirmation code.") String confirmationCode,
+            @Size(max = 30, message = "That is longer than a phone number.") String phone) {
 
         public boolean hasManageToken() {
             return manageToken != null && !manageToken.isBlank();

@@ -41,6 +41,21 @@ final class EndpointCatalogue {
         OWNER_COLLECTION,
 
         /**
+         * Names a tenant-owned row in the <strong>query string</strong> rather than the path.
+         * Probed exactly as {@link #OWNER_RESOURCE_ID} is — B's real id, expect {@code 404} — and
+         * catalogued apart from it only because the id is not in the pattern and cannot be filled
+         * in mechanically.
+         *
+         * <p>This constant exists because {@code GET /availability} was catalogued as an {@link
+         * #OWNER_COLLECTION}, whose javadoc begins "takes no id", while the endpoint has taken a
+         * required {@code serviceId} and two optional ids since phase 05. The reads behind it are
+         * scoped and the probe passes; the classification was the defect, and a wrong written
+         * judgement is worse than none, because it is the sentence that stops the next person
+         * looking.
+         */
+        OWNER_QUERY_ID,
+
+        /**
          * The Business itself, or a part of it. There is no id to borrow — the tenant comes from
          * the Membership — so the probe is that A's response describes A.
          */
@@ -83,12 +98,17 @@ final class EndpointCatalogue {
      *
      * @param isolation what isolation means here
      * @param borrowed which of B's rows the probe borrows, for {@link Isolation#OWNER_RESOURCE_ID}
+     *     and {@link Isolation#OWNER_QUERY_ID}
      * @param why prose, required wherever the answer is not "probe it with a stolen id"
      */
     record Classification(Isolation isolation, Borrowed borrowed, String why) {
 
         static Classification resource(Borrowed borrowed) {
             return new Classification(Isolation.OWNER_RESOURCE_ID, borrowed, "");
+        }
+
+        static Classification queryId(Borrowed borrowed) {
+            return new Classification(Isolation.OWNER_QUERY_ID, borrowed, "");
         }
 
         static Classification collection() {
@@ -200,7 +220,7 @@ final class EndpointCatalogue {
         // -------------------------------------------------------------------
         ENDPOINTS.put("GET /calendar", Classification.collection());
         ENDPOINTS.put("GET /analytics/summary", Classification.singleton());
-        ENDPOINTS.put("GET /availability", Classification.collection());
+        ENDPOINTS.put("GET /availability", Classification.queryId(Borrowed.SERVICE));
 
         // -------------------------------------------------------------------
         // Public — the tenant is the slug

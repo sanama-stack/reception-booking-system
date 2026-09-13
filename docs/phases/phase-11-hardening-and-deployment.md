@@ -383,10 +383,15 @@ argument that it was right.
       at any depth, in both spellings
 - [x] Full E2E flow green in CI against the fake provider (ADR-0011)
 - [x] 360 px public-page run
-- [ ] Rate limits verified for every public endpoint
+- [x] Rate limits verified for every public endpoint — `RateLimitCoverageTest`, which derives the
+      public surface from the handler mapping and the security filter chain rather than from a
+      list. Found three endpoints that had never carried a limit; shown red six ways
 - [x] Security-header test
-- [ ] Log redaction test
-- [ ] `prod` profile refuses default secrets
+- [x] Log redaction test — `AppenderRedactionTest`, at the appenders rather than at the masker.
+      Shown red five ways
+- [x] `prod` profile refuses default secrets — `SecretsGuardTest`, twelve tests, each starting a
+      real context rather than calling the guard, so the `@Profile("prod")` wiring is under test
+      too. Shown red six ways
 - [x] The three performance checks
 - [x] Frontend unit tests green in CI, including the timezone counterfactual — and the runner is
       UTC, so the counterfactual assertion is what proves `TZ` reached the worker
@@ -396,7 +401,13 @@ argument that it was right.
       pass. Shown red three ways: anchored on message age instead of conversation activity (2 red),
       with the `messages_purged_at` guard removed (2 red), and with the purge made a no-op (6 red),
       each reverted byte-identically
-- [ ] Revenue reports the remainder after a currency change
+- [x] Revenue reports the remainder after a currency change — `revenue.excluded`, one sum per other
+      currency among the same COMPLETED appointments, `[]` when there are none. Shown red four ways:
+      the derivation returning nothing (1 red), the COMPLETED filter dropped so the remainder
+      reports 120.00 (1 red), the currency comparison inverted (2 red), and `null` in place of the
+      empty list (1 red), each reverted byte-identically. **The first plant is the point**: it is
+      caught only by the assertion on `excluded[*].amount`, because "the list is empty" is what the
+      no-remainder test asserts on purpose. A count would not have caught it either
 - [ ] Full suite green from a clean clone
 
 ## Definition of Done
@@ -410,14 +421,20 @@ argument that it was right.
 - [ ] No secret is in the repository or its history
 - [x] The three performance checks pass
 - [x] Frontend unit tests run in CI's Frontend job
-- [ ] `revenue` names its remainder after a currency change, per ADR-0010
+- [x] `revenue` names its remainder after a currency change, per ADR-0010 — with an amount rather
+      than a count, on the screen as well as in the payload, and never summed with the figure above
+      it or with itself
 - [x] No `ai_message` outlives the documented retention window — ninety days after a
       conversation's last activity, enforced hourly by `TranscriptPurgeJob`. The window is
       `ConversationLimits.TRANSCRIPT_RETENTION_DAYS`, a constant, so widening it is a diff
 - [ ] `README.md`, `.env.example` and `docs/deployment.md` are complete
 - [ ] **Every box in [07-mvp-scope.md](../07-mvp-scope.md) § MVP Definition of Done is ticked** — or the
       defect it covers is carried under that document's *Accepted, measured, open defects*, which
-      requires a rate, a date and an issue. **Do not tick that list as found.** It was audited on
+      requires a rate, a date and an issue, **or the gate that would decide it is carried under that
+      document's *Gates that cannot be run***, which requires what the gate checks, when it last ran
+      and what must happen for it to run again. *Third state added 2026-09-13:* the level-3 corpus
+      cannot run at all, and a box nothing can currently decide is neither a tick nor a measured
+      defect. **Do not tick that list as found.** It was audited on
       2026-09-11 and five rows were **weaker than decisions this project had already recorded**: as
       written they would have ticked on a technicality over
       [#17](https://github.com/sanama-stack/reception-booking-system/issues/17) — a defect the
@@ -439,9 +456,11 @@ argument that it was right.
 - [x] Playwright E2E flow
 - [x] Mailpit API assertions inside E2E
 - [x] Mobile-viewport E2E run
-- [ ] Rate-limit tests for every public endpoint
+- [x] Rate-limit tests for every public endpoint — `RateLimitCoverageTest`. The hand-written
+      list it replaces had been missing both chat endpoints since phase 09
 - [x] Security-header test
-- [ ] Log-redaction test
+- [x] Log-redaction test — secrets driven through the encoder the real `logback-json.xml` builds,
+      and the bytes inspected
 - [x] Vitest + Testing Library wired into the Frontend CI job — 18 files, 68 tests, green in run
       `34702330928`, read out of the job log rather than off the job's colour
 - [x] Timezone rendering test, proven against its counterfactual — `lib/time/index.test.ts` and
@@ -469,29 +488,229 @@ argument that it was right.
 - [x] Credentials printed and documented
 
 ### Security
-- [ ] Walk [06-security.md](../06-security.md) and verify each control — **§12 done 2026-09-12**,
+- [x] Walk [06-security.md](../06-security.md) and verify each control — **all fifteen sections done 2026-09-13**. **§12 done 2026-09-12**,
       and it is the shape to expect from the rest of this walk. Its claim that the database port is
       exposed *"only in the `local` compose profile"* was implemented by **no file**; the principal's
       call was that the file moves rather than the sentence. Both compose topologies now bind to
       loopback, the deployed one publishes no database port at all, and `make check-bindings` holds
       it there in CI and on both `up` targets — shown red three ways, including against the
       `ports: []` that *looks* like it removes a mapping and, because Compose appends sequences,
-      does not
-- [ ] Redaction filter verified across appenders
-- [ ] `prod` default-secret refusal
+      does not. **§5 done 2026-09-12** and it broke in the same shape: the table listed ten limits
+      and the test that checked them listed ten paths, so the two agreed with each other and neither
+      agreed with the application. `/auth/refresh`, `/auth/logout` and `/health` had never been in
+      either. `RateLimitCoverageTest` now reads the public surface off the security filter chain, so
+      the list cannot be short. **§6 done 2026-09-13** and it broke the same way a third
+      time: *"Manage tokens are excluded from access logs"* was implemented by no file, and Caddy —
+      the only access log in the system — wrote every one of them to stdout verbatim, as a path
+      segment in `/manage/{token}` and as a query parameter on the two API calls that page makes.
+      Measured against the running container rather than read off the Caddyfile. **The error logger
+      was the trap**: a site's `log` directive configures the *access* logger only, so the first fix
+      looked complete against a healthy stack and leaked every token the moment the backend was
+      down. `make check-access-log` holds both, shown red three ways — and **its own first control
+      was defective**, satisfied by a stale `/api/health` line from a previous container because
+      `docker compose logs --tail` spans restarts. Both sentinels are now unique per run. **§2 done 2026-09-13**, and its
+      cookie sentence had the same gap one layer down: `RegistrationTest` asserts `httpOnly`,
+      `SameSite=Lax` and `Path=/` over real HTTP and cannot assert `Secure`, because the suite runs
+      the `test` profile where it is deliberately off. `AuthCookieSecurityTest`, seven tests,
+      **shown red three ways** — `application-prod.yml` set to `secure: false`, the `.secure(...)`
+      call deleted from the builder, and the `@Value` default flipped. The third is caught by one
+      test only, and writing it surfaced a wrong premise: *unset* does not reach the `@Value`
+      fallback, because `spring.profiles.default: local`. The assertion that fails safe is about a
+      profile with no file of its own, which is the next environment somebody adds. **§13's CSRF half done 2026-09-13**,
+      by measurement: *"state-changing requests additionally require `Content-Type: application/json`"*
+      was true wherever a `@RequestBody` existed and false at the **ten endpoints that take no
+      body** — a form-encoded `POST /auth/logout` answered `204`. Two layers documented, one built,
+      and the missing one is the layer a reader counts on if `SameSite` is ever relaxed.
+      `JsonOnlyWriteFilter` refuses the three content types an `enctype` can produce, before
+      authentication so the refusal is about the request's shape and not its credentials;
+      `FormPostRejectionTest` derives all 36 writes from `RequestMappingHandlerMapping`. **Shown red
+      four ways**, and the fourth is the control: a filter that refuses *every* content type passes
+      the main assertion and is caught only by sending the same endpoints JSON. **§7 done 2026-09-13**, derived the
+      same way and it found three: `PublicRequests.Authority`'s `manageToken`, `confirmationCode`
+      and `phone` were bare strings on the two **unauthenticated** endpoints, each with a bounded
+      twin a few lines away (16, 30, 500). The record's own comment says why none is `@NotBlank` —
+      *"exactly one of these" is not a field annotation* — and that argument is about **presence**
+      and took the length bound with it. No global request-size cap exists to fall back on.
+      `RequestFieldLengthTest`, **shown red three ways**, and **two of the three were caught only
+      after the control was strengthened**: reading `@Size` off the `RecordComponent` (its `@Target`
+      has no `RECORD_COMPONENT`, so every field reads as unbounded — and read the other way round it
+      would have passed forever), and a walk that stops at nested records, which silently drops the
+      one record the class exists to catch. Naming a nested field in the bounded set is what closes
+      both. **§13's CORS half done 2026-09-13**, which completes §13.
+      *"No CORS configuration exists"* was asserted by nothing, and `NoCorsConfigurationTest` now
+      checks it in two halves: the grant is probed across all 65 mapped endpoints in both shapes,
+      and the configuration is **read** off `RequestMappingHandlerMapping` and the annotations,
+      because a `@CrossOrigin` naming one partner origin is invisible to any probe. **Shown red five
+      ways**, and two of them cost the design. A permissive configuration *plus* a client that
+      cannot send `Origin` — both are restricted headers for `HttpURLConnection` — made the
+      preflight assertion **pass against an application granting every origin everything**; the
+      control is a pair because neither half of it holds alone. And the first version of the
+      configuration check was a behavioural sweep that **reported green over the whole authenticated
+      surface**: Spring Security answers `401` before MVC's CORS interceptor runs, so a planted
+      `@CrossOrigin` on `AnalyticsController` changed no response, while the same annotation on
+      `HealthController` was caught at once. **§3 and §4 done 2026-09-13.** The suspicion was that
+      `EndpointCatalogue` is a typed list and therefore §5's failure again; it is the opposite — a
+      typed judgement reconciled against Spring's routing table in both directions, which is the
+      right answer. The defect was one level further in: **classified was not the same as probed.**
+      `OWNER_COLLECTION` and `OWNER_SINGLETON` — fifteen of sixty-five endpoints — carried a written
+      probe description that **no test in the tree referenced**, so a new collection endpoint was
+      classified, the build stayed green, and nothing ran. Both are now swept from the catalogue,
+      with a registry check because a `@TestFactory` that yields nothing passes. **`GET
+      /availability` was misclassified**, which is worse than unclassified: it has taken a required
+      `serviceId` in the query string since phase 05 and was recorded as a collection that "takes no
+      id". Now `OWNER_QUERY_ID`. **Shown red five ways**, and two of them are the interesting ones —
+      an empty collection fails the *control* rather than the assertion, and the availability probe
+      stayed green with `ServiceCatalogService#read` unscoped, because `AssignmentService` checks the
+      same id independently; it went red only when both were removed, which is §4's "each
+      independently sufficient" demonstrated rather than asserted. **§14 done 2026-09-13**, and its
+      last bullet was the §6 shape for the fourth time: *"Authentication events (login, refresh,
+      revocation) are logged with user id and IP"* — `AuthService` contained **no log statement at
+      all**, and the only authentication line in the application was the replay warning in
+      `RefreshTokenFamilyRevoker`, carrying a user id and **no address**. The audit trail began at
+      the one event an attacker triggers deliberately and could not say where it came from. The data
+      was never missing: `RequestFingerprint` has carried the peer address since phase 02. Logged
+      now, registration included, with the events **derived** from the `/auth` surface so a fourth
+      endpoint cannot be silently unlogged. **Shown red five ways**, and one of them found a hole in
+      the test rather than the code: a password logged from `login()` **passed**, because the
+      credential sweep drove register, refresh and logout and not the one endpoint that receives a
+      password. **§8 done 2026-09-13**, and **neither of its two claims was checked by anything that
+      ran**: the only test referencing `SystemPromptBuilder` is `@Tag("probe")`, excluded from the
+      suite, and it asserts nothing. *"Customer text never enters the system prompt"* was true and is
+      now asserted as an **equality** across a real turn rather than as an absence — which earns its
+      place, since a plant appending the **model's** reply passed the sentinel check and was caught
+      only by the equality. *"Business text is delimited and labelled as data"* was **true of one
+      field of four, and it was the smallest**: `ai_additional_info` was fenced at 2,000 characters
+      while the description (5,000), the cancellation policy (5,000) and up to fifty FAQs at 1,300
+      each went in bare — roughly thirty times as much owner free text, and the FAQ is the field
+      05-ai-architecture.md §7's own injection table names as an attack. All four go through one
+      helper now. **Shown red five ways**, the sharpest being a fence emitted with the text landing
+      *after* it closes, which a check that searched for `<<<` would have passed. **This is a system
+      prompt change and the level-3 corpus has NOT been run against it** — and it **cannot** be:
+      the OpenAI account has no credits, which was confirmed on 2026-09-13 by a run that cost
+      nothing because every call was refused. **Ruled the same day: level 3 is recorded as
+      unavailable**, under [07-mvp-scope.md](../07-mvp-scope.md) § *Gates that cannot be run*, rather
+      than carried as a pending decision. It was never a decision — the credits had run out on
+      2026-09-11, two days before this change was made. **§1 done 2026-09-13**, and it is the
+      first section of this walk that was very nearly clean: its threat-model table names seven
+      primary controls and **six of the seven already resolved to a test that runs**. The seventh
+      did not. *"Rate limiting by IP"* is the control for the **availability** row, and the **by
+      IP** half was asserted by nothing — `RateLimitCoverageTest` proves every public endpoint is
+      matched by a policy, `RateLimitTest` proves a limit bites, and both drive one client, so both
+      are equally true of a filter keying every bucket on a constant. The property is claimed four
+      further times in `RateLimitProperties`' own prose and checked in none of them. It rests on
+      **three independent facts**, any one of which can be undone with the suite staying green: the
+      `forward-headers-strategy: framework` line, Spring registering `ForwardedHeaderFilter`
+      **ten ahead** of `RateLimitFilter`, and `clientAddress()` reading `getRemoteAddr()`. What they
+      admit is the inverse of the control — one bucket for every visitor, so a single stranger
+      closes a public endpoint for all of them, which is the outage the row exists to prevent.
+      `RateLimitAddressTest`, **no production code changed**, **shown red four ways**. The sharp one
+      is the ordering plant: moving `RateLimitFilter` to `HIGHEST_PRECEDENCE` — the obvious edit for
+      a filter that must precede authentication — ties the two, and **the behavioural test stayed
+      green**, because tied filters are sequenced arbitrarily and that run landed the right way. Only
+      the assertion on the registered orders caught it. **§15 done 2026-09-13, which closes the
+      walk.** It is a different job from the other fourteen: an accepted risk resolves to no control
+      by definition — the entry *is* the decision not to build one — so it is checked for the
+      opposite defect, an entry that no longer describes the system. **Three of seven were wrong, each
+      differently.** A **justification that was false**: *"the account model supports adding 2FA
+      without migration"* — `users` has six columns, none able to hold a secret or an enrolment flag,
+      and there is no credentials table, so a reader was being told the wrong price for reversing the
+      decision. An entry that **recorded half its risk**: the API documentation row had the
+      disclosure and not the **amplification**. `/openapi` answers any anonymous caller with the full
+      specification and **no policy matches it** — two hundred consecutive requests, none refused,
+      measured. `RateLimitCoverageTest` filters to `dev.reception` deliberately, so a springdoc
+      rename cannot break the build; these three paths are mapped outside it and are therefore
+      anonymous, unlimited and **invisible to every derived control in the tree**, with Caddy's
+      `handle /api/*` proxying all of them. And a **risk that was missing**: the Manage Link's
+      residual property, a bearer capability in a URL, discussed at length in §6 as a fact about the
+      token and never carried into §15 as a decision. `ApiDocumentationExposureTest`, **shown red
+      three ways** — and the third is the lesson for the third time this walk: with the limiter
+      switched off, *"the documentation is unlimited"* **passed**, completely vacuously, and only the
+      positive control caught it. **Closing the documentation exposure is an open decision** — a
+      policy over the paths, or an `UNLIMITED_ON_PURPOSE` exemption with its reason. **Closed 2026-09-13, on the
+      principal's call.** Three policies — `/openapi/**` at 30/min, `/swagger-ui/**` and `/docs/**`
+      at 60/min, sized against a real page load of about seven asset requests. **The policies were
+      the easy half.** `RateLimitCoverageTest`'s derivation filtered handlers to `dev.reception`,
+      inherited from `EndpointCoverageTest` where the reason is sound, and rate limiting is a
+      different question from tenancy — so the filter did not just hide the gap, **it rejected the
+      fix**: a policy for `/openapi` matched nothing derived and was reported as a dead policy. The
+      derivation now sees every mapped endpoint. **Shown red five ways**, and two changed the work.
+      Restoring the old filter turns the new policies back into orphans, which is the finding
+      restated as a test. And a policy written for `/openapi.yaml` **was wrong** — the coverage test
+      stayed green without it, because `permitAll` lists `/openapi/**`, which matches children and
+      not siblings, so the YAML rendering answers `401` while the JSON one answers `200`. Nobody
+      decided that; the pattern did. The policy was removed and the asymmetry pinned instead, because
+      the tidy-up that makes the two patterns consistent is one character wide and publishes a
+      document currently behind authentication. **One exclusion could not be closed**: `/swagger-ui/**`
+      is served by a resource handler and can never appear in a derivation built on
+      `RequestMappingHandlerMapping`, so its policy is required by a written list whose entries the
+      orphan check verifies by probing the running application. **G28 closed 2026-09-13**, and it found the
+      drift it was written to prevent. §5's limits table and `RateLimitProperties` agreed **by hand**:
+      coverage was derived, the numbers were not, and changing `refresh` to ten an hour left §5
+      saying sixty with nothing failing. `RateLimitTableTest` reconciles the table against the policy
+      list in both directions. **Phase 09 had already drifted**: it added two chat policies and §5
+      gained one row, reading *"20 / hour / conversation, 60 / hour / IP"* — the sixty right, the
+      twenty belonging to `public-chat-session`, **a policy with no row at all**, and attributed to a
+      mechanism that has no hourly limit, since the conversation ceilings are five tool calls a turn,
+      forty messages and a twenty-message window in `ConversationLimits`. One policy undocumented and
+      one number filed under the wrong control, read past by two sessions of this walk. The table's
+      paths were abbreviated with `…` and are now the patterns the code declares, which is what makes
+      reconciliation possible at all. **Shown red four ways**, including G28's own worked example, and
+      the fourth is T89 for the fourth time in this walk: reformatting the table so the parse matches
+      nothing left *"§5 documents no limit the code does not enforce"* **green**, over an empty table
+      — an emptiness assertion satisfied by a parser that had stopped working
+- [x] Redaction filter verified across appenders — **2026-09-12.** Three tests already covered this
+      ground and **none could catch the failure that matters**: deleting the `<jsonGeneratorDecorator>`
+      from the appender that runs in production left `PiiValueMaskerTest`, `ConsoleRedactionTest` and
+      `JsonLoggingConfigurationTest` all green and every deployed log unmasked — demonstrated, not
+      argued. `AppenderRedactionTest` drives real secrets through the encoder the real file builds.
+      The console half stays a file check, deliberately: its root binding lives inside `<springProfile>`,
+      which only Spring Boot's package-private configurator reads, and initialising the real logging
+      system would reconfigure the JVM the rest of the suite logs through. What the file check found
+      is the subtle one — **Boot's own `defaults.xml` binds `wEx` too**, so the `<include>` must stay
+      above our rules or every stack trace renders through Boot's converter, unredacted, with the file
+      looking exactly as intended
+- [x] `prod` default-secret refusal — **2026-09-12.** The guard was written in phase 01 and had
+      never been executed by anything: it is `@Profile("prod")`, and no test in the suite starts
+      that profile. `SecretsGuardTest` starts it, twelve tests, **shown red six ways** — including
+      against a local default in `application.yml` that loses its `local-dev-only-` prefix, which
+      is the one way the guard can stop protecting with every other test still green. The walk
+      also found the audit's correction had been applied to **one file of five**: `.env.example`
+      said three secrets, while §9 itself, the guard's own javadoc, `application-prod.yml` and
+      phase 01 all still said *any secret*. All four corrected
 - [x] Security headers in Caddy
 - [ ] Full-history secret scan
-- [ ] Error-response leakage review
+- [x] Error-response leakage review — **2026-09-12**, as `ErrorLeakageTest` rather than as a
+      reading. `ProblemJsonTest` had asserted the contract against an unknown endpoint — a 404
+      raised by the dispatcher, which never had a stack trace, a statement or a class name to
+      give away. §11's claims are about an exception escaping a controller, and nothing
+      exercised that path. Six tests, **shown red six ways**, driving real exceptions through
+      the real chain: the catch-all, a nested cause chain, an unmapped integrity violation
+      carrying the failing statement, and the mapped overlap one. The throwing controller is
+      registered in that test's context alone, so `EndpointCoverageTest` and
+      `PublicSurfaceSweepTest` would fail loudly rather than the public surface widening quietly.
+      Two things the plants settled. **Dropping the catch-all does not leak — it lies**: the
+      exception reaches the servlet error dispatch, which is not in the permitAll list, and the
+      client is told **401**. And the suite has a floor, because every leakage assertion is a
+      `doesNotContain` and a 404 satisfies all of them
 - [x] `ai_message` retention window, documented and enforced by a scheduled purge — `V10`,
       `TranscriptPurge` and `TranscriptPurgeJob`. Documented in
       [06-security.md](../06-security.md) §14 and [05-ai-architecture.md](../05-ai-architecture.md)
       §11, whose "the purge job itself is V1.1" this closes
 
 ### Observability
-- [ ] JSON logging with request id and `business_id`
-- [ ] LLM call metrics without content
-- [ ] Health endpoint covering database and mail
-- [ ] Slow-query logging in `local`
+- [x] JSON logging with request id and `business_id` — `RequestLoggingTest`, which drives real
+      HTTP and reads the MDC off the events the application logged. Both tenant filters covered:
+      the token's business and the slug's. Shown red five ways
+- [x] LLM call metrics without content — `AiCallLoggingTest`. The loop contained **no log
+      statement at all** about a model call before this; model, latency, tokens, cost and tool
+      outcomes now emit as structured fields, and every test asserts the customer's words reach no
+      line. Shown red five ways, two of them deliberate content leaks
+- [x] Health endpoint covering database and mail — `HealthEndpointTest`, now on both sides of
+      every check against real refused connections. Each failing case asserts the *other*
+      component is still `UP`. Shown red four ways
+- [x] Slow-query logging in `local` — `hibernate.log_slow_query: 100`, plus `SlowQueryLoggingTest`
+      proving Hibernate still emits on `org.hibernate.SQL_SLOW` and that the statement carries
+      placeholders, not bound values. Shown red three ways
 
 ### Performance
 - [x] Availability benchmark

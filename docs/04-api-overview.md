@@ -220,13 +220,23 @@ reintroduce the race the exclusion constraint eliminates.
   "range": { "from": "2026-09-01", "to": "2026-09-30", "timezone": "Asia/Tbilisi" },
   "counts": { "confirmed": 42, "completed": 31, "cancelled": 6, "noShow": 3, "total": 82 },
   "periods": { "today": 4, "thisWeek": 19, "thisMonth": 82 },
-  "revenue": { "amount": "3410.00", "currency": "GEL", "basis": "COMPLETED_ONLY" },
+  "revenue": {
+    "amount": "3410.00", "currency": "GEL", "basis": "COMPLETED_ONLY",
+    "excluded": [ { "currency": "USD", "amount": "82.50" } ]
+  },
   "rates": { "cancellation": 0.073, "noShow": 0.037 },
   "topServices": [ { "serviceId": "…", "name": "Women's Cut", "count": 26 } ]
 }
 ```
 
 `rates` values are `null`, not `0`, when the denominator is zero.
+
+`revenue.excluded` is the remainder after a currency change — one entry per other currency found
+among the same COMPLETED appointments in the same range, each with its own sum, **`[]` when there
+are none** rather than null. An Appointment keeps the currency it was priced in, so a Business that
+switched has older revenue `amount` does not cover; this is where it is named. **Nothing here is
+ever added together**, and `basis` covers every number in the object, entries included. See
+[ADR-0010](./adr/0010-revenue-reports-one-currency-and-names-the-remainder.md).
 
 ### Calendar (read-only)
 

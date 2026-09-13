@@ -96,6 +96,56 @@ public interface AnalyticsRepository extends JpaRepository<Appointment, UUID> {
             @Param("from") Instant from,
             @Param("to") Instant to);
 
+    /**
+     * The same revenue, for every currency that is <em>not</em> the one being reported.
+     *
+     * <p>The remainder ADR-0010 decided to name rather than drop. {@code
+     * sumByBusinessIdAndCompletedRevenue} answers for one currency and is silent about the rest;
+     * this says what the rest were, one sum per currency, so the summary can carry a footnote
+     * instead of a partial truth shaped like a whole one.
+     *
+     * <p><strong>No arithmetic crosses a currency here either.</strong> The {@code group by} is what
+     * refuses it: each row is a sum within one code, and nothing adds two rows together — not in
+     * this query, not in the service, and not on the screen.
+     *
+     * <p><strong>Filtered to COMPLETED, the same as the primary figure.</strong> That is what makes
+     * the response's {@code basis} constant true of every number in the object rather than only of
+     * the headline one, which is the property ADR-0010's last consequence pins.
+     *
+     * <p>No {@code coalesce}: a group exists only because it has rows, so its sum is never null.
+     * The empty case is the empty list, which is the answer for a business that never changed
+     * currency — every business today.
+     *
+     * <p>Ordered by currency so the list is a function of the data, for the reason the top-services
+     * tie-break is in the query: an unordered aggregate reorders itself on refresh with nothing
+     * having changed.
+     */
+    @Query(
+            """
+            select a.currency as currency, sum(a.priceAmount) as total
+              from Appointment a
+             where a.businessId = :businessId
+               and a.status = :completed
+               and a.currency <> :currency
+               and a.startsAt >= :from
+               and a.startsAt < :to
+             group by a.currency
+             order by a.currency asc
+            """)
+    List<CurrencySumRow> findByBusinessIdAndCompletedRevenueInOtherCurrencies(
+            @Param("businessId") UUID businessId,
+            @Param("completed") AppointmentStatus completed,
+            @Param("currency") String currency,
+            @Param("from") Instant from,
+            @Param("to") Instant to);
+
+    /** One currency and the completed revenue taken in it. */
+    interface CurrencySumRow {
+        String getCurrency();
+
+        BigDecimal getTotal();
+    }
+
     /** Every Appointment that started in the range, whatever became of it. The periods' counter. */
     long countByBusinessIdAndStartsAtGreaterThanEqualAndStartsAtLessThan(UUID businessId, Instant from, Instant to);
 

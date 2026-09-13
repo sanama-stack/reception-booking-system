@@ -18,6 +18,15 @@ spring:
     properties:
       hibernate:
         format_sql: true
+        # Slow-query logging, on here and nowhere else. The point is to catch a missing index while
+        # building against demo-sized data, where a sequential scan is fast enough to feel fine and
+        # slow enough to show. A hundred milliseconds is above the noise a cold JVM makes on its
+        # first few statements and well below anything a person would notice — so a line here is a
+        # query worth reading, not a line to learn to ignore.
+        #
+        # Hibernate logs the statement, never the values bound into it; SlowQueryLoggingTest pins
+        # that, because this is the one setting in the repository that prints SQL by default.
+        log_slow_query: 100
 
 app:
   security:

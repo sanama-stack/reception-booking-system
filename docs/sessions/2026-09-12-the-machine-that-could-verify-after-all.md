@@ -10,10 +10,15 @@
 > a control no file implemented, and the call was that the file moves.** §9 is that — the compose
 > tightening, the measurement that made it more than a guess, and the gate that now holds it.
 >
-> **§11 is the third piece: phase 11's last Documentation row, done as a target rather than as an
+> **§10 is the third piece: phase 11's last Documentation row, done as a target rather than as an
 > event — and what it found.**
 >
-> **Seven commits on `dev`. PR [#34] open.**
+> **§11 is the fourth, and the one to read if you read only one.** Merging it required a
+> branch-protection decision, and taking that decision exposed **a fresh instance of G26 that I had
+> written myself, in this session, in the file that would have to enforce it.**
+>
+> **Merged.** Ten authored commits, PR [#34], `main` at **`6d01bf8`**. All five required checks
+> green.
 
 [previous]: ./2026-09-12-the-audit-that-found-nothing-in-the-file.md
 
@@ -23,12 +28,14 @@
 
 | | |
 |---|---|
-| `origin/main` | **`1db8a49`** — unmoved |
-| `dev` | **`09e6fc0`**, five commits, pushed. PR [#34] open against `main`. Tree clean |
+| `origin/main` | **`6d01bf8`** — PR [#34] merged. Was `1db8a49` |
+| `dev` = `main` | **level**, nothing unpushed, tree clean. `dev` deliberately not deleted — it is long-lived |
+| CI | **green on `c3694bf`, five checks, zero failing.** The required set gained a fifth member this session (§11) |
 | Backend | **937 tests, 0 failed, 102 classes** — the full suite, run here in 5m42s |
 | Frontend | **23 files, 80 tests** — was 22/76. One new file, four new tests |
 | Migrations | **`V10__ai_message_retention.sql`.** New ADR: none |
-| Issues | [#17] and [#15] open, untouched. **No model was called** |
+| Issues | [#17] and [#15] open, untouched. **No model was called**; no credit check was made |
+| Gates | **two new**: `make check-bindings` (§9) and `make check-docs` (§10). Both run in CI |
 | Phase 11 | **47 boxes ticked, 25 open.** Four ticked here, and the **Documentation section is closed** — zero open rows. *Walk 06-security.md* is still open but §12 of it is done and gated (§9) |
 
 [#15]: https://github.com/sanama-stack/reception-booking-system/issues/15
@@ -135,7 +142,7 @@ command in §8 carries an explicit `JAVA_HOME`.
 
 ---
 
-## 5. Seven traps
+## 5. Thirteen traps
 
 **T69 — `./gradlew` on this machine needs `JAVA_HOME` pointed at JDK 21.** The default `java` is
 25, Gradle 8.14 does not support it, and the failure prints the version string as though it were
@@ -191,21 +198,38 @@ dangling reference. The fix belongs in the checker, not in the prose: fenced blo
 A gate that forces people to write worse documentation to keep it quiet is a gate that will be
 switched off.
 
-**Carried T1–T68. New: T69–T78.**
+**T79 — a comment asserting a control that is not configured is G26 in the file that would have to
+enforce it.** Mine said a CI job "is a required check" when the required set did not contain it
+(§11.2). A workflow file cannot see branch protection, a Makefile cannot see a firewall, and a
+security document cannot see a compose file — **whenever prose names a control that lives in another
+system, the claim is unverifiable from where it is written.** That is the whole of G26, and I
+committed a fresh instance of it in the session that filed it.
+
+**T80 — branch protection matches a check by the job's `name:` string, and a rename removes the
+requirement silently.** Not an error, not a warning: a green merge on a check that never ran. One
+value in two places where only one of them is in the repository — the third such coupling this
+project has found.
+
+**T81 — every `dev` → `main` pull request starts `BEHIND`, structurally.** `main` is `strict: true`
+and each merge commit is a merge *of* `dev`, so `dev` never contains it. Merge `origin/main` into
+`dev` before merging the PR. This is not drift and it will recur every time.
+
+**Carried T1–T68. New: T69–T81.**
 
 ---
 
 ## 6. Every open item
 
-### 6.1 Pushed, and CI is the outstanding answer
+### 6.1 Nothing is outstanding
 
-**Five commits are on `dev` and PR [#34] is open.** The two jobs a local suite cannot stand in for
-are the Compose smoke test — which now also runs `make check-bindings` and brings up a topology
-whose port mappings changed — and the E2E leg, which reads `/conversations/{id}` (a new field) and
-asserts against the Mailpit UI (a mapping that moved to loopback and, under `up-all`, is now the
-only one Mailpit publishes).
+**Merged.** Ten authored commits, all five required checks green on `c3694bf`, `main` at `6d01bf8`,
+`dev` level with it and deliberately not deleted. The two jobs a local suite could not stand in for
+both passed on the real change: the **Compose smoke test**, which brought up the topology whose port
+mappings moved and ran `make check-bindings` inside it, and **End-to-end**, which reads
+`/conversations/{id}` with its new field and asserts against a Mailpit mapping that is now loopback
+and, under `up-all`, the only one Mailpit publishes.
 
-**Those two are exactly where this session's changes could fail and nothing here would know.**
+**No pull request is open and no branch is ahead of another.**
 
 ### 6.2 Gaps
 
@@ -242,17 +266,21 @@ touched Java. It has now been touched. That stack's database has no `messages_pu
 
 ## 7. Next steps, in order
 
-1. **Push and open the PR.** Nothing else in this session is unfinished, and the two jobs a local
-   run cannot stand in for are the compose smoke test and E2E.
-2. ~~**The final `/docs` consistency pass.**~~ **Done (§10) — phase 11's Documentation section is
-   closed, zero open rows.**
-3. **The security block**: rate limits per public endpoint, log redaction, the `prod`
-   default-secret refusal test, the full-history secret scan, error-response leakage.
-4. **Observability**, all four rows — and the health-endpoint row that [the previous
-   handoff][previous] §7 deliberately left unticked because nothing tests it.
-5. **The principal's**: credits for [#17]'s remaining arm; [#15]'s title.
+Nothing from this session is half-finished, no pull request is open, and `dev` and `main` are level.
 
----
+1. **The security block** — the largest remaining group. Rate limits per public endpoint, the
+   log-redaction test, the `prod` default-secret refusal **test** (the guard exists; nothing proves
+   it fires), the full-history secret scan, error-response leakage. *Walk 06-security.md and verify
+   each control* is the row that contains them, and **§12 of that document is the shape to expect**:
+   the walk's job is to find claims no file implements, and it found one on its first section.
+2. **Observability**, all four rows — and the *health endpoint covering database and mail* row that
+   [the previous handoff][previous] §7 deliberately left unticked because nothing tests it. The code
+   was read, not tested; ticking it on a reading is T61.
+3. **G26, if it is ever to be closed rather than enumerated.** Three instances are now fixed by three
+   bespoke gates — headers, bindings, and a corrected comment — and §11 added a fourth instance that
+   no gate could have caught. At some point the question stops being "add another check" and becomes
+   whether claims-about-controls deserve one mechanism.
+4. **The principal's**: credits for [#17]'s remaining arm; [#15]'s title.
 
 ## 8. Commands
 
@@ -408,7 +436,72 @@ would shrink the population silently.
 
 ---
 
-## 11. Confidence
+## 11. The merge, and the G26 I wrote myself
+
+**This is the part of the session I would most want a fresh reader to have.**
+
+### 11.1 What blocked the merge, and why that was useful
+
+`main` requires branches to be **up to date** (`strict: true`) and `dev` was `BEHIND` by the merge
+commits of PRs #32 and #33 — commits `dev` never contained, because each was a merge *of* `dev`.
+`origin/main` was merged into `dev` (clean), all three local gates re-run, and the merge proceeded.
+
+**Every dev→main PR from now on starts `BEHIND` for the same structural reason.** It is not drift and
+it is not a mistake; it is what a long-lived branch merged by merge commits looks like under a strict
+requirement. Expect the update step.
+
+`enforce_admins` is **false**, so an admin can bypass the required checks. Not used, and worth knowing
+exists.
+
+### 11.2 The finding
+
+Adding the docs job to the required set meant reading the actual branch-protection configuration for
+the first time. It said:
+
+```
+Backend, Frontend, Compose smoke test, End-to-end
+```
+
+And the comment I had written above the new job — in this session, two commits earlier — said the job
+**"is a required check"**. It was not. A red docs run would have been visible on the pull request and
+would have blocked nothing.
+
+**That is G26.** Prose describing a control that nothing implements. Filed in §6.2 of this very
+handoff, about `06-security.md` §12, and then committed by me into `.github/workflows/ci.yml` — the
+file that would have to enforce the claim and structurally cannot, because a workflow file cannot see
+branch protection.
+
+It was found by reading the setting next to the comment. **No gate caught it. `make check-docs` could
+not have** — it establishes that what a document points at exists, never that what it claims is true.
+
+### 11.3 What was done about it
+
+Two commits, in this order and deliberately not collapsed:
+
+1. **`7dc3666` corrected the comment to say the job was not required** — while that was still true.
+2. The principal decided to make it required; `Documentation consistency` was added to the protection
+   set, **verified surgical** by diffing the full protection object before and after (`strict`
+   unchanged, `enforce_admins` unchanged, every other key byte-identical); then **`c3694bf` corrected
+   the comment again.**
+
+The final comment states the requirement **and names its own weakness**: the requirement lives in
+branch protection, no workflow file can assert it, and if the set changes this paragraph is wrong
+again with nothing to say so.
+
+### 11.4 The footgun that comment records
+
+**Branch protection matches a check by the job's `name:` string.** Renaming the job does not fail —
+it silently removes the requirement, leaving a green merge on a check that never ran. The name is a
+contract with a setting that lives somewhere else entirely, and nothing in the repository expresses
+the coupling.
+
+That is the same shape as the four duplicated ports [the previous handoff][previous] §4.2 found, and
+as `SERVER_PORT` against the hardcoded fallback in `client.ts` that it named unguardable. **A third
+instance of one value written in two places where only one of them is in the repository.**
+
+---
+
+## 12. Confidence
 
 **High — that the purge deletes what is past the window and spares what is inside it.** Nine tests,
 each deletion paired with a survival, and three planted breakages that each went red naming the
@@ -449,5 +542,16 @@ establishes that what a document points at exists, and says nothing about whethe
 true. **G26 is exactly that gap, it is open, and both instances of it so far were found by a person
 reading prose beside a file.**
 
-**None — the CI result.** Pushed, running at the time of writing. The handoff is deliberately not
-claiming a colour it has not seen.
+**High — that CI is green and the work is merged.** Five required checks on `c3694bf`, zero
+failing, read off the API rather than off a notification stream; `mergeStateStatus: CLEAN` and the
+head matching `dev` were both confirmed before the merge was issued.
+
+**High — that the branch-protection change was surgical.** The full protection object was captured
+before and after and diffed: only `contexts` moved.
+
+**Medium — that the required-checks claim in `ci.yml` stays true.** It is true today. Nothing can
+check it from inside the repository, the job's name is the string it depends on, and T79 is the
+record of it having been wrong once already.
+
+**Low — that G26 is nearer to closed.** Three instances fixed, and §11 added a fourth from inside
+this session. The rate at which this project finds them has not fallen.

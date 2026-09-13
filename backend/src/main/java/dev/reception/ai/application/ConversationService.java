@@ -1,5 +1,7 @@
 package dev.reception.ai.application;
 
+import static net.logstash.logback.argument.StructuredArguments.kv;
+
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import dev.reception.ai.port.ChatMessage;
 import dev.reception.ai.port.ChatModel;
@@ -68,6 +70,7 @@ public class ConversationService {
                     + "instead, or give us a call and we'll do it for you.";
 
     private final ChatModel chatModel;
+    private final AiProperties aiProperties;
     private final ToolRegistry tools;
     private final SystemPromptBuilder prompts;
     private final CostTracker costs;
@@ -82,6 +85,7 @@ public class ConversationService {
 
     public ConversationService(
             ChatModel chatModel,
+            AiProperties aiProperties,
             ToolRegistry tools,
             SystemPromptBuilder prompts,
             CostTracker costs,
@@ -94,6 +98,7 @@ public class ConversationService {
             IdGenerator ids,
             Clock clock) {
         this.chatModel = chatModel;
+        this.aiProperties = aiProperties;
         this.tools = tools;
         this.prompts = prompts;
         this.costs = costs;
@@ -203,10 +208,16 @@ public class ConversationService {
             }
 
             ChatResponse response;
+            long startedAt = System.nanoTime();
             try {
                 response = chatModel.complete(context, tools.specs());
             } catch (ChatModelException e) {
-                log.warn("Model call failed for conversation {}", conversationId, e);
+                log.warn(
+                        "Model call failed: {} {} {}",
+                        kv("conversation_id", conversationId),
+                        kv("model", aiProperties.getModel()),
+                        kv("latency_ms", millisSince(startedAt)),
+                        e);
                 // The conversation stays ACTIVE and resumable: an outage is not the customer's
                 // fault and retrying is the right thing for them to do.
                 store.recordTurn(
@@ -216,6 +227,33 @@ public class ConversationService {
                         "I can't reach the booking assistant just now. You can book directly on this "
                                 + "page instead.");
             }
+
+            /*
+             * docs/06-security.md §10: token counts, latency, tool names and outcomes — never
+             * content. Written as structured arguments rather than interpolated into the message,
+             * so a log aggregator can sum a day's cost without parsing English.
+             *
+             * The conversation id is here and the transcript is not: it is the identifier that
+             * joins these lines to each other and to the row a cost question is really about, and it
+             * is exactly as much as somebody debugging a bill needs.
+             *
+             * The model name is the configured one rather than the one the provider reports. The
+             * port does not carry it, and widening ChatResponse to make a log line more precise
+             * would be a change to every implementation and every double for a field an operator
+             * already knows.
+             */
+            log.info(
+                    "Model call completed: {} {} {} {} {} {} {}",
+                    kv("conversation_id", conversationId),
+                    kv("model", aiProperties.getModel()),
+                    kv("latency_ms", millisSince(startedAt)),
+                    kv("prompt_tokens", response.usage().promptTokens()),
+                    kv("completion_tokens", response.usage().completionTokens()),
+                    kv("cost_cents",
+                            costs.costCentsFor(
+                                    response.usage().promptTokens(),
+                                    response.usage().completionTokens())),
+                    kv("tool_calls", response.toolCalls().size()));
 
             promptTokens += response.usage().promptTokens();
             completionTokens += response.usage().completionTokens();
@@ -240,6 +278,15 @@ public class ConversationService {
                 toolCallsMade++;
 
                 ObjectNode result = tools.execute(call.name(), call.arguments(), toolContext);
+
+                // The name and whether it worked. Never the arguments: a tool call carries the
+                // customer's own words — a name, a phone number, what they asked for — and §10's
+                // rule is that those do not reach a log even in a field nobody reads.
+                log.info(
+                        "Tool call: {} {} {}",
+                        kv("conversation_id", conversationId),
+                        kv("tool", call.name()),
+                        kv("outcome", result.has("error") ? "error" : "ok"));
 
                 store.append(AiMessage.tool(
                         ids.newId(),
@@ -275,6 +322,10 @@ public class ConversationService {
             status = ConversationStatus.CLOSED;
         }
         return new ConversationTurn(conversationId, reply, appointmentCreated, status, remaining);
+    }
+
+    private static long millisSince(long startedAtNanos) {
+        return (System.nanoTime() - startedAtNanos) / 1_000_000L;
     }
 
     /**

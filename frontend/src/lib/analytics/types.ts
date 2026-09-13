@@ -50,12 +50,31 @@ export interface AnalyticsPeriods {
  * **`currency` is the Business's current currency, and only appointments priced in it are counted.**
  * A business that switched currency has older revenue this figure does not report. It is never
  * wrong about what it claims — the figure stated in GEL really is the GEL revenue — but it is not
- * the whole truth, and the screen says so rather than letting a smaller number read as a bad month.
+ * the whole truth, and `excluded` is where the rest of the truth now goes. The screen names the
+ * remainder rather than letting a smaller number read as a bad month.
  */
 export interface AnalyticsRevenue {
   amount: string;
   currency: string;
   basis: 'COMPLETED_ONLY';
+  /**
+   * Every other currency found among the same completed appointments, each with its own sum.
+   *
+   * **Empty, not `null`, when there is no remainder** — unlike `rates`, which is null because it has
+   * no meaningful zero. "Nothing was excluded" is a fact and has one, so a screen renders this by
+   * its length and never has to branch on absence first.
+   *
+   * **Never add these to `amount`, or to each other.** Adding lari to dollars produces a number that
+   * is not money; that refusal is the entire reason the field is a list rather than a larger figure
+   * above it (ADR-0010).
+   */
+  excluded: AnalyticsExcludedRevenue[];
+}
+
+/** One currency `AnalyticsRevenue.amount` does not cover, and what was taken in it. */
+export interface AnalyticsExcludedRevenue {
+  currency: string;
+  amount: string;
 }
 
 /**

@@ -1,5 +1,7 @@
 package dev.reception.auth;
 
+import static net.logstash.logback.argument.StructuredArguments.kv;
+
 import dev.reception.auth.RefreshTokenService.RequestFingerprint;
 import dev.reception.business.Business;
 import dev.reception.business.BusinessProvisioningService;
@@ -12,6 +14,8 @@ import java.time.Instant;
 import java.util.List;
 import java.util.Locale;
 import java.util.UUID;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
@@ -28,6 +32,9 @@ import org.springframework.transaction.annotation.Transactional;
  */
 @Service
 public class AuthService {
+
+    private static final Logger log = LoggerFactory.getLogger(AuthService.class);
+
 
     /** The constraint names the database reports, so an integrity error is mapped, not guessed. */
     private static final String EMAIL_CONSTRAINT = "users_email_unique";
@@ -100,7 +107,9 @@ public class AuthService {
             throw mapIntegrityViolation(e);
         }
 
-        return startSession(user, membership, business, fingerprint);
+        Session session = startSession(user, membership, business, fingerprint);
+        record(Event.REGISTER, user.getId(), fingerprint);
+        return session;
     }
 
     /**
@@ -129,7 +138,9 @@ public class AuthService {
                 .orElseThrow(() -> new IllegalStateException(
                         "Membership " + membership.getId() + " references a business that does not exist"));
 
-        return startSession(user, membership, business, fingerprint);
+        Session session = startSession(user, membership, business, fingerprint);
+        record(Event.LOGIN, user.getId(), fingerprint);
+        return session;
     }
 
     /** Rotates the refresh token and mints a matching access token. */
@@ -148,14 +159,15 @@ public class AuthService {
 
         JwtService.IssuedAccessToken accessToken =
                 jwt.issue(user.getId(), business.getId(), membership.role());
+        record(Event.REFRESH, user.getId(), fingerprint);
         return new Session(user, business, membership.role(), accessToken, rotation.refreshToken());
     }
 
     /** Idempotent: an absent, unknown or already-revoked token is a successful logout. */
     @Transactional
-    public void logout(String presentedRefreshToken) {
+    public void logout(String presentedRefreshToken, RequestFingerprint fingerprint) {
         if (presentedRefreshToken != null && !presentedRefreshToken.isBlank()) {
-            refreshTokens.revoke(presentedRefreshToken);
+            refreshTokens.revoke(presentedRefreshToken).ifPresent(userId -> record(Event.LOGOUT, userId, fingerprint));
         }
     }
 
@@ -168,6 +180,41 @@ public class AuthService {
                 .findById(principal.businessId())
                 .orElseThrow(() -> new ApiException(ErrorCode.UNAUTHENTICATED, "Your business no longer exists."));
         return new Session(user, business, principal.role(), null, null);
+    }
+
+    /**
+     * The authentication events docs/06-security.md §14 says are recorded.
+     *
+     * <p>Until phase 11 the sentence was true of none of them: nothing in this class logged
+     * anything, and the only authentication line in the application was the replay warning in
+     * {@link RefreshTokenFamilyRevoker}, which carried a user id and no address. An audit trail
+     * that begins at the one event an attacker triggers deliberately is not an audit trail.
+     *
+     * <p><strong>The user id and not the email.</strong> The id is stable, it is what every other
+     * record in the system joins on, and the address is a customer-grade identifier that
+     * {@code PiiValueMasker} redacts out of log output anyway — so logging it would produce a line
+     * that names nobody. The IP is the peer address, the same value the refresh token row already
+     * stores, and it is deliberately not masked: an authentication record without an origin cannot
+     * answer the question it exists for.
+     */
+    private void record(Event event, UUID userId, RequestFingerprint fingerprint) {
+        log.info(
+                "Authentication event: {} {} {}",
+                kv("event", event.name().toLowerCase(Locale.ROOT)),
+                kv("user_id", userId),
+                kv("ip", fingerprint.ip()));
+    }
+
+    /**
+     * {@code REGISTER} is here although §14 names only login, refresh and revocation: registration
+     * is where a session first exists, and leaving it out puts the hole in the audit trail exactly
+     * at the moment an account is created.
+     */
+    private enum Event {
+        REGISTER,
+        LOGIN,
+        REFRESH,
+        LOGOUT
     }
 
     private Session startSession(

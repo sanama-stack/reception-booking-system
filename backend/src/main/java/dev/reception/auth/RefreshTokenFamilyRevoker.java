@@ -2,6 +2,8 @@ package dev.reception.auth;
 
 import java.time.Clock;
 import java.util.UUID;
+import static net.logstash.logback.argument.StructuredArguments.kv;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
@@ -36,10 +38,17 @@ public class RefreshTokenFamilyRevoker {
     }
 
     @Transactional(propagation = Propagation.REQUIRES_NEW)
-    public void revokeFamily(UUID familyId, UUID userId) {
+    public void revokeFamily(UUID familyId, UUID userId, String ip) {
         int revoked = tokens.revokeFamily(familyId, clock.instant());
-        // The user id is logged; the token is not. A log line is not a place to put a credential
-        // (docs/06-security.md §10).
-        log.warn("Refresh token replay detected for user {}; revoked {} tokens in family {}", userId, revoked, familyId);
+        // The user id and the caller's address are logged; the token is not. A log line is not a
+        // place to put a credential (docs/06-security.md §10), and a revocation nobody can place is
+        // not an audit record (§14).
+        log.warn(
+                "Refresh token replay detected: {} {} {} {} {}",
+                kv("event", "refresh_replay"),
+                kv("user_id", userId),
+                kv("ip", ip),
+                kv("family_id", familyId),
+                kv("revoked", revoked));
     }
 }

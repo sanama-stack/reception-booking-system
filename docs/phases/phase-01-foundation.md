@@ -268,5 +268,6 @@ Three additions the checklist did not ask for, each cheap now and awkward later:
   so the commit that fills them is already governed.
 - `PiiValueMaskerTest` turns the redaction list in [06-security.md](../06-security.md) §10 from a
   promise into a check.
-- `SecretsGuard` refuses to start the `prod` profile while any secret still holds its
-  `local-dev-only-` default.
+- `SecretsGuard` refuses to start the `prod` profile while `JWT_SECRET`, `MANAGE_LINK_SECRET` or
+  `DB_PASSWORD` still holds its `local-dev-only-` default — three of the five secrets
+  [06-security.md](../06-security.md) §9 lists, the other two deliberately excluded.

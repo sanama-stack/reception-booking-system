@@ -3,7 +3,12 @@ package dev.reception.ai.application;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
+import ch.qos.logback.classic.Logger;
+import ch.qos.logback.classic.spi.ILoggingEvent;
+import ch.qos.logback.core.read.ListAppender;
 import dev.reception.appointments.BookingScenario;
+import dev.reception.common.error.ApiException;
+import dev.reception.common.error.ErrorCode;
 import dev.reception.support.DatabaseCleaner;
 import dev.reception.support.IntegrationTest;
 import dev.reception.tenancy.TenantAdoption;
@@ -14,10 +19,13 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.web.client.TestRestTemplate;
 import org.springframework.boot.test.web.server.LocalServerPort;
@@ -78,15 +86,41 @@ class LiveReceptionistTest extends IntegrationTest {
 
     private BookingScenario aria;
 
+    /**
+     * Holds the provider's own reason for refusing, so {@link #abortBecauseTheProviderDidNotAnswer}
+     * can quote it.
+     *
+     * <p>{@code ConversationService} logs the {@code ChatModelException} and then throws a sentence
+     * written for a customer — <em>"I can't reach the booking assistant just now"</em> — which is
+     * right for the customer and useless here. The reason is in the log or nowhere.
+     */
+    private ListAppender<ILoggingEvent> captured;
+
+    private Logger root;
+
     @BeforeEach
     void setUp() {
         // Skipped rather than failed without a key. These are opt-in by design, and a red build on a
         // machine that was never meant to run them teaches people to ignore red builds.
         assumeTrue(properties.isConfigured(), "no OPENAI_API_KEY configured");
 
+        root = (Logger) LoggerFactory.getLogger(org.slf4j.Logger.ROOT_LOGGER_NAME);
+        captured = new ListAppender<>();
+        captured.setContext(root.getLoggerContext());
+        captured.start();
+        root.addAppender(captured);
+
         databaseCleaner.clean();
         aria = BookingScenario.open(rest, port, clock);
         tenants.adopt(UUID.fromString(jdbc.queryForObject("select id::text from businesses", String.class)));
+    }
+
+    @AfterEach
+    void tearDown() {
+        if (root != null && captured != null) {
+            root.detachAppender(captured);
+            captured.stop();
+        }
     }
 
     // ------------------------------------------------------------- BOOK_APPOINTMENT
@@ -399,7 +433,62 @@ class LiveReceptionistTest extends IntegrationTest {
     }
 
     private String say(String token, String message) {
-        return conversations.respond(token, message).reply();
+        try {
+            return conversations.respond(token, message).reply();
+        } catch (ApiException e) {
+            if (e.code() == ErrorCode.AI_UNAVAILABLE) {
+                abortBecauseTheProviderDidNotAnswer();
+            }
+            throw e;
+        }
+    }
+
+    /**
+     * <strong>A provider that never answered is not a finding about the model.</strong>
+     *
+     * <p>{@code setUp} already skips the corpus when there is no key, on the stated ground that a
+     * red build on a machine that was never meant to run these teaches people to ignore red builds.
+     * <strong>A key the provider refuses is the same situation and used to behave the opposite
+     * way.</strong> Measured: with the account's credits exhausted, all twelve tests failed at the
+     * same line with {@code AI_UNAVAILABLE}, and the run reported <em>"12 tests completed, 12
+     * failed"</em> without the word quota anywhere in it. Run before a release, after a prompt
+     * change, that reads as twelve behavioural regressions.
+     *
+     * <p>The discrimination is exact rather than a heuristic: {@code ConversationService} raises
+     * {@code AI_UNAVAILABLE} in one place, and only when the adapter threw {@code
+     * ChatModelException} — the provider call itself failing. A model that answers badly cannot
+     * produce it. So nothing that this corpus exists to catch is turned into a skip here.
+     *
+     * <p>The provider's own reason is quoted because the alternative is a second run to find it.
+     * {@code ConversationService} logs the cause and throws a sentence written for a customer, so
+     * the log is the only place the reason exists.
+     */
+    private void abortBecauseTheProviderDidNotAnswer() {
+        String reason = captured.list.stream()
+                .filter(event -> event.getFormattedMessage().startsWith("Model call failed"))
+                .map(event -> event.getThrowableProxy() == null
+                        ? event.getFormattedMessage()
+                        : deepestMessage(event.getThrowableProxy()))
+                .reduce((first, last) -> last)
+                .orElse("no ChatModelException was logged, which is itself worth looking at");
+
+        Assumptions.abort(
+                """
+                The level-3 corpus did not run: the provider did not answer, so there is nothing \
+                here to assert about the model. This is a skip and not a pass — the corpus has NOT \
+                been run against the current system prompt. The provider said:
+
+                %s"""
+                        .formatted(reason));
+    }
+
+    /** The cause at the bottom of the chain, which is where the provider's own words are. */
+    private static String deepestMessage(ch.qos.logback.classic.spi.IThrowableProxy throwable) {
+        ch.qos.logback.classic.spi.IThrowableProxy deepest = throwable;
+        while (deepest.getCause() != null) {
+            deepest = deepest.getCause();
+        }
+        return deepest.getClassName() + ": " + deepest.getMessage();
     }
 
     /**

@@ -1,5 +1,6 @@
-# No seed data, secure cookies, external SMTP. The application refuses to start while any
-# secret still holds its local default (docs/06-security.md §9).
+# No seed data, secure cookies, external SMTP. The application refuses to start while JWT_SECRET,
+# MANAGE_LINK_SECRET or DB_PASSWORD still holds its local default (docs/06-security.md §9, and
+# SecretsGuard for why MAIL_PASSWORD and OPENAI_API_KEY are deliberately not among them).
 spring:
   flyway:
     clean-disabled: true

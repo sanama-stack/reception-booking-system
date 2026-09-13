@@ -1,6 +1,7 @@
 export { analyticsSummaryPath } from './api';
 export type {
   AnalyticsCounts,
+  AnalyticsExcludedRevenue,
   AnalyticsPeriods,
   AnalyticsRange,
   AnalyticsRates,

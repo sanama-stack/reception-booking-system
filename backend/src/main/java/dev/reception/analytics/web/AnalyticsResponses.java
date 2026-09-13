@@ -23,7 +23,10 @@ public final class AnalyticsResponses {
      * costs a dozen bytes and stops the screen from having to assert it in prose that can drift.
      */
     public record Revenue(
-            @JsonFormat(shape = JsonFormat.Shape.STRING) BigDecimal amount, String currency, String basis) {
+            @JsonFormat(shape = JsonFormat.Shape.STRING) BigDecimal amount,
+            String currency,
+            String basis,
+            List<Excluded> excluded) {
 
         private static final String COMPLETED_ONLY = "COMPLETED_ONLY";
 
@@ -32,9 +35,30 @@ public final class AnalyticsResponses {
             // comes back unscaled, and a money field that changes shape when it is empty is a
             // formatting bug waiting to happen on the client.
             return new Revenue(
-                    revenue.amount().setScale(2, RoundingMode.HALF_UP), revenue.currency(), COMPLETED_ONLY);
+                    revenue.amount().setScale(2, RoundingMode.HALF_UP),
+                    revenue.currency(),
+                    COMPLETED_ONLY,
+                    // The same scale, for the same reason. A remainder the screen has to format
+                    // differently from the figure above it is a footnote nobody will trust.
+                    revenue.excluded().stream()
+                            .map(entry -> new Excluded(
+                                    entry.currency(), entry.amount().setScale(2, RoundingMode.HALF_UP)))
+                            .toList());
         }
     }
+
+    /**
+     * One currency {@code revenue.amount} does not cover.
+     *
+     * <p><strong>Subordinate to the primary figure, and that is the contract.</strong> ADR-0010
+     * declined to make {@code revenue} a list of co-equal totals, so the client is never asked to
+     * decide which of several numbers is "the" revenue — it renders {@code amount} and, if this list
+     * has anything in it, a footnote.
+     *
+     * <p>{@code basis} is not repeated here because it does not vary: each entry is filtered
+     * COMPLETED exactly as the primary figure is, so the constant above covers these too.
+     */
+    public record Excluded(String currency, @JsonFormat(shape = JsonFormat.Shape.STRING) BigDecimal amount) {}
 
     /** Both dates inclusive, and the zone every boundary behind them was resolved in. */
     public record Range(LocalDate from, LocalDate to, String timezone) {}

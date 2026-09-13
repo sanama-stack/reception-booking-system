@@ -270,11 +270,18 @@ first email instead. §3.3's health-endpoint behaviour is what catches it, at bo
 send time. **It also does not check `OPENAI_API_KEY`**, deliberately: a placeholder there is a
 working application, not a broken one.
 
-**Unticked in the phase checklist, and this is why.** The guard is written and reads correctly, but
-there is no test that starts the `prod` context with a default secret and asserts the refusal. Until
-there is, the guard is *code that should work* rather than *a control that has been shown to work* —
-the distinction this project keeps paying for. Do not treat §5 as a safety net on a first
-deployment; check the three values yourself.
+**Ticked on 2026-09-12, and this is what it took.** There is now a test that starts the `prod`
+context with a default secret and asserts the refusal —
+[SecretsGuardTest](../backend/src/test/java/dev/reception/common/config/SecretsGuardTest.java),
+twelve cases, shown red six ways. Until it existed the guard was *code that should work* rather than
+*a control that has been shown to work*, which is the distinction this project keeps paying for: the
+class had been in the tree since phase 01 and nothing had ever executed it, because `@Profile("prod")`
+means the suite never starts it by accident.
+
+One of the six plants is the one worth knowing about. The guard recognises a default by its
+`local-dev-only-` prefix, so a default in `application.yml` that loses the prefix is a default the
+guard silently stops catching — and every other test stays green, because they carry their own
+literals. `every_local_default_still_carries_the_prefix_the_guard_matches` reads the real file.
 
 ---
 
