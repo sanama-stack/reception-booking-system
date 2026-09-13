@@ -19,7 +19,7 @@ E2E_ENV := COMPOSE_PROJECT_NAME=reception-e2e \
 
 .DEFAULT_GOAL := help
 .PHONY: help up up-all up-e2e down down-e2e logs logs-e2e test e2e migrate seed rebuild ps psql \
-        check-ports check-bindings check-docs \
+        check-ports check-bindings check-docs check-pipeline \
         check-headers check-access-log check-fake-provider check-secrets
 
 help: ## Show this help
@@ -166,7 +166,7 @@ e2e: ## Run the end-to-end flow against the E2E topology (needs `make up-e2e`)
 #
 # CI does not hit this: the Linux runner installs the browser in its own step, which is exactly why
 # it is written here instead of being left for the next person to rediscover.
-	cd e2e && pnpm install --frozen-lockfile && pnpm exec playwright install chromium && pnpm test
+	cd e2e && pnpm install --frozen-lockfile && pnpm typecheck && pnpm exec playwright install chromium && pnpm test
 
 down: ## Stop everything (keeps the database volume)
 	$(COMPOSE) $(APPS) down
@@ -181,9 +181,13 @@ ps: ## Show container status
 logs: ## Tail logs from all containers
 	$(COMPOSE) $(APPS) logs -f --tail=100
 
-test: ## Run backend and frontend test suites
+# The frontend half ran `lint`, `typecheck` and `build` for ten phases and never `pnpm test`, so
+# the target named "backend and frontend test suites" skipped all 82 of the frontend's — issue #36,
+# T150: the name was an assertion and nothing executed it. `format:check` was missing for the same
+# reason. The order below is CI's order, and `make check-pipeline` is what now holds them together.
+test: check-pipeline ## Run backend and frontend test suites
 	cd backend && ./gradlew build
-	cd frontend && pnpm install --frozen-lockfile && pnpm lint && pnpm typecheck && pnpm build
+	cd frontend && pnpm install --frozen-lockfile && pnpm lint && pnpm typecheck && pnpm format:check && pnpm test && pnpm build
 
 # The Flyway task runs on the host, not in a container, so it reads DB_* from the process
 # environment rather than from compose. Without this it takes build.gradle.kts's defaults and
@@ -340,6 +344,21 @@ check-bindings: .env ## Assert only Caddy is published on all interfaces, in bot
 # No containers, no network, no build: a checkout and Python. It is its own CI job for that reason.
 check-docs: ## Assert the documentation is internally consistent (links, §refs, inventories)
 	@python3 docs/tools/consistency/check.py
+
+# G41, and it found the drift it was written to prevent. `make test` and CI's Frontend job were
+# left to agree by hand, and they did not: the target skipped `pnpm test` and `pnpm format:check`,
+# and `make e2e` skipped `pnpm typecheck`. Both sides are parsed — CI's steps and this file's
+# recipes — and the script names are checked against each project's package.json, so a rename is a
+# failure rather than a silent miss. It fails in both directions: a gate CI holds and a laptop does
+# not is the defect that produced it, and the reverse is the same divergence pointing the other way.
+#
+# What it compares is the script NAME, not the command line. `--no-daemon` and `--with-deps` are
+# where a runner and a laptop are supposed to differ; which suites run is where they are not.
+#
+# `test` depends on this, so the documented local build checks itself against the pipeline. No
+# containers, no network, no build — a checkout and Python, which is why it is also its own CI job.
+check-pipeline: ## Assert `make test` and `make e2e` run the suites CI runs
+	@python3 tools/pipeline-parity/check.py
 
 # Phase 11 §Security's "full-history secret scan", as a target rather than the one-off reading it
 # was listed as for four sittings. History does not get safer with age: every commit ever made is

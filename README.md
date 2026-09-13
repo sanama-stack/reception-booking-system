@@ -96,7 +96,7 @@ the frontend's own port, which Next.js will only take from the command line — 
 make seed      # load the two-tenant demo dataset (see below)
 make down      # stop the infrastructure (keeps the database volume)
 make logs      # tail container logs
-make test      # backend build + frontend lint, typecheck, build
+make test      # both test suites, plus lint, typecheck and format checks
 make psql      # psql shell on the running database
 make help      # every target
 ```
