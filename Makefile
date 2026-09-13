@@ -20,7 +20,7 @@ E2E_ENV := COMPOSE_PROJECT_NAME=reception-e2e \
 .DEFAULT_GOAL := help
 .PHONY: help up up-all up-e2e down down-e2e logs logs-e2e test e2e migrate seed rebuild ps psql \
         check-ports check-bindings check-docs \
-        check-headers check-access-log check-fake-provider
+        check-headers check-access-log check-fake-provider check-secrets
 
 help: ## Show this help
 # [0-9] in the class, because without it a target with a digit in its name — up-e2e — is
@@ -340,3 +340,48 @@ check-bindings: .env ## Assert only Caddy is published on all interfaces, in bot
 # No containers, no network, no build: a checkout and Python. It is its own CI job for that reason.
 check-docs: ## Assert the documentation is internally consistent (links, §refs, inventories)
 	@python3 docs/tools/consistency/check.py
+
+# Phase 11 §Security's "full-history secret scan", as a target rather than the one-off reading it
+# was listed as for four sittings. History does not get safer with age: every commit ever made is
+# rescanned on every run, so a secret introduced today is caught by the same command that cleared
+# yesterday.
+#
+# WHY THE CONTROL IS THE FIRST ASSERTION. "no leaks found" is also what a scan of NOTHING prints,
+# and this check produced exactly that twice while it was being written — once when `--report-path
+# /dev/null` made gitleaks exit fatally on an unknown report format, and once when a broken count
+# regex reported 0 of 19 commits over a scan that had worked. Both printed a clean result. So the
+# scanned count is compared against the repo's own non-merge commit count, and a mismatch fails
+# before any conclusion is drawn from the silence.
+#
+# WHY NON-MERGE IS THE RIGHT DENOMINATOR. gitleaks skips merge commits, because a merge introduces
+# no content its parents do not already carry — true unless a merge is an "evil merge", whose tree
+# differs from what merging its parents produces. All 30 merges in this history were checked with
+# `git diff-tree --cc` on 2026-09-13 and none is evil. If that ever stops holding, this denominator
+# is the line that has to change.
+#
+# WAIVERS LIVE IN .gitleaks.toml, keyed to path AND content — never in a .gitleaksignore, whose
+# fingerprints carry a line number and re-arm on the next inserted line. See that file's header.
+check-secrets: ## Scan every commit on every ref for secrets (needs gitleaks)
+	@command -v gitleaks >/dev/null \
+	  || { echo "gitleaks is not installed — brew install gitleaks"; exit 1; }; \
+	 expected=$$(git rev-list --all --no-merges --count); \
+	 echo "Scanning $$expected non-merge commits across every ref"; \
+	 report=$$(mktemp -t gitleaks-report-XXXXXX.json); \
+	 trap 'rm -f "$$report"' EXIT; \
+	 out=$$(gitleaks git --log-opts="--all" --redact --no-banner \
+	          --report-format json --report-path "$$report" . 2>&1); \
+	 status=$$?; \
+	 plain=$$(printf '%s' "$$out" | sed 's/\x1b\[[0-9;]*m//g'); \
+	 scanned=$$(printf '%s' "$$plain" | grep -oE '[0-9]+ commits scanned' | awk '{print $$1}'); \
+	 [ -n "$$scanned" ] \
+	   || { echo "the scanner reported no commit count — it did not run, and its silence about secrets means nothing"; \
+	        printf '%s\n' "$$plain"; exit 1; }; \
+	 [ "$$scanned" = "$$expected" ] \
+	   || { echo "  control FAILED: $$scanned commits scanned, $$expected expected — the scan did not cover this history"; \
+	        exit 1; }; \
+	 echo "  control ok — all $$scanned non-merge commits were read"; \
+	 [ "$$status" = "0" ] \
+	   || { echo "  a secret is in the repository or its history."; \
+	        echo "  ROTATE it at the issuer first: history retains every committed value, so redaction is not remediation."; \
+	        exit 1; }; \
+	 echo "No secret is in the repository or its history."

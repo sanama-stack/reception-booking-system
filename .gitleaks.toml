@@ -1,0 +1,46 @@
+# gitleaks configuration — the full-history secret scan (phase 11 §Security).
+#
+# Run it with `make check-secrets`, which scans every commit on every ref.
+#
+# HOW TO ADD AN ENTRY. Every allowlist below pairs a PATH with the exact CONTENT it
+# permits, under `condition = "AND"`, so a fixture is waived only in the file that
+# owns it. Two things are deliberately absent:
+#
+#   - No `.gitleaksignore`. Its fingerprints are `commit:file:rule:LINE`, so one line
+#     inserted above a fixture re-arms the alarm on an innocent commit and the real
+#     pattern goes unpinned. A waiver keyed to a line number is a waiver that rots.
+#   - No bare path allowlist. Waiving a whole file means the next real credential
+#     pasted into it is waved through by the control written to catch it.
+#
+# A waiver here must therefore name the literal it permits. If a fixture value
+# changes, this file fails loudly rather than quietly covering the new value.
+
+[extend]
+useDefault = true
+
+[[allowlists]]
+description = """
+PiiValueMaskerTest's JWT fixture. Decoded 2026-09-13: header {"alg":"HS256"}, payload
+{"sub":"1234567890"} — the canonical example token — and a signature that decodes to 25
+bytes where HS256 requires 32, so it cannot verify against any key. It is the INPUT to
+the assertion that PiiValueMasker rewrites a JWT to [REDACTED_JWT]; removing it deletes
+the test.
+"""
+condition = "AND"
+paths = ['''backend/src/test/java/dev/reception/common/logging/PiiValueMaskerTest\.java''']
+regexes = ['''eyJhbGciOiJIUzI1NiJ9\.eyJzdWIiOiIxMjM0NTY3ODkwIn0\.[A-Za-z0-9_-]{20,40}''']
+
+[[allowlists]]
+description = """
+AppenderRedactionTest's LEAKY_MESSAGE fixture — the deliberately secret-shaped line
+driven through the production appender to prove every value in MUST_NOT_APPEAR comes
+out masked. These literals are the test's subject matter; a run that did not carry them
+would assert nothing.
+"""
+condition = "AND"
+paths = ['''backend/src/test/java/dev/reception/common/logging/AppenderRedactionTest\.java''']
+regexes = [
+  '''abc123def456''',
+  '''sk-proj-AbCdEfGhIjKlMnOpQrSt''',
+  '''hunter2''',
+]
