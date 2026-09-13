@@ -180,6 +180,14 @@ logs-e2e: ## Dump the E2E topology's container logs (what a CI failure needs)
 check-fake-provider: ## Run the fake AI provider's self-test (no containers needed)
 	node infra/fake-provider/selftest.js
 
+# The probe's own check, and the same shape as the double's above: it asserts the property that
+# makes the instrument usable — that its loop is bounded the way ConversationService.runTurn is
+# bounded — and that property HAS failed. The probe counted rounds where the application counts
+# tool calls, so against a model asking for eight tools at once it made 48 calls where a turn makes
+# five. No key, no network and no fixtures.
+check-probe: ## Run the Receptionist probe's self-test (no key, no containers needed)
+	python3 backend/tools/receptionist-probe/probe.py --self-test
+
 # Expects `make up-e2e` to be running. It is deliberately not a dependency of this target: bringing
 # the stack up takes minutes and rebuilds images, and a test target that silently does that is a
 # test target nobody runs twice.

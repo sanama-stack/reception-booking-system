@@ -58,7 +58,16 @@ there too: fifty conversations cannot separate 96% from 100% (Fisher, one-sided,
 
 ## Running it
 
-The fixtures are written by a test and are gitignored, because they are outputs:
+First, prove the instrument. No key, no network and no fixtures needed:
+
+```bash
+python3 probe.py --self-test
+```
+
+It drives the loop against scripted responses and asserts that it is bounded the way
+`ConversationService.runTurn` is bounded. `make check-probe` runs the same thing, and so does CI.
+
+The fixtures — all three — are written by a test and are gitignored, because they are outputs:
 
 ```bash
 cd backend
@@ -165,6 +174,45 @@ arm's trials against 20% of the second's.
 
 So a rate measured with an explicit ISO date is a **best case**, and customers do not talk that way.
 State the phrasing beside the number, the way the weekday test states its weekday.
+
+## What it replays, and what it does not
+
+Of `ConversationService.runTurn`, the probe replays the **budget** and nothing else of it. That is
+the part a measurement rests on: the budget decides which tool calls happen, and what this file
+scores is the arguments of the calls that happened.
+
+Everything else `runTurn` does is absent on purpose — the twenty-message context window (there is
+one turn, so there is no history), persistence, the forty-message ceiling and the daily cost cap
+(refusals before the loop, not decisions inside it), the Offered-Slot check (that measures writes;
+this measures arguments), and the polite hand-off sentence (reported as `(tool ceiling)`). The list
+is in `probe.py`'s header as well, because **an absence nobody wrote down is indistinguishable from
+a bug**.
+
+### The bound it replayed was not the application's
+
+For its whole life before 2026-09-14 the probe counted **rounds**: `for _ in range(MAX_ROUNDS)`,
+with `MAX_ROUNDS = 6`, and every tool call in a response executed because it arrived. The
+application counts **tool calls** — five of them, `ConversationLimits.MAX_TOOL_CALLS_PER_TURN`,
+checked before each model call and again *between the calls of one response*.
+
+The comment reconciling them read *"the application's own limit is
+`ConversationLimits.MAX_TOOL_CALLS_PER_TURN`; this only has to be no smaller"* — which compares two
+numbers that were never in the same unit. Measured against a model asking for eight tools at once:
+
+| | tool calls made | model calls made |
+|---|---|---|
+| the application | 5 | 1 |
+| the probe, counting rounds | **48** | **6** |
+
+Nine and a half times the calls, and the probe scores the `date_from` of every one of them with
+`all()`. This is not a sampling difference like the ones above; it is the instrument outliving the
+turn it is imitating, and it bites hardest exactly where the probe is meant to be useful — on a
+prompt that makes the model go in circles, which is the case the ceiling exists for.
+
+**Two of the three assertions in the self-test's separating case catch it, and the third does not.**
+The one that stays green is the one whose label names the ceiling: `turn ended at the ceiling` reads
+`(tool ceiling)` under both loops, because both of them do end at a ceiling — just not the same one.
+An assertion written about a bound is not automatically one that can see the bound change.
 
 ## The rule that produced all of this
 
