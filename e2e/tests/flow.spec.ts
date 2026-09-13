@@ -6,6 +6,7 @@ import {
   signIn,
   waitForMail,
   manageLinkFrom,
+  mailContaining,
   RECEPTIONIST_CUSTOMER,
 } from './support';
 
@@ -140,9 +141,35 @@ test('a business is configured, booked twice, managed, cancelled and reported on
     await chatContext.close();
   });
 
-  await test.step('both confirmations arrive, and the Manage Link resolves', async () => {
+  await test.step('one confirmation arrives, not two, and the Manage Link resolves', async () => {
     const mail = await waitForMail(request, tenant.customerEmail);
     expect(mail.Subject.toLowerCase()).toContain('confirm');
+
+    // ONE confirmation, not two. This step used to be called "both confirmations arrive" and
+    // asserted a single one — the Classic Flow's — which is the only one there can be. The
+    // Receptionist's customer is the fake provider's constant: a name and a phone and NO email
+    // (infra/fake-provider/server.js), so ADR-0007 sends nothing for that booking. A name
+    // claiming two while the body checks one is a control that would stay green if the second
+    // ever broke, because nothing was ever looking at it.
+    //
+    // Asked by Confirmation Code rather than by recipient, because the booking under test has no
+    // recipient to ask about.
+    //
+    // THE CONTROL COMES FIRST. An empty list is also what an unreachable Mailpit, an empty mailbox
+    // and a search that matches nothing all return, so the same search must be shown to FIND the
+    // code that IS in the mail before its silence about the other one means anything.
+    //
+    // The wait above is what makes this a fair question: both bookings happened before it, and the
+    // poller sends everything due in one pass — so the Classic Flow's confirmation arriving proves
+    // a pass has run since the Receptionist booked.
+    expect(
+      await mailContaining(request, classicCode),
+      'the control: the same search finds the Classic Flow code, which is in the mail',
+    ).not.toHaveLength(0);
+    expect(
+      await mailContaining(request, receptionistCode),
+      'the Receptionist booking has no address on file, so ADR-0007 sends nothing',
+    ).toHaveLength(0);
 
     const link = await manageLinkFrom(request, mail.ID);
     const manageContext = await page.context().browser()!.newContext();
