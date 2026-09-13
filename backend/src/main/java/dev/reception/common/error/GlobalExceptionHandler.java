@@ -36,9 +36,6 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
 
     private static final Logger log = LoggerFactory.getLogger(GlobalExceptionHandler.class);
 
-    /** The exclusion constraint from {@code V5__customers_and_appointments.sql}. */
-    private static final String APPOINTMENT_OVERLAP_CONSTRAINT = "appointments_no_overlap";
-
     @ExceptionHandler(ApiException.class)
     public ResponseEntity<ProblemDetail> handleApiException(ApiException ex, HttpServletRequest request) {
         if (ex.code().status().is5xxServerError()) {
@@ -59,7 +56,8 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
     }
 
     /**
-     * A constraint the database refused, mapped by <strong>constraint name</strong>.
+     * A constraint the database refused, mapped by <strong>constraint name</strong> in
+     * {@link PersistenceRefusal}.
      *
      * <p>{@code appointments_no_overlap} is the exclusion constraint, and reaching it means a
      * booking lost a race it could not have been protected from any other way (ADR-0002). It is a
@@ -67,30 +65,14 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
      * Slot being offered and the row being written, and the client's correct response is to re-read
      * availability.
      *
-     * <p><strong>Keyed on the name, never on the exception type alone.</strong> Catching
-     * {@code DataIntegrityViolationException} broadly and answering "slot unavailable" would tell a
-     * caller their time was taken when the real cause was a null in a column nobody noticed — and
-     * the defect would then be invisible, because the response looked like an ordinary race. Any
-     * other constraint falls through to a logged 500, which is what an unexpected integrity failure
-     * is.
+     * <p><strong>The decision is not made here.</strong> It was, and the Receptionist — which
+     * reaches the same services without passing a controller — therefore got none of it. This
+     * advice is now one of two callers of the same translation.
      */
     @ExceptionHandler(DataIntegrityViolationException.class)
     public ResponseEntity<ProblemDetail> handleDataIntegrityViolation(
             DataIntegrityViolationException ex, HttpServletRequest request) {
-        if (namesConstraint(ex, APPOINTMENT_OVERLAP_CONSTRAINT)) {
-            log.debug("Booking lost the exclusion-constraint race");
-            return respond(problem(
-                    ErrorCode.SLOT_UNAVAILABLE,
-                    "That time was booked while you were deciding. Choose another.",
-                    List.of(),
-                    request.getRequestURI()));
-        }
-        log.error("Unmapped data integrity violation", ex);
-        return respond(problem(
-                ErrorCode.INTERNAL_ERROR,
-                "Something went wrong. Quote the request id if you contact support.",
-                List.of(),
-                request.getRequestURI()));
+        return respond(refusalOrInternal(ex, request));
     }
 
     /**
@@ -102,12 +84,7 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
     @ExceptionHandler(OptimisticLockingFailureException.class)
     public ResponseEntity<ProblemDetail> handleOptimisticLocking(
             OptimisticLockingFailureException ex, HttpServletRequest request) {
-        log.debug("Optimistic lock lost", ex);
-        return respond(problem(
-                ErrorCode.VERSION_CONFLICT,
-                "Someone else changed this appointment while you were editing it. Reload and try again.",
-                List.of(),
-                request.getRequestURI()));
+        return respond(refusalOrInternal(ex, request));
     }
 
     /**
@@ -203,23 +180,27 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
     }
 
     /**
-     * Whether this violation is the named constraint.
+     * The domain refusal this database failure means, or the generic 500 for one that means none.
      *
-     * <p>The name reaches us through the driver's message rather than through a typed field:
-     * Spring's {@code DataIntegrityViolationException} does not carry one, and Hibernate's
-     * {@code ConstraintViolationException} only sometimes parses it out. Searching the whole cause
-     * chain's messages is the reliable version, and it is why the constraint name is a constant
-     * here — renaming it in the migration without changing this constant would silently turn every
-     * lost race into a 500.
+     * <p>An unrecognised integrity violation is a defect — a null in a column nobody noticed, most
+     * often — so it is logged in full and answered like any other defect. Answering it as a lost
+     * race would tell a caller their time was taken and leave the real fault invisible, because the
+     * response looked ordinary.
      */
-    private static boolean namesConstraint(Throwable error, String constraintName) {
-        for (Throwable cause = error; cause != null; cause = cause.getCause()) {
-            String message = cause.getMessage();
-            if (message != null && message.contains(constraintName)) {
-                return true;
-            }
-        }
-        return false;
+    private ProblemDetail refusalOrInternal(RuntimeException ex, HttpServletRequest request) {
+        return PersistenceRefusal.of(ex)
+                .map(refusal -> {
+                    log.debug("Write refused by the database: {}", refusal.code());
+                    return problem(refusal.code(), refusal.getMessage(), List.of(), request.getRequestURI());
+                })
+                .orElseGet(() -> {
+                    log.error("Unmapped database failure", ex);
+                    return problem(
+                            ErrorCode.INTERNAL_ERROR,
+                            "Something went wrong. Quote the request id if you contact support.",
+                            List.of(),
+                            request.getRequestURI());
+                });
     }
 
     private String path(WebRequest request) {

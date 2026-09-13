@@ -313,6 +313,18 @@ class ToolExecutionTest extends IntegrationTest {
         assertThat(source).isEqualTo("AI");
     }
 
+    /**
+     * <strong>This is the availability re-check refusing, not the exclusion constraint.</strong> The
+     * slot is already taken and committed when the call is made, so {@code BookingService} refuses
+     * by name before it writes anything — which is the ordinary path and the one worth asserting
+     * here.
+     *
+     * <p>Worth knowing because this test reads like coverage of the other branch and is not. The
+     * constraint refusing a write that had already passed its re-check produced
+     * {@code TOOL_ERROR} for eleven phases, and nothing here could see it: it needs two writers.
+     * {@link ToolRefusalTest} pins the translation and {@link ConcurrentToolRescheduleTest} reaches
+     * it the way a Customer does.
+     */
     @Test
     @DisplayName("create_appointment on a taken slot returns SLOT_UNAVAILABLE rather than throwing")
     void booking_a_taken_slot_is_a_structured_refusal() {

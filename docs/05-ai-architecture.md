@@ -242,6 +242,7 @@ validated, then re-validated by the application service, which does not know or 
 | Failure | Behaviour |
 |---|---|
 | Tool returns a domain error (`SLOT_UNAVAILABLE`, `CANCELLATION_WINDOW_CLOSED`) | Returned to the model as a structured result with a human-readable message so it can explain and offer alternatives |
+| Tool write refused by the database (the exclusion constraint, the `@Version` check) | Not a throw. `PersistenceRefusal` reads it as the same `SLOT_UNAVAILABLE` or `VERSION_CONFLICT` the HTTP edge returns, and it is handled as the row above. The translation lived only at the HTTP edge until phase 11, so a Customer who lost a race was told the Receptionist had broken |
 | Tool throws unexpectedly | Generic tool error to the model, full stack trace to logs, one retry, then degrade |
 | Model returns malformed arguments | Near-impossible under strict schemas; if seen, one structured retry, then degrade |
 | Provider timeout or 5xx | `503 AI_UNAVAILABLE`; UI shows the Classic Flow |

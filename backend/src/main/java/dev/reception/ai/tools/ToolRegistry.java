@@ -4,9 +4,11 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import dev.reception.ai.port.ToolSpec;
 import dev.reception.common.error.ApiException;
+import dev.reception.common.error.PersistenceRefusal;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
@@ -19,15 +21,22 @@ import org.springframework.stereotype.Component;
  * and so is accidentally adding a ninth tool, which is why {@code ToolSchemaTest} asserts the count
  * and the names as well as the schemas.
  *
- * <p><strong>Failures are results, not exceptions.</strong> Both catch blocks below return JSON the
+ * <p><strong>Failures are results, not exceptions.</strong> Every failure below returns JSON the
  * model can read and explain, because the alternative is a turn that dies on a slot someone else
- * took — an ordinary event that the customer should hear about as a sentence, not as a 500. The
- * distinction between them is who is expected to have gone wrong:
+ * took — an ordinary event that the customer should hear about as a sentence, not as a 500. Three
+ * cases, and the distinction between them is who is expected to have gone wrong:
  *
  * <ul>
  *   <li>{@code ApiException} is the domain saying no. Its code and message are the ones every other
  *       surface uses, and the message is already written to be read by a customer, so it is passed
  *       through as-is.
+ *   <li>A database failure {@link dev.reception.common.error.PersistenceRefusal} recognises is the
+ *       domain saying no in a different accent — the exclusion constraint deciding a race, the
+ *       {@code @Version} check deciding a concurrent edit. It arrives as a plain
+ *       {@code RuntimeException} and would otherwise fall through to the case below, which is
+ *       exactly what it did: a Customer who lost a race was told <em>"Something went wrong on my
+ *       end"</em> rather than that the time had gone. Same translation the HTTP edge uses, so the
+ *       two surfaces cannot drift again.
  *   <li>Anything else is a defect. The model is told only that the tool failed; the stack trace goes
  *       to the log, where the conversation id ties it back to the transcript.
  * </ul>
@@ -80,26 +89,39 @@ public class ToolRegistry {
         try {
             return tool.execute(arguments, context);
         } catch (ApiException e) {
-            log.info(
-                    "Tool {} refused: {} (conversation {})",
-                    name,
-                    e.code(),
-                    context.conversationId());
-            // The fieldErrors travel with it. VALIDATION_FAILED's own message is "One or more
-            // fields are invalid", which tells the model to try again and nothing about what to
-            // change — and what it changed, three times running, was nothing.
-            //
-            // Measured by replaying the loop against the real tool schemas with create_appointment
-            // refusing an unusable phone number: with the detail on the wire and rule 3 in the
-            // prompt, the model asked the customer for a number in international form in 12 turns
-            // out of 12, against 5 of 12 without it — the rest being a vague "there was a problem"
-            // that leaves the customer with nothing to do. The incident's three identical retries
-            // did not reproduce in a single-turn harness, so what is measured here is the answer the
-            // customer gets rather than the calls that were saved.
-            return ToolResults.error(e.code().name(), e.getMessage(), e.fieldErrors());
+            return refused(name, e, context);
         } catch (RuntimeException e) {
+            // Asked before the failure is called a defect, because two of them are not one. The
+            // services these tools call flush inside their own transaction precisely so the
+            // constraint and the version check are raised while somebody is still on the stack to
+            // read them — and until this line existed, the somebody was a controller the
+            // Receptionist does not have.
+            Optional<ApiException> refusal = PersistenceRefusal.of(e);
+            if (refusal.isPresent()) {
+                return refused(name, refusal.get(), context);
+            }
             log.error("Tool {} failed unexpectedly (conversation {})", name, context.conversationId(), e);
             return ToolResults.error(TOOL_ERROR, "Something went wrong on my end. Let me try that another way.");
         }
+    }
+
+    /**
+     * A domain refusal, as the model reads it.
+     *
+     * <p>The fieldErrors travel with it. {@code VALIDATION_FAILED}'s own message is "One or more
+     * fields are invalid", which tells the model to try again and nothing about what to change —
+     * and what it changed, three times running, was nothing.
+     *
+     * <p>Measured by replaying the loop against the real tool schemas with {@code create_appointment}
+     * refusing an unusable phone number: with the detail on the wire and rule 3 in the prompt, the
+     * model asked the customer for a number in international form in 12 turns out of 12, against 5
+     * of 12 without it — the rest being a vague "there was a problem" that leaves the customer with
+     * nothing to do. The incident's three identical retries did not reproduce in a single-turn
+     * harness, so what is measured here is the answer the customer gets rather than the calls that
+     * were saved.
+     */
+    private ObjectNode refused(String name, ApiException e, ToolContext context) {
+        log.info("Tool {} refused: {} (conversation {})", name, e.code(), context.conversationId());
+        return ToolResults.error(e.code().name(), e.getMessage(), e.fieldErrors());
     }
 }
