@@ -94,6 +94,52 @@ class BlueprintCheckTest {
     }
 
     @Test
+    void a_customer_cancellation_next_monday_is_refused_because_a_sunday_seed_is_hours_from_it() {
+        // The regression. Salon Aria shipped exactly this placement, and the rule it had to pass —
+        // "week offset of at least 1" — waved it through, because a week number cannot answer a
+        // question asked in hours. Seeded on a Sunday after 11:00 local, next Monday 11:00 is
+        // inside the 24-hour window, CancellationService refused it, and all eight DemoSeedTest
+        // cases failed at the one seedAll() line. The same commit passed that morning: CI on this
+        // repository was green or red according to the hour it ran.
+        //
+        // Asserting the number, not just the phrase. The worst case here is 11 hours and the
+        // message has to say so, because that figure is the whole of what the old rule could not
+        // see — a rule that reported "week +1, fine" would satisfy a message-free assertion.
+        Blueprint.Appointment nextMonday = new Blueprint.Appointment(
+                new Blueprint.Placement(1, DayOfWeek.MONDAY, LocalTime.of(11, 0)),
+                "Giorgi Tsiklauri",
+                "Blow-dry",
+                "Keti Lomidze",
+                AppointmentSource.DASHBOARD,
+                Blueprint.Outcome.CANCELLED_BY_CUSTOMER,
+                null);
+
+        assertThatThrownBy(() -> verifyWith(nextMonday))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("not far enough ahead")
+                .hasMessageContaining("11 hours in the worst case");
+    }
+
+    @Test
+    void a_customer_cancellation_far_enough_ahead_of_the_window_is_accepted() {
+        // The other side of the boundary, so the rule above is not simply "refuse every customer
+        // cancellation" — which would pass the test above while making the check useless. Thursday
+        // of week +1 guarantees 85 hours whenever the seed runs. Nino rather than Giorgi, and
+        // Thursday rather than Wednesday, because both of those are already occupied in week +1 and
+        // a clash would fail this test for a reason that has nothing to do with the window.
+        Blueprint.Appointment nextThursday = new Blueprint.Appointment(
+                new Blueprint.Placement(1, DayOfWeek.THURSDAY, LocalTime.of(13, 0)),
+                "Nino Kapanadze",
+                "Haircut",
+                "Keti Lomidze",
+                AppointmentSource.DASHBOARD,
+                Blueprint.Outcome.CANCELLED_BY_CUSTOMER,
+                null);
+
+        assertThatCode(() -> verifyWith(nextThursday)).doesNotThrowAnyException();
+    }
+
+    @Test
     void every_problem_is_named_at_once() {
         // One message listing everything, rather than one run per defect. A fixture is usually
         // wrong in more than one place at a time, and finding that out one build at a time is how a

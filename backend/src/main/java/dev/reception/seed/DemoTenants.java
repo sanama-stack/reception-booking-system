@@ -216,9 +216,15 @@ final class DemoTenants {
                 // Next week — Mariam is on leave Monday to Friday, so her only booking is Saturday.
                 appointment(1, TUESDAY, at(10, 0), "Nino Kapanadze", "Haircut", "Ana Gelashvili", AI, BOOKED),
                 appointment(1, WEDNESDAY, at(13, 0), "Nino Kapanadze", "Colour", "Levan Chkheidze", CLASSIC, BOOKED),
+                // WEDNESDAY, not Monday. Giorgi works Monday, Wednesday and Friday, and a
+                // customer cancellation has to sit far enough ahead that the Cancellation Window is
+                // still open WHENEVER the seed runs. Monday of week +1 is 11 hours after a Sunday
+                // night seed, inside the salon's 24-hour window, and `make seed` then failed on
+                // Sunday afternoons and worked on Sunday mornings. Wednesday guarantees 59.
+                // BlueprintCheck now computes that lead rather than trusting the week number.
                 appointment(
                         1,
-                        MONDAY,
+                        WEDNESDAY,
                         at(11, 0),
                         "Giorgi Tsiklauri",
                         "Blow-dry",

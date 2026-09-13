@@ -137,12 +137,45 @@ final class BlueprintCheck {
         }
 
         // A Customer may only cancel while the Cancellation Window is open, so a fixture that asks
-        // for one in the past describes a cancellation the application would refuse to perform.
-        // Next week or later is the only placement that is certainly outside a window measured in
-        // hours, whatever day the seed runs.
-        if (appointment.outcome() == Blueprint.Outcome.CANCELLED_BY_CUSTOMER && appointment.when().weekOffset() < 1) {
-            problems.add(label + " — cancelled by the customer, but not far enough ahead to be allowed to");
+        // for one the application would refuse describes a cancellation that cannot be performed.
+        //
+        // ASKED IN HOURS, BECAUSE THE WINDOW IS HOURS. This was `weekOffset() < 1`, and said "next
+        // week or later is the only placement that is certainly outside a window measured in hours,
+        // whatever day the seed runs". That sentence is false, and the fixture it waved through was
+        // this project's own: Salon Aria cancelled a Monday of week +1 behind a 24-hour window.
+        // Seeded on a SUNDAY that Monday is hours away rather than days, so `CancellationService`
+        // refused it and every DemoSeedTest case failed — after 11:00 local. Before 11:00 the same
+        // code passed. A control that is green or red by the hour was reporting on the blueprint.
+        //
+        // The worst case needs no clock, which is what keeps this a pure function of the blueprint:
+        // placements are anchored to Monday 00:00 of the week the seed runs in, so the latest the
+        // seed can run within that week is the end of its Sunday — one whole week after the anchor.
+        // The lead a placement is GUARANTEED is therefore its own offset minus that week.
+        if (appointment.outcome() == Blueprint.Outcome.CANCELLED_BY_CUSTOMER) {
+            long guaranteed = minutesFromAnchor(appointment.when()) - MINUTES_IN_A_WEEK;
+            long window = tenant.profile().cancellationWindowHours() * 60L;
+            // Not `<`: CancellationWindow.isOpenFor shuts the window AT the boundary, so a lead
+            // exactly equal to it is already refused.
+            if (guaranteed <= window) {
+                problems.add(label
+                        + " — cancelled by the customer, but not far enough ahead: %d hours in the worst case, which a %d-hour Cancellation Window refuses"
+                                .formatted(guaranteed / 60, tenant.profile().cancellationWindowHours()));
+            }
         }
+    }
+
+    private static final long MINUTES_IN_A_WEEK = 7L * 24 * 60;
+
+    /**
+     * Minutes from Monday 00:00 of the seed's own week to this placement.
+     *
+     * <p>Negative for a placement in a past week, which is what makes a cancellation fixture behind
+     * the seed fail the check above rather than needing a rule of its own.
+     */
+    private static long minutesFromAnchor(Blueprint.Placement when) {
+        return when.weekOffset() * MINUTES_IN_A_WEEK
+                + (when.day().getValue() - 1) * 24L * 60
+                + when.at().toSecondOfDay() / 60L;
     }
 
     private static boolean within(
