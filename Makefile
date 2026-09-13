@@ -20,7 +20,8 @@ E2E_ENV := COMPOSE_PROJECT_NAME=reception-e2e \
 .DEFAULT_GOAL := help
 .PHONY: help up up-all up-e2e down down-e2e logs logs-e2e test e2e migrate seed rebuild ps psql \
         check-ports check-bindings check-docs check-pipeline \
-        check-headers check-access-log check-fake-provider check-secrets check-java
+        check-headers check-access-log check-fake-provider check-secrets check-java \
+        check-project
 
 help: ## Show this help
 # [0-9] in the class, because without it a target with a digit in its name — up-e2e — is
@@ -90,7 +91,50 @@ check-ports: .env
 	 esac; \
 	 exit $$fail
 
-up: .env check-ports check-bindings ## Start Postgres, Mailpit and Caddy — run the apps from your IDE
+# G47. docker-compose.yml pins `name: reception`, so the compose project does NOT depend on which
+# directory you are standing in. Two checkouts of this repository therefore cannot run side by side:
+# the second does not collide and fail, it **succeeds** — recreating the first one's containers
+# against its own config, on the first one's volumes. A `down -v` from either then takes the other's
+# database with it.
+#
+# That is not hypothetical. On 2026-09-13 the clean-checkout walk was run on a machine already
+# running this stack from the working copy, with five businesses in it — two demo tenants and three
+# kept deliberately. Had it joined, it would have migrated and seeded somebody's real data and then
+# reported a green that meant nothing, which is the failure class this repository keeps cataloguing.
+# It was caught by hand, before anything ran. Nothing in the repository would have caught it.
+#
+# THE NAME IS NOT THE BUG AND IS DELIBERATELY LEFT ALONE. A fixed project name is what keeps
+# `reception_postgres-data` stable across a `git pull`, and removing it would silently re-point every
+# existing checkout at a new, empty volume named after its directory — turning a documented hazard
+# into data everybody loses once. COMPOSE_PROJECT_NAME already overrides it; $(E2E_ENV) has relied on
+# exactly that for the E2E topology since it was written. What was missing is the refusal.
+#
+# WHAT THIS CANNOT SEE, stated rather than left to be discovered: a project whose containers have
+# been removed by `make down` leaves only volumes, and compose does not label those — so a second
+# checkout brought up against a STOPPED stack still adopts its data silently. The remedy is the same
+# one this message prints, and the residual is why it prints it rather than merely refusing.
+check-project: ## Refuse to act on a compose project another checkout is running
+	@proj="$${COMPOSE_PROJECT_NAME:-reception}"; \
+	 cid=$$(docker ps -aq --filter "label=com.docker.compose.project=$$proj" 2>/dev/null | head -1); \
+	 if [ -n "$$cid" ]; then \
+	   theirs=$$(docker inspect "$$cid" \
+	     --format '{{index .Config.Labels "com.docker.compose.project.working_dir"}}' 2>/dev/null); \
+	   mine=$$(pwd -P); \
+	   if [ -n "$$theirs" ] && [ "$$theirs" != "$$mine" ]; then \
+	     echo "Compose project '$$proj' is already in use by another checkout."; \
+	     echo "  running from  $$theirs"; \
+	     echo "  you are in    $$mine"; \
+	     echo ""; \
+	     echo "Continuing would recreate that checkout's containers against this one's config,"; \
+	     echo "on its volumes — and a later 'down -v' from either would delete the other's data."; \
+	     echo ""; \
+	     echo "Give this checkout its own project and its own volumes:"; \
+	     echo "    COMPOSE_PROJECT_NAME=reception-$$(basename "$$mine" | tr 'A-Z' 'a-z') make up"; \
+	     exit 1; \
+	   fi; \
+	 fi
+
+up: .env check-project check-ports check-bindings ## Start Postgres, Mailpit and Caddy — run the apps from your IDE
 	$(COMPOSE) up -d
 	@app=$$(grep -E '^APP_PORT=' .env | cut -d= -f2); \
 	 mail=$$(grep -E '^MAILPIT_UI_PORT=' .env | cut -d= -f2); \
@@ -105,7 +149,7 @@ up: .env check-ports check-bindings ## Start Postgres, Mailpit and Caddy — run
 	 echo "  Docs     http://localhost:$$app/api/docs"; \
 	 echo "  Mailpit  http://localhost:$$mail"
 
-up-all: .env check-ports check-bindings ## Start everything in containers, including both applications
+up-all: .env check-project check-ports check-bindings ## Start everything in containers, including both applications
 	$(COMPOSE) $(APPS) up -d --build
 	@app=$$(grep -E '^APP_PORT=' .env | cut -d= -f2); \
 	 mail=$$(grep -E '^MAILPIT_UI_PORT=' .env | cut -d= -f2); \
@@ -245,7 +289,7 @@ test: check-java check-pipeline ## Run backend and frontend test suites
 # The Flyway task runs on the host, not in a container, so it reads DB_* from the process
 # environment rather than from compose. Without this it takes build.gradle.kts's defaults and
 # targets port 5432, where nothing in this project listens (issue #9).
-migrate: .env check-java ## Apply Flyway migrations against the running database
+migrate: .env check-java check-project ## Apply Flyway migrations against the running database
 	$(COMPOSE) up -d postgres
 	set -a && . ./.env && set +a && cd backend && ./gradlew flywayMigrate
 
@@ -253,7 +297,7 @@ migrate: .env check-java ## Apply Flyway migrations against the running database
 # SERVER_PORT — and with the notifications poller off, so nothing is sent while the fixture is
 # being built. `reception.seed.enabled` is set here and nowhere else: SeedRunner is also
 # @Profile("local") and checks the environment again before it deletes anything (SeedRunner).
-seed: .env check-java ## Load the two-tenant demo dataset (local profile only)
+seed: .env check-java check-project ## Load the two-tenant demo dataset (local profile only)
 	$(COMPOSE) up -d postgres
 	set -a && . ./.env && set +a && cd backend && ./gradlew bootRun --console=plain -q \
 		--args='--spring.main.web-application-type=none --reception.seed.enabled=true --app.notifications.poller-enabled=false'

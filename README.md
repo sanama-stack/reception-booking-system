@@ -96,6 +96,22 @@ network even when `ufw` says otherwise — Docker writes its rules below the fir
 and Mailpit by service name, so `9084` and `9085` are not published at all; use `make psql` for a
 database shell. `make check-bindings` asserts all of this and both `up` targets depend on it.
 
+### A second checkout of this repository
+
+`docker-compose.yml` pins the compose project to `reception`, so it does **not** depend on which
+directory you are in — that is what keeps `reception_postgres-data` stable across a `git pull`. The
+cost is that two checkouts would otherwise share one system: the second does not collide and fail, it
+*succeeds*, recreating the first's containers against its own config and on its volumes.
+
+`make check-project` refuses that, naming both directories, and `up`, `up-all`, `migrate` and `seed`
+depend on it. To run a second checkout properly, give it its own project and its own volumes:
+
+```bash
+COMPOSE_PROJECT_NAME=reception-scratch make up
+```
+
+It is the same mechanism `make up-e2e` has always used to keep the E2E stack off your data.
+
 Check the whole block at once with `lsof -nP -iTCP:9080-9085 -sTCP:LISTEN`. Change any of them in
 `.env`; Caddy derives its upstreams from `SERVER_PORT` and `FRONTEND_PORT`. The one exception is
 the frontend's own port, which Next.js will only take from the command line — it is pinned in

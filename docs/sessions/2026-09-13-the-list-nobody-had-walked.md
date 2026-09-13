@@ -24,6 +24,13 @@
 > `migrate` and `seed`** — all three shell out to the host's Gradle and all three failed identically.
 > Proven in four states, including the two targets now stopping *at the guard* rather than at Gradle.
 >
+> **G47 is fixed too, and the hardcoded name stayed.** Dropping it would have silently re-pointed
+> every existing checkout at a new empty volume — a documented hazard traded for data everybody loses
+> once. `COMPOSE_PROJECT_NAME` already overrode it; the missing piece was the refusal. `check-project`
+> names both directories and prints the exact command to fix it. **Six states proven**, and the one
+> case it cannot see — a *stopped* stack, because compose does not label volumes — is written down
+> rather than guessed at.
+>
 > **The four rows still open are all the same blocker.** Three Receptionist behaviour rows and the
 > README demo script, all credit-bound, all carried. **Every box that can be closed without a funded
 > key is now closed.** Phase 11 is **67 of 72**.
@@ -156,7 +163,7 @@ do not — the containerised ones never did.
 
 ---
 
-## 5. G47 — a clean clone silently joins a stack already running
+## 5. G47 — a clean clone silently joined a stack already running. **Fixed**
 
 `docker-compose.yml:12` is `name: reception`, hardcoded. So the compose project does not depend on
 the directory, and two checkouts of this repository **cannot run side by side**: the second does not
@@ -172,7 +179,53 @@ The walk was therefore run with `COMPOSE_PROJECT_NAME=reception-clean`, which th
 already does for the E2E topology. **That deviation is the finding**: the documented command could
 not be used verbatim, on this machine, safely.
 
-It is recorded here rather than filed, by the principal's call.
+### 5.1 The name was not the bug, and is deliberately left alone
+
+The obvious fix — drop `name:` and let compose use the directory — is the wrong one and would have
+been expensive. Every existing checkout would silently re-point at a **new, empty volume** named
+after its directory, turning a documented hazard into data everybody loses exactly once. A fixed
+project name is what keeps `reception_postgres-data` stable across a `git pull`.
+
+`COMPOSE_PROJECT_NAME` already overrides it — `$(E2E_ENV)` has relied on that since the E2E topology
+was written, and the walk used it. **What was missing was the refusal**, so that is what was added.
+
+`check-project` reads the `com.docker.compose.project.working_dir` label off any container in the
+project and refuses when it is not this directory:
+
+```
+Compose project 'reception' is already in use by another checkout.
+  running from  /Users/sanama/Projects/Portfolio/BookingSystem
+  you are in    /private/tmp/.../scratchpad/g47
+
+Continuing would recreate that checkout's containers against this one's config,
+on its volumes — and a later 'down -v' from either would delete the other's data.
+
+Give this checkout its own project and its own volumes:
+    COMPOSE_PROJECT_NAME=reception-g47 make up
+```
+
+It guards **`up`, `up-all`, `migrate` and `seed`** — every target that starts a container.
+
+**Proven in six states:**
+
+| | |
+|---|---|
+| the owning checkout, stack running | passes |
+| a second checkout, same project | **refuses**, naming both directories |
+| the second checkout using the printed remedy | passes |
+| `COMPOSE_PROJECT_NAME=reception-e2e` | passes — E2E isolation intact |
+| a project with no containers at all | passes |
+| `make up` from the owning checkout afterwards | works, five tenants intact |
+
+The remedy is not advice, it is the command, with the directory's own name already substituted.
+
+### 5.2 What it cannot see, said out loud
+
+`make down` removes containers and leaves volumes, and **compose does not label volumes** — verified,
+`reception_postgres-data` has `null` labels. So a second checkout brought up against a **stopped**
+stack still adopts its data silently, and nothing here catches it. The remedy is identical, which is
+why the message prints the remedy rather than only refusing. **Recorded as the residual rather than
+papered over with a heuristic that would be right most of the time.**
 
 ---
 
@@ -211,7 +264,9 @@ pointing at nothing (fails, and says which), and the targets themselves stopping
 than at Gradle. `make check-pipeline` is still green, which matters because `test` gained a
 prerequisite.
 
-**G47 is new and open.** `docker-compose.yml`'s hardcoded `name: reception`. §5.
+**G47 is closed**, in the sitting that opened it. `check-project` refuses a cross-checkout join on
+`up`, `up-all`, `migrate` and `seed`, proven in six states. The **stopped-stack** case remains
+uncatchable — compose does not label volumes — and is recorded at §5.2 rather than guessed at.
 
 ---
 
@@ -241,6 +296,6 @@ did not both work as written.
    and the level-3 corpus.
 2. ~~**G46**~~ — done. The guard is in, and the README says which targets need a host JDK and which
    do not.
-3. **G47** — whether `name: reception` should move, given it makes a second checkout act on the
-   first's data.
+3. ~~**G47**~~ — done, and the name deliberately did **not** move; moving it would have re-pointed
+   every existing checkout at an empty volume. The guard refuses instead.
 4. **G43** — branch protection, unchanged.
