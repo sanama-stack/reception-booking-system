@@ -568,6 +568,22 @@ as nothing at all.
 > `RequestMappingHandlerMapping`. Its policy is required by a written list, and the orphan check
 > verifies that list by **probing the running application** rather than by trusting it. That is the
 > weakest link in this control and the place to look first if the assets are ever unlimited again.
+>
+> **That exclusion turned out to be one of three, and the widest had not been written down at all.**
+> Every derived control in this repository reads `RequestMappingHandlerMapping` — and this
+> application builds **eight** handler mappings. A resource handler holds the swagger-ui assets; the
+> actuator holds `GET /actuator`, mapped even though `management.endpoints.web.exposure.include` is
+> set to the empty string, because the links document is registered independently of what it has to
+> link to; a `RouterFunction` bean would hold a third set that no control here can see at all. A
+> mapping that declares no HTTP method is invisible for a different reason again: every one of these
+> derivations pairs a pattern with a verb, and Spring's `/error` offers no verb to pair, so it does
+> not arrive to be excluded. [`MappedSurfaceTest`](../backend/src/test/java/dev/reception/common/web/MappedSurfaceTest.java)
+> enumerates all three classes, asserts by equality that each is still what it says, asserts that the
+> five empty mappings are **empty rather than merely described so**, and pins the two invisible
+> surfaces by the property that makes them harmless — neither `/error` nor `/actuator` is reachable
+> without authentication. Adding `/error` to `permitAll` was measured: it creates an anonymous,
+> unlimited, unclassified endpoint and `RateLimitCoverageTest`, `EndpointCoverageTest` and
+> `PublicSurfaceSweepTest` **all stay green**.
 
 > **An accepted-risk table is the one place where going out of date is the whole failure.** Every
 > other section describes a control, and a stale sentence there is caught the moment somebody tests
