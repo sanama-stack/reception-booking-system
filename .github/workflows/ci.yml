@@ -219,6 +219,15 @@ jobs:
       - name: Security headers
         run: make check-headers
 
+      # docs/06-security.md §6, against the log the running container actually wrote. A Manage
+      # Link token is a bearer capability and it travels in a URL, so the only honest check is to
+      # request one and read what came out — the Caddyfile cannot be asked. It ran unfiltered for
+      # ten phases. The step is here rather than in a unit test because no JVM test can see a
+      # reverse proxy's log, and it carries its own positive control: a redact-everything filter
+      # passes "the token is absent" and fails the control.
+      - name: Manage Link tokens are not in the access log
+        run: make check-access-log
+
       # docs/06-security.md §12, against the merged compose configuration. It needs no containers
       # and `make up-all` already depends on it, so this step is a second place it runs rather than
       # its only one — but the job that proves the deployment topology is where a reader looks for

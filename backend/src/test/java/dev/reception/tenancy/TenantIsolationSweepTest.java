@@ -12,10 +12,15 @@ import java.time.LocalDate;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.TreeSet;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Supplier;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.DynamicTest;
+import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.web.client.TestRestTemplate;
@@ -153,6 +158,269 @@ class TenantIsolationSweepTest extends IntegrationTest {
                 .map(entry -> DynamicTest.dynamicTest(
                         entry.getKey() + " — another tenant's id does not exist",
                         () -> probe(entry.getKey(), entry.getValue().borrowed())));
+    }
+
+    /**
+     * The id in the query string rather than the path. Same probe, same control.
+     *
+     * <p>{@code GET /availability} takes a required {@code serviceId} and two optional ids, and was
+     * catalogued for six phases as a collection that "takes no id".
+     */
+    @TestFactory
+    Stream<DynamicTest> every_borrowed_query_id_comes_back_404() {
+        return EndpointCatalogue.ENDPOINTS.entrySet().stream()
+                .filter(entry -> entry.getValue().isolation() == EndpointCatalogue.Isolation.OWNER_QUERY_ID)
+                .map(entry -> DynamicTest.dynamicTest(
+                        entry.getKey() + " — another tenant's id does not exist",
+                        () -> probeQueryId(entry.getKey(), entry.getValue().borrowed())));
+    }
+
+    /**
+     * Every collection read, checked for rows belonging to somebody else.
+     *
+     * <p>Catalogued since phase 04 and, until phase 11, <strong>driven by nothing</strong>. {@link
+     * EndpointCoverageTest} guaranteed that every endpoint was <em>classified</em>; it did not
+     * guarantee that a classification was <em>probed</em>, and for {@code OWNER_COLLECTION} and
+     * {@code OWNER_SINGLETON} — fifteen of sixty-five endpoints — nothing anywhere in the test tree
+     * referenced the constant. A new collection endpoint was classified, the build stayed green,
+     * and no probe ever ran.
+     *
+     * <p><strong>The control is the whole test.</strong> "Aria's response contains none of Datos'
+     * ids" is perfectly true of an empty list, of a {@code 400} for a missing parameter, and of a
+     * body that failed to serialise. So each probe first creates a row of Aria's own and requires
+     * the response to contain <em>that</em> id. Only then does the absence of Datos' ids mean the
+     * filter is there rather than the list being empty.
+     */
+    @TestFactory
+    Stream<DynamicTest> every_collection_answers_with_none_of_the_other_tenants_rows() {
+        return EndpointCatalogue.ENDPOINTS.entrySet().stream()
+                .filter(entry -> entry.getValue().isolation() == EndpointCatalogue.Isolation.OWNER_COLLECTION)
+                .map(entry -> DynamicTest.dynamicTest(
+                        entry.getKey() + " — answers with none of the other tenant's rows",
+                        () -> probeCollection(entry.getKey())));
+    }
+
+    /**
+     * Every singleton read and write, checked for describing the caller rather than somebody else.
+     *
+     * <p>Same history and same control as the collection sweep: a row of Aria's own, or a value
+     * this request itself just set, must appear in the response before its silence about Datos
+     * means anything.
+     */
+    @TestFactory
+    Stream<DynamicTest> every_singleton_describes_the_caller() {
+        return EndpointCatalogue.ENDPOINTS.entrySet().stream()
+                .filter(entry -> entry.getValue().isolation() == EndpointCatalogue.Isolation.OWNER_SINGLETON)
+                .map(entry -> DynamicTest.dynamicTest(
+                        entry.getKey() + " — describes the caller",
+                        () -> probeSingleton(entry.getKey())));
+    }
+
+    /**
+     * The registries' own completeness check, in the shape {@code PublicSurfaceSweepTest} uses.
+     *
+     * <p>Without it the two sweeps above reintroduce the defect they were written to fix: an
+     * endpoint classified {@code OWNER_COLLECTION} with no entry in {@link #collectionControls()}
+     * would simply not appear in the stream, and a {@code @TestFactory} that yields nothing passes.
+     */
+    @Test
+    @DisplayName("every catalogued collection and singleton has a control registered for it")
+    void every_collection_and_singleton_has_a_control() {
+        Set<String> collections = new TreeSet<>();
+        Set<String> singletons = new TreeSet<>();
+        EndpointCatalogue.ENDPOINTS.forEach((endpoint, classification) -> {
+            if (classification.isolation() == EndpointCatalogue.Isolation.OWNER_COLLECTION) {
+                collections.add(endpoint);
+            } else if (classification.isolation() == EndpointCatalogue.Isolation.OWNER_SINGLETON) {
+                singletons.add(endpoint);
+            }
+        });
+
+        assertThat(collections)
+                .as("the catalogue must still contain collections, or this file proves nothing about them")
+                .isNotEmpty();
+        assertThat(singletons).as("and singletons").isNotEmpty();
+
+        Set<String> unregistered = new TreeSet<>(collections);
+        unregistered.removeAll(collectionControls().keySet());
+        assertThat(unregistered)
+                .as("collections with no control registered. A probe without one passes on an empty list")
+                .isEmpty();
+
+        Set<String> unregisteredSingletons = new TreeSet<>(singletons);
+        unregisteredSingletons.removeAll(singletonControls().keySet());
+        assertThat(unregisteredSingletons).as("singletons with no control registered").isEmpty();
+
+        Set<String> stale = new TreeSet<>(collectionControls().keySet());
+        stale.removeAll(collections);
+        assertThat(stale).as("controls for collections the catalogue does not list").isEmpty();
+
+        Set<String> staleSingletons = new TreeSet<>(singletonControls().keySet());
+        staleSingletons.removeAll(singletons);
+        assertThat(staleSingletons).as("controls for singletons the catalogue does not list").isEmpty();
+    }
+
+    /**
+     * Everything by which one of Datos Auto's rows could be recognised in a response — ids, and the
+     * names and numbers that identify the tenant itself.
+     *
+     * <p>Names as well as ids, because a leak that returns a row's label without its id is still a
+     * leak, and because {@code GET /calendar} and {@code GET /analytics/summary} answer with
+     * neither the id nor the name of everything they count.
+     */
+    private Set<String> datosFingerprints() {
+        Set<String> fingerprints = new TreeSet<>(borrowed.values());
+        fingerprints.add(autoTimeOff);
+        fingerprints.add(autoSlug);
+        fingerprints.add("Datos Auto");
+        fingerprints.add("Dato Kapanadze");
+        fingerprints.add("Oil change");
+        fingerprints.add("Levan Gogia");
+        fingerprints.add("+995555777888");
+        return fingerprints;
+    }
+
+    private void assertSaysNothingOfDatos(String endpoint, String body) {
+        Set<String> found = new TreeSet<>();
+        datosFingerprints().forEach(fingerprint -> {
+            if (body.contains(fingerprint)) {
+                found.add(fingerprint);
+            }
+        });
+        assertThat(found)
+                .as(
+                        """
+                        %s answered Salon Aria with something of Datos Auto's. The tenant filter is                         implicit in the query shape (docs/06-security.md §4), so a hit here means a                         repository method that takes no businessId reached a response.""",
+                        endpoint)
+                .isEmpty();
+    }
+
+    private void probeQueryId(String endpoint, EndpointCatalogue.Borrowed kind) {
+        String pattern = endpoint.substring(endpoint.indexOf(' ') + 1);
+        LocalDate from = aria.monday;
+        LocalDate to = from.plusDays(1);
+
+        String own = freshAriaService();
+        ResponseEntity<String> control =
+                aria.owner.get(pattern + "?serviceId=" + own + "&from=" + from + "&to=" + to);
+        assertThat(control.getStatusCode().value())
+                .as(
+                        """
+                        The control for %s failed: with the caller's OWN serviceId it should have                         resolved a real Service. Until it does, the 404 below proves nothing — a                         missing parameter answers 400 whether or not the tenant filter exists. Body                         was: %s"""
+                                .formatted(endpoint, control.getBody()))
+                .isBetween(200, 299);
+
+        ResponseEntity<String> probe = aria.owner.get(
+                pattern + "?serviceId=" + borrowed.get(kind) + "&from=" + from + "&to=" + to);
+        assertThat(probe.getStatusCode())
+                .as("%s with another tenant's serviceId in the query string", endpoint)
+                .isEqualTo(HttpStatus.NOT_FOUND);
+    }
+
+    private void probeCollection(String endpoint) {
+        String pattern = endpoint.substring(endpoint.indexOf(' ') + 1);
+        String expected = collectionControls().get(endpoint).get();
+
+        ResponseEntity<String> response = aria.owner.get(pattern + queryFor(endpoint));
+        assertThat(response.getStatusCode().value())
+                .as("%s did not answer Salon Aria at all. Body was: %s", endpoint, response.getBody())
+                .isBetween(200, 299);
+
+        assertThat(response.getBody())
+                .as(
+                        """
+                        The control for %s failed: a row Salon Aria owns is missing from its own                         collection. Until it is there, "contains nothing of Datos Auto's" is also                         true of an empty list and asserts nothing.""",
+                        endpoint)
+                .contains(expected);
+
+        assertSaysNothingOfDatos(endpoint, response.getBody());
+    }
+
+    private void probeSingleton(String endpoint) {
+        String method = endpoint.substring(0, endpoint.indexOf(' '));
+        String pattern = endpoint.substring(endpoint.indexOf(' ') + 1);
+        String expected = singletonControls().get(endpoint).get();
+
+        ResponseEntity<String> response = send(method, pattern + queryFor(endpoint), bodyFor(endpoint));
+        assertThat(response.getStatusCode().value())
+                .as("%s did not answer Salon Aria at all. Body was: %s", endpoint, response.getBody())
+                .isBetween(200, 299);
+
+        assertThat(response.getBody())
+                .as(
+                        """
+                        The control for %s failed: the response does not carry the value that                         identifies Salon Aria's own answer, so its silence about Datos Auto means                         nothing.""",
+                        endpoint)
+                .contains(expected);
+
+        assertSaysNothingOfDatos(endpoint, response.getBody());
+    }
+
+    /** The reads that need a range or an id before they will answer at all. */
+    private String queryFor(String endpoint) {
+        LocalDate from = aria.monday;
+        LocalDate to = from.plusDays(6);
+        return switch (endpoint) {
+            case "GET /calendar", "GET /analytics/summary" -> "?from=" + from + "&to=" + to;
+            default -> "";
+        };
+    }
+
+    /**
+     * One row of Aria's own per collection, and the string that proves it came back.
+     *
+     * <p>A supplier rather than a value because several of these write, and they must run inside
+     * the probe rather than at registration.
+     */
+    private Map<String, Supplier<String>> collectionControls() {
+        Map<String, Supplier<String>> controls = new java.util.LinkedHashMap<>();
+        controls.put("GET /services", this::freshAriaService);
+        controls.put("GET /employees", this::freshAriaEmployee);
+        controls.put("GET /appointments", () -> JsonPath.read(freshAriaBooking(), "$.appointment.id"));
+        controls.put("GET /customers", () -> JsonPath.read(freshAriaBooking(), "$.appointment.customer.id"));
+        controls.put("GET /conversations", () -> startConversation(ariaSlug));
+        controls.put("GET /business/closures", this::freshAriaClosure);
+        controls.put("GET /business/faqs", this::freshAriaFaq);
+        controls.put("GET /calendar", () -> JsonPath.read(freshAriaBooking(), "$.appointment.id"));
+        return controls;
+    }
+
+    /**
+     * What each singleton must say about Salon Aria before its silence about Datos Auto counts.
+     *
+     * <p>{@code GET /business/onboarding} looked like the weak one — six completion flags that name
+     * no tenant — and is not: it also answers with {@code bookingUrl}, which carries the slug. That
+     * is the whole reason this endpoint needs the probe, because the same field would carry
+     * somebody else's slug just as happily.
+     *
+     * <p>{@code GET /analytics/summary} is the weak one. It answers with counts and money and names
+     * nothing, so the strongest available control is that the response has the shape it should.
+     * The assertion that carries that probe is the fingerprint check, not the control.
+     */
+    private Map<String, Supplier<String>> singletonControls() {
+        Map<String, Supplier<String>> controls = new java.util.LinkedHashMap<>();
+        controls.put("GET /business", () -> ariaSlug);
+        controls.put("PATCH /business", () -> ariaSlug);
+        controls.put("GET /business/hours", () -> ariaDistinctiveOpeningTime());
+        controls.put("PUT /business/hours", () -> ARIA_DISTINCTIVE_OPEN);
+        controls.put("GET /business/onboarding", () -> ariaSlug);
+        controls.put("GET /analytics/summary", () -> "\"revenue\"");
+        return controls;
+    }
+
+    /**
+     * An opening time no fixture uses, set on Salon Aria so a reader of its hours can be told
+     * apart from a reader of anybody else's.
+     */
+    private static final String ARIA_DISTINCTIVE_OPEN = "08:17";
+
+    private String ariaDistinctiveOpeningTime() {
+        aria.owner.put(
+                "/business/hours",
+                Map.of(
+                        "hours",
+                        List.of(Map.of("dayOfWeek", 1, "opensAt", ARIA_DISTINCTIVE_OPEN, "closesAt", "17:00"))));
+        return ARIA_DISTINCTIVE_OPEN;
     }
 
     private void probe(String endpoint, EndpointCatalogue.Borrowed kind) {
@@ -326,6 +594,9 @@ class TenantIsolationSweepTest extends IntegrationTest {
                     "startsAt", aria.at(aria.monday.plusDays(1), 9, 0).toString());
             case "POST /appointments/{id}/status" -> Map.of("status", "COMPLETED");
             case "PATCH /business/faqs/{id}" -> Map.of("answer", "Rewritten by a stranger.");
+            case "PATCH /business" -> Map.of("timezone", BookingScenario.TBILISI.getId());
+            case "PUT /business/hours" -> Map.of(
+                    "hours", List.of(Map.of("dayOfWeek", 1, "opensAt", ARIA_DISTINCTIVE_OPEN, "closesAt", "17:00")));
             default -> null;
         };
     }

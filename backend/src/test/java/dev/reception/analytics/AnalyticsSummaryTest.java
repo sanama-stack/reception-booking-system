@@ -103,33 +103,77 @@ class AnalyticsSummaryTest extends IntegrationTest {
     }
 
     /**
-     * <strong>A pinned consequence of filtering revenue to one currency, not an endorsement of
-     * it.</strong>
+     * <strong>The remainder, named rather than dropped.</strong>
      *
-     * <p>Appointments keep the currency they were priced in, so after the Business switches
-     * currency its older revenue is in a currency the summary no longer reports — and summing the
-     * two would add lari to euros and call the result money. The endpoint answers for the current
-     * currency alone, which is never wrong about what it claims and is also not the whole truth.
+     * <p>Appointments keep the currency they were priced in, so after the Business switches currency
+     * its older revenue is in a currency the headline figure no longer reports — and summing the two
+     * would add lari to dollars and call the result money. {@link
+     * dev.reception.analytics.AnalyticsService.Revenue} answers for the current currency alone and
+     * puts every other currency found among the same COMPLETED appointments in {@code excluded},
+     * each with its own sum, per ADR-0010.
      *
-     * <p>The contract has one {@code revenue} object and nowhere to report the remainder, so this
-     * is a decision for the principal rather than something to solve quietly here. The test exists
-     * so the behaviour is visible the day somebody hits it instead of being discovered as a bug.
+     * <p><strong>The assertion on {@code excluded[*].amount} is the positive control.</strong> A
+     * derivation that silently produces nothing — wrong status, wrong comparison, an empty
+     * projection — satisfies "the remainder exists and is a list" and every assertion about the
+     * headline figure. Only a known non-zero sum, asserted by value, can tell the two apart.
+     *
+     * <p>A Service stamps the Business's currency at creation and never re-stamps it ({@code
+     * Service#currency}), so creating one after the change is the only way a second currency can
+     * exist among one business's appointments. That is also why the fixture's own Haircut stays USD.
      */
     @Test
-    @DisplayName("after a currency change, revenue reports the new currency only — and says so by omission")
-    void revenue_is_reported_in_one_currency() {
+    @DisplayName("after a currency change, revenue reports the new currency and names the remainder beside it")
+    void revenue_names_the_remainder_after_a_currency_change() {
+        // Priced in the registration default, and attended, before anything changes.
         complete(aria.bookedAt(aria.at(aria.monday, 9, 0)));
+        // A second appointment in the same old currency that was never attended. It is here so the
+        // remainder has a wrong answer available to it: an entry filtered by currency but not by
+        // status reports 120.00.
+        cancel(aria.bookedAt(aria.at(aria.monday, 10, 0)));
+
         aria.owner.patch("/business", Map.of("currency", "GEL"));
+        String inGel = BookingScenario.createService(aria.owner, "Blow Dry", 60, "45.00", 0, 0);
+        aria.owner.put(
+                "/employees/" + aria.employeeId + "/services",
+                Map.of("serviceIds", List.of(aria.serviceId, inGel)));
+        complete(bookService(inGel, aria.at(aria.monday, 11, 0)));
 
         String body = summary(aria.monday, aria.monday).getBody();
 
         assertThat(JsonPath.<String>read(body, "$.revenue.currency")).isEqualTo("GEL");
         assertThat(JsonPath.<String>read(body, "$.revenue.amount"))
-                .as("the USD appointment is not silently added to a GEL total")
-                .isEqualTo("0.00");
+                .as("the GEL appointment alone; the USD one is not silently added to it")
+                .isEqualTo("45.00");
+        assertThat(JsonPath.<List<String>>read(body, "$.revenue.excluded[*].currency"))
+                .as("one entry per other currency found, and USD is the only one")
+                .containsExactly("USD");
+        assertThat(JsonPath.<List<String>>read(body, "$.revenue.excluded[*].amount"))
+                .as("60.00 and not 120.00: basis covers the remainder too, so the cancelled one is out")
+                .containsExactly("60.00");
         assertThat((int) JsonPath.read(body, "$.counts.completed"))
-                .as("the appointment itself is still counted; only its money is in another currency")
-                .isEqualTo(1);
+                .as("both attended appointments are counted; only their money is in two currencies")
+                .isEqualTo(2);
+    }
+
+    /**
+     * <strong>Empty, not null, and not absent.</strong>
+     *
+     * <p>Matching {@code topServices} and deliberately unlike {@code rates}, which is null when
+     * there were no appointments at all. The distinction ADR-0010 draws is that {@code rates} has no
+     * meaningful zero and a remainder does: "nothing is excluded" is a fact, and a screen that has
+     * to branch on null before it can say so will eventually forget to.
+     */
+    @Test
+    @DisplayName("with one currency the remainder is an empty list, not null and not absent")
+    void the_remainder_is_empty_when_there_is_none() {
+        complete(aria.bookedAt(aria.at(aria.monday, 9, 0)));
+
+        String body = summary(aria.monday, aria.monday).getBody();
+
+        assertThat(JsonPath.<String>read(body, "$.revenue.amount")).isEqualTo("60.00");
+        assertThat(JsonPath.<List<Object>>read(body, "$.revenue.excluded"))
+                .as("a null here reads as empty to any client that uses ?? [] and hides the day it is not")
+                .isEmpty();
     }
 
     /**
@@ -342,8 +386,8 @@ class AnalyticsSummaryTest extends IntegrationTest {
         return "/analytics/summary?from=" + from + "&to=" + to;
     }
 
-    private void bookService(String serviceId, OffsetDateTime startsAt) {
-        aria.owner.post(
+    private String bookService(String serviceId, OffsetDateTime startsAt) {
+        ResponseEntity<String> response = aria.owner.post(
                 "/appointments",
                 Map.of(
                         "serviceId", serviceId,
@@ -351,6 +395,10 @@ class AnalyticsSummaryTest extends IntegrationTest {
                         "startsAt", startsAt.toString(),
                         "customerName", "Ana Tsereteli",
                         "customerPhone", BookingScenario.CUSTOMER_PHONE));
+        if (!response.getStatusCode().is2xxSuccessful()) {
+            throw new IllegalStateException("Fixture could not book: " + response.getBody());
+        }
+        return JsonPath.read(response.getBody(), "$.appointment.id");
     }
 
     private void complete(String appointmentId) {

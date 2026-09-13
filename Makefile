@@ -20,7 +20,7 @@ E2E_ENV := COMPOSE_PROJECT_NAME=reception-e2e \
 .DEFAULT_GOAL := help
 .PHONY: help up up-all up-e2e down down-e2e logs logs-e2e test e2e migrate seed rebuild ps psql \
         check-ports check-bindings check-docs \
-        check-headers check-fake-provider
+        check-headers check-access-log check-fake-provider
 
 help: ## Show this help
 # [0-9] in the class, because without it a target with a digit in its name — up-e2e — is
@@ -215,6 +215,40 @@ check-headers: ## Assert the security headers on the running origin (expects the
 	   echo "  $${path} ok"; \
 	 done; \
 	 echo "Security headers are as docs/06-security.md §13 describes them."
+
+# docs/06-security.md §6, and the only way to check it is to make a request and read what was
+# written about it. A Manage Link token is a bearer capability for one appointment, and it travels
+# in a URL: a path segment on the page the Customer opens, a query parameter on the two API calls
+# that page makes. Caddy's log is the only access log in the system, and until phase 11 it wrote
+# all three verbatim — measured against the running container, not inferred from the Caddyfile.
+#
+# THE CONTROL IS THE POINT, AND IT HAS TO BE UNIQUE PER RUN. "The sentinel is not in the log"
+# passes just as well when the log is empty, when `docker compose logs` names the wrong service,
+# and when a filter redacts the entire uri field — so a control request must be shown to arrive
+# WITH its uri intact. The first version of this check grepped for a fixed `/api/health`, and a
+# redact-everything filter passed it: `docker compose logs --tail` spans container restarts, so a
+# line from a previous run satisfied the control while nothing from this one did. Both sentinels
+# now carry $$ and neither can be answered by a stale line.
+check-access-log: ## Assert Manage Link tokens are redacted from the access log (needs Caddy running)
+	@app=$$(grep -E '^APP_PORT=' .env | cut -d= -f2); \
+	 origin="http://localhost:$${app}"; \
+	 secret="ManageTokenSentinel-$$$$-must-not-survive"; \
+	 control="ControlSentinel-$$$$-must-survive"; \
+	 echo "Probing $${origin} for a token the access log must not keep"; \
+	 curl -sS -o /dev/null "$${origin}/manage/$${secret}"; \
+	 curl -sS -o /dev/null "$${origin}/api/public/appointments/manage?token=$${secret}"; \
+	 curl -sS -o /dev/null "$${origin}/api/health?probe=$${control}"; \
+	 sleep 1; \
+	 log=$$($(COMPOSE) logs caddy --tail 200 --no-color 2>/dev/null); \
+	 [ -n "$$log" ] \
+	   || { echo "no log to read — is Caddy running under this compose project?"; exit 1; }; \
+	 echo "$$log" | grep -qF "\"uri\":\"/api/health?probe=$${control}\"" \
+	   || { echo "this run's control request is not in the log with its uri intact — the check cannot see anything, so its silence about the token means nothing"; exit 1; }; \
+	 echo "  control ok — this run's own request is in the log, uri and query preserved"; \
+	 ! echo "$$log" | grep -qF "$$secret" \
+	   || { echo "a Manage Link token reached the log — see the log filters in infra/caddy/Caddyfile"; exit 1; }; \
+	 echo "  neither the path segment nor the query parameter kept its token"; \
+	 echo "Manage Link tokens are excluded from the log, as docs/06-security.md §6 says."
 
 psql: ## Open a psql shell on the running database
 	$(COMPOSE) exec postgres psql -U $${POSTGRES_USER:-reception} -d $${POSTGRES_DB:-reception}

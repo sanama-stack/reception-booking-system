@@ -284,6 +284,14 @@ and customer emails and phone numbers are masked at the appender, in the message
 traces, so it does not depend on any call site remembering
 ([06-security.md §10](docs/06-security.md)).
 
+Every AI turn logs what it cost and none of what it said: the model, the latency, both token counts,
+the estimated cost the daily cap is charged, and each tool's name and outcome — as JSON fields you
+can sum, rather than prose you would have to parse. Tool arguments are never logged, because that is
+where a customer's name and number arrive.
+
+In `local` alone, any query slower than 100 ms is reported with the statement that caused it. That
+is how a missing index shows up while the data is still small enough to hide one.
+
 ## Configuration
 
 Every value that differs by environment comes from an environment variable, and

@@ -82,7 +82,8 @@ public class AuthController {
     /** Idempotent — logging out twice, or without a session at all, is a {@code 204}. */
     @PostMapping("/logout")
     public ResponseEntity<Void> logout(HttpServletRequest httpRequest) {
-        cookies.read(httpRequest, AuthCookies.REFRESH_TOKEN).ifPresent(auth::logout);
+        cookies.read(httpRequest, AuthCookies.REFRESH_TOKEN)
+                .ifPresent(token -> auth.logout(token, fingerprintOf(httpRequest)));
         return ResponseEntity.noContent()
                 .header(AuthCookies.header(), cookies.clearAccessToken())
                 .header(AuthCookies.header(), cookies.clearRefreshToken())

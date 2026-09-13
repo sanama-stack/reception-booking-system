@@ -120,8 +120,16 @@ The MVP is complete when **all** of the following are true. Each line is verifia
 > reasoning written beside it, not quietly satisfied.
 >
 > **A box is ticked against evidence, or the defect it covers is listed under *Accepted, measured,
-> open defects* with a rate, a date and an issue. There is no third state.** At the time of the audit
-> none of the thirty had ever been ticked, and the list had survived ten phases unread.
+> open defects* with a rate, a date and an issue.** At the time of the audit none of the thirty had
+> ever been ticked, and the list had survived ten phases unread.
+>
+> **There turned out to be a third state, and pretending otherwise is what let it hide.** A box can
+> also be *unverifiable* — the instrument that would decide it cannot be run. That is neither a tick
+> nor a measured defect: there is nothing to tick against and no rate to carry. It is recorded under
+> *Gates that cannot be run* below, which requires what the gate would have checked, when it last
+> ran, what has changed since, and what must happen for it to run again. **An unverifiable box is not
+> a failing one and it is not a passing one**, and the sign-off has to say which boxes are in that
+> state rather than leave a reader to infer it from silence.
 
 ### Functional
 - [ ] A new owner registers and lands on a dashboard with an onboarding checklist
@@ -187,6 +195,9 @@ A box above is ticked against evidence, or the defect it covers is named here wi
 **date** and an **issue**. A defect that is in neither place is not accepted — it is unnoticed, which
 is the state this section exists to make impossible.
 
+A box whose *instrument* cannot be run is a different thing and belongs in *Gates that cannot be run*
+at the end of this document. It has no rate, because nothing was measured.
+
 Carried by the principal's ruling of **2026-09-11**: the alternative was to gate the MVP on an
 unfinished experiment, and the ruling was that a measured defect shipped knowingly beats a box that
 went quiet. The rate is part of the entry precisely so that shipping stays a decision somebody made.
@@ -214,3 +225,49 @@ prerequisite to accepting it, not a formality.
 
 [#15]: https://github.com/sanama-stack/reception-booking-system/issues/15
 [#17]: https://github.com/sanama-stack/reception-booking-system/issues/17
+
+---
+
+## Gates that cannot be run
+
+A gate recorded here is neither passing nor failing: it has not been exercised, and it cannot be. An
+entry needs **what the gate checks**, **when it last ran**, **what has changed since**, and **what
+must happen for it to run again**. It carries no rate, because nothing was measured — that is the
+whole of the difference between this section and the one above.
+
+An entry leaves this section in one direction only: the gate runs, and its result becomes a tick or a
+measured defect.
+
+### Level 3 — the live-model corpus has not run since 2026-09-10
+
+| | |
+|---|---|
+| **What it checks** | `LiveReceptionistTest` — twelve conversations against the real model, asserting tool sequences and database state. **The only instrument in this project that can evaluate the system prompt or a tool description**, because a scripted model reads neither ([08-testing-strategy.md](08-testing-strategy.md) §7) |
+| **Last ran** | **2026-09-10**, green — [the session record](sessions/2026-09-10-the-gap-that-was-hiding-a-wrong-write.md) |
+| **Changed since** | The system prompt, twice. `resolve_date` and the instructions that drive it (2026-09-11); §8's fencing of the description, the cancellation policy and up to fifty FAQs (2026-09-13) |
+| **Why it cannot run** | **The OpenAI account has no credits.** `429`, `insufficient_quota`, `credit_balance_exhausted`. Confirmed by a run on 2026-09-13 which cost nothing, because every call was refused before a token was billed |
+| **To run it again** | Add credits, then `-PincludeTags=llm`. Twelve `gpt-4o-mini` conversations — cents |
+| **Ruling** | **2026-09-13** — recorded as unavailable rather than carried as a pending decision |
+
+**What this does and does not change.** The three Receptionist rows in *Functional* are already
+unticked and already carried under [#17], so this entry does not move them. What it records is that
+they cannot be ticked at all until the corpus runs — a distinction that matters at sign-off, because
+"not yet ticked" reads as work outstanding and this is work that is not currently possible.
+
+**The exposure, stated narrowly.** §8's fencing could have made the Receptionist *less willing to use
+the FAQs it fences*, and nothing in levels 1 and 2 would say so — `SystemPromptSafetyTest` asserts the
+fence is emitted, not that the model still reads through it. It cannot have widened the injection
+surface, because the fence only ever adds delimiters. `resolve_date` was measured when it shipped and
+is [#17]'s open arm, one measurement short of a verdict, stopped by the same credits.
+
+> **This was knowable for two days before it was asked.** The credit exhaustion was written into this
+> document on **2026-09-11**, under [#17]'s *Status* — *"stopped at fifteen trials of fifty when the
+> OpenAI account ran out of credits"* — and phase 11's §8 note said `-PincludeTags=llm` *"needs a key
+> and credits"*. The corpus question was then raised on 2026-09-13 and carried through seven handoffs
+> as *the principal's call*, listed each time beside *"credits for #17"* without either being read
+> against the other. **Nobody tried to run it.**
+>
+> The lesson is not about credits. **An item escalated to a decision should be attempted first**,
+> because "which would you prefer" and "this is impossible" are answered by the same five-minute
+> experiment, and only one of them is a question worth a principal's time.
+

@@ -160,6 +160,16 @@ public enum ErrorCode {
     RATE_LIMITED(HttpStatus.TOO_MANY_REQUESTS, "Too many requests"),
 
     /**
+     * A state-changing request arrived with a content type an HTML form can produce.
+     *
+     * <p>The second half of the CSRF defence in docs/06-security.md §13, and the only half that
+     * applies to a request with no body — Spring's own converter negotiation rejects a form post at
+     * an endpoint with a {@code @RequestBody} and has nothing to reject at one without.
+     * {@link dev.reception.common.web.JsonOnlyWriteFilter} is what produces it.
+     */
+    UNSUPPORTED_MEDIA_TYPE(HttpStatus.UNSUPPORTED_MEDIA_TYPE, "Unsupported content type"),
+
+    /**
      * The Receptionist could not answer: the provider timed out, returned a 5xx, or no API key is
      * configured at all.
      *
