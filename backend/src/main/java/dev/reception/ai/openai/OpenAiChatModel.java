@@ -65,9 +65,20 @@ public class OpenAiChatModel implements ChatModel {
                 .build();
     }
 
+    /**
+     * A key, and not the placeholder {@code .env.example} ships.
+     *
+     * <p>The only place this question is answered for the real provider, which is what lets the
+     * booking page state it without any class outside this package reading the key.
+     */
+    @Override
+    public boolean isAvailable() {
+        return properties.isConfigured();
+    }
+
     @Override
     public ChatResponse complete(List<ChatMessage> messages, List<ToolSpec> tools) {
-        if (!properties.isConfigured()) {
+        if (!isAvailable()) {
             // Not an IllegalStateException. A clone with no API key is the ordinary state of this
             // repository, and the correct behaviour is the same as a provider outage: degrade to
             // the Classic Flow. A startup failure would make the whole application unrunnable

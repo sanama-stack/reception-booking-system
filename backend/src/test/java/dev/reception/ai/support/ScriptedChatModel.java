@@ -56,8 +56,25 @@ public class ScriptedChatModel implements ChatModel {
         ChatResponse get();
     }
 
+    private boolean available = true;
+
     public ScriptedChatModel(ObjectMapper json) {
         this.json = json;
+    }
+
+    /**
+     * Available by default, because a scripted model needs no key and always could run.
+     *
+     * <p>Settable so a test can stage the fresh-clone state — the one a reader of this repository
+     * is actually in — without a property override or a second Spring context.
+     */
+    @Override
+    public boolean isAvailable() {
+        return available;
+    }
+
+    public void unavailable() {
+        this.available = false;
     }
 
     @Override
@@ -137,6 +154,10 @@ public class ScriptedChatModel implements ChatModel {
         scripted.clear();
         received.clear();
         calls.set(0);
+        // Availability too. A test that stages the fresh-clone state and does not clear it would
+        // make every later test in the context fail with AI_UNAVAILABLE, which reads as a defect in
+        // the loop rather than as a leak from three classes away.
+        available = true;
     }
 
     private JsonNode parse(String argumentsJson) {

@@ -117,7 +117,7 @@ class PublicFieldAllowListTest extends IntegrationTest {
                     "currency",
                     "cancellationWindowHours",
                     "cancellationPolicy",
-                    "aiEnabled",
+                    "receptionistAvailable",
                     "hours",
                     "hours[].dayOfWeek",
                     "hours[].opensAt",

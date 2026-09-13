@@ -377,14 +377,42 @@ public class ConversationService {
     /**
      * Whether there is a Receptionist to talk to at all.
      *
-     * <p>Two ways there is not, and they produce the same code because the customer's options are
-     * the same either way: the owner switched it off, or nobody configured a key. The second is the
+     * <p>Two ways there is not, and they produce the same answer because the customer's options are
+     * the same either way: the owner switched it off, or no model can run. The second is the
      * ordinary state of a fresh clone, and it must not be a startup failure — a developer with no
      * API key should get a working application with a working Classic Flow.
+     *
+     * <p><strong>Both halves, at last.</strong> This sentence named the no-key case for ten phases
+     * and the branch below it checked only the switch, so a clone with no key fell through to the
+     * model call and surfaced as the OUTAGE path instead — "I can't reach the booking assistant
+     * just now", which tells a customer that a configured assistant is temporarily down when in
+     * fact there is none (G42, issue #37). Prose describing a control nothing implements is G26's
+     * shape, and this was it, in the paragraph directly above the code that should have carried it.
+     *
+     * <p><strong>Public, and that is the point.</strong> The booking page asks this same method
+     * before it renders a panel, so the answer a customer is shown and the answer their message
+     * gets cannot drift apart. Two places deciding one thing by hand is G28 and G41's defect, and
+     * it was not worth introducing a third time to save a line.
+     *
+     * <p>Availability comes from the {@link ChatModel} port rather than from {@code AiProperties},
+     * because "configured" meaning an OpenAI key is the adapter's business: the scripted double
+     * needs no key and is perfectly available, and the E2E's fake provider is the real adapter
+     * pointed elsewhere (ADR-0011).
+     */
+    public boolean receptionistAvailable(Business business) {
+        return business.aiEnabled() && chatModel.isAvailable();
+    }
+
+    /**
+     * The same question at the door, as a refusal.
+     *
+     * <p>One {@code AI_UNAVAILABLE} for both halves, deliberately: which of them is the reason is
+     * the operator's business and not the visitor's, and what the visitor can do next — book on the
+     * page — is identical either way.
      */
     private Business requireReceptionistAvailable() {
         Business business = businesses.read();
-        if (!business.aiEnabled()) {
+        if (!receptionistAvailable(business)) {
             throw new ApiException(
                     ErrorCode.AI_UNAVAILABLE,
                     "The booking assistant isn't available. You can book directly on this page.");

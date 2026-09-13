@@ -268,7 +268,7 @@ no internal settings, no other customers.
 
 | Method | Path | Purpose |
 |---|---|---|
-| GET | `/public/businesses/{slug}` | Profile, hours, policy, `aiEnabled` |
+| GET | `/public/businesses/{slug}` | Profile, hours, policy, `receptionistAvailable` |
 | GET | `/public/businesses/{slug}/services` | Active services with duration and price |
 | GET | `/public/businesses/{slug}/employees?serviceId=` | Names and job titles only |
 | GET | `/public/businesses/{slug}/availability?serviceId=&from=&to=&employeeId=` | Same engine, same shape |
