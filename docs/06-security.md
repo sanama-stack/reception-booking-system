@@ -403,6 +403,14 @@ one that differs from the header is worse than none, since it is the whole of wh
 > the control now, running before authentication so a forged request is refused on its shape rather than
 > on the credentials it lacks. `FormPostRejectionTest` derives the write surface from
 > `RequestMappingHandlerMapping`, so an endpoint is covered the moment it is mapped.
+>
+> *"Running before authentication"* is one of five orderings this application depends on and, like the
+> other four, it lived in `@Order` arithmetic that nothing reconciled.
+> [`FilterOrderTest`](../backend/src/test/java/dev/reception/common/config/FilterOrderTest.java) reads
+> the chain Boot actually registers and the list `FilterChainProxy` actually runs, and pins each pair
+> twice: by position, and by **order value**, because filters tied on order are sequenced arbitrarily
+> and a position-only assertion passes on the lucky run. Shown red against a tie that ran in the
+> correct order anyway.
 
 > **A CORS probe can go blind without saying so, and this one was proved to.** `Origin` and
 > `Access-Control-Request-Method` are both on `HttpURLConnection`'s restricted-header list, so a test
