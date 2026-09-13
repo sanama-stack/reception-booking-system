@@ -16,7 +16,9 @@ import java.time.temporal.ChronoUnit;
 import java.time.temporal.TemporalAdjusters;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Optional;
+import java.util.TreeMap;
 import java.util.UUID;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
@@ -52,6 +54,17 @@ import org.springframework.test.context.TestPropertySource;
  * export OPENAI_API_KEY=$(grep '^OPENAI_API_KEY=' ../.env | cut -d= -f2-)
  * ./gradlew test -PincludeTags=probe --tests '*WeekdayResolutionRateTest'
  * }</pre>
+ *
+ * <p><strong>It now sees {@code resolve_date}, and the last recorded rate predates it.</strong> The
+ * 142/150 this issue carries was measured before the resolver existed, so it is a baseline for a
+ * prompt this repository no longer ships. The resolver was aimed at #17 — days beyond the seven-day
+ * list — and the day this harness asks about is <em>inside</em> that list, where the prompt says to
+ * look the date up rather than resolve it. Whether the model calls it anyway is therefore an open
+ * question and a reportable one: a rate that moved because the arithmetic left the model and a rate
+ * that moved because the list got easier to scan are the same number with opposite meanings. Every
+ * resolver call is logged with its arguments and its answer, and each wrong search is classified as
+ * using a date the resolver GAVE or one it NEVER GAVE (<strong>G17</strong>). The projections are
+ * {@link ProbeQueries}' and are proven by {@code ProbeInstrumentationTest}, which runs in CI.
  *
  * <p>To compare two prompts, run it, change the prompt, run it again, and compare with Fisher's
  * exact test, one-sided — 42 of 50 against 48 of 50 is p = 0.046, and anything much closer than
@@ -144,6 +157,19 @@ class WeekdayResolutionRateTest extends IntegrationTest {
 
         int correct = 0;
         int searched = 0;
+        // T36 — an uncounted error is reported as the behaviour you were measuring. The reschedule
+        // harness learned this the day the account ran out of credits: it folded thirty-five failed
+        // calls into "never wrote" and printed a total behavioural collapse that had not happened.
+        // This loop used to `continue` on an exception without counting it, leaving the denominator
+        // at CONVERSATIONS — so an outage here would have read as the resolution rate cratering.
+        int errored = 0;
+        // G17 — log the whole tool call, not the one tool the endpoint reads. The resolver arrived
+        // after this harness was written and this harness could not see it, which is the same gap
+        // that left the fourth candidate's veto unresolved in the experiment it was built for.
+        int resolverWasCalled = 0;
+        Map<String, Integer> resolverAsked = new TreeMap<>();
+        int wrongOnADateTheResolverGave = 0;
+        int wrongOnADateTheResolverNeverGave = 0;
         for (int trial = 1; trial <= CONVERSATIONS; trial++) {
             // A fresh conversation each time. Sequentially, because TenantContext is thread-bound
             // and a parallel run would be measuring the fixture rather than the model.
@@ -151,21 +177,38 @@ class WeekdayResolutionRateTest extends IntegrationTest {
             try {
                 conversations.respond(started.sessionToken(), UTTERANCE);
             } catch (RuntimeException e) {
-                System.out.printf("%2d  ERROR %s%n", trial, e.getClass().getSimpleName());
+                // The message, not only the class name: "no credits remaining" and a read timeout
+                // are both RuntimeException and mean entirely different things about the run.
+                errored++;
+                System.out.printf("%2d  ERROR %s: %s%n", trial, e.getClass().getSimpleName(), e.getMessage());
                 continue;
             }
 
-            List<String> dates = jdbc.queryForList(
-                    "select tool_arguments->>'date_from' from ai_messages "
-                            + "where role = 'TOOL' and tool_name = 'find_available_slots' "
-                            + "and conversation_id = ? order by created_at",
-                    String.class,
-                    started.conversationId());
+            List<String> dates =
+                    jdbc.queryForList(ProbeQueries.SEARCHED_DATES, String.class, started.conversationId());
+
+            // Every resolve_date call, as "MONDAY+0 -> 2026-09-14": the arguments AND the answer.
+            // Recorded here even though the day asked about is INSIDE the seven-day list, where the
+            // prompt tells the model to look the date up rather than resolve it. That makes a call
+            // a deviation from the rule — and possibly a beneficial one, since this issue's defect
+            // is mis-scanning the list and the resolver does the arithmetic in code. Either way it
+            // must be visible, because a rate that moved for that reason and a rate that moved
+            // because the list got easier to scan are the same number with opposite meanings.
+            List<String> resolverCalls =
+                    jdbc.queryForList(ProbeQueries.RESOLVER_CALLS, String.class, started.conversationId());
+            resolverCalls.forEach(call -> resolverAsked.merge(call, 1, Integer::sum));
+            if (!resolverCalls.isEmpty()) {
+                resolverWasCalled++;
+            }
+
+            // The dates the resolver actually handed back in this conversation.
+            List<String> resolverDates =
+                    jdbc.queryForList(ProbeQueries.RESOLVER_DATES, String.class, started.conversationId());
 
             if (dates.isEmpty()) {
                 // The model asked a question before searching. A legitimate turn, and not a
                 // resolution either way, so it is reported and left out of the denominator's numerator.
-                System.out.printf("%2d  NO SEARCH%n", trial);
+                System.out.printf("%2d  NO SEARCH%s%n", trial, resolverSuffix(resolverCalls));
                 continue;
             }
 
@@ -173,12 +216,27 @@ class WeekdayResolutionRateTest extends IntegrationTest {
             boolean right = dates.stream().allMatch(d -> LocalDate.parse(d).getDayOfWeek() == EXPECTED);
             if (right) {
                 correct++;
+            } else {
+                // The provenance question, decided per trial rather than inferred from a histogram:
+                // did the model search a date the resolver handed it, or one that came from nowhere?
+                // GAVE means the arithmetic moved into code and the wrong answer was asked for --
+                // a wrong weekday or weeks_ahead. NEVER GAVE is this issue's original defect, the
+                // model reading the wrong row of the list, intact.
+                if (dates.stream().anyMatch(resolverDates::contains)) {
+                    wrongOnADateTheResolverGave++;
+                } else {
+                    wrongOnADateTheResolverNeverGave++;
+                }
             }
-            System.out.printf("%2d  %-5s %s%n", trial, right ? "OK" : "WRONG", dates);
+            System.out.printf("%2d  %-5s %s%s%n", trial, right ? "OK" : "WRONG", dates, resolverSuffix(resolverCalls));
         }
 
+        // The errored count is printed on the SAME line as the sample size and never folded into
+        // it. A run with errors is not a measurement of anything: read that number first.
         System.out.printf(
-                "%n%d of %d conversations resolved %s correctly (%d searched at all)%n"
+                "%n%d of %d conversations resolved %s correctly (%d searched at all, %d ERRORED)%n"
+                        + "resolve_date was called in %d of %d trials; asked: %s%n"
+                        + "of the wrong searches, %d used a date resolve_date GAVE and %d a date it NEVER GAVE%n"
                         + "asked on a %s, where %s was %s — row %d of seven. A rate measured on a "
                         + "different weekday is a different measurement: do not compare it with "
                         + "this one, and do not pool them.%n",
@@ -186,9 +244,28 @@ class WeekdayResolutionRateTest extends IntegrationTest {
                 CONVERSATIONS,
                 EXPECTED,
                 searched,
+                errored,
+                resolverWasCalled,
+                CONVERSATIONS,
+                resolverAsked,
+                wrongOnADateTheResolverGave,
+                wrongOnADateTheResolverNeverGave,
                 today.getDayOfWeek(),
                 EXPECTED,
                 target,
                 row);
+        if (errored > 0) {
+            // Loud, and at the end where the rate is read. The outage that taught T36 printed a
+            // plausible-looking number and the reader had to go hunting for the reason.
+            System.out.printf(
+                    "%nWARNING: %d of %d trials never reached the model. The rate above is NOT a "
+                            + "measurement of the prompt — it is a measurement of a partial run.%n",
+                    errored, CONVERSATIONS);
+        }
+    }
+
+    /** Renders a trial's resolver calls inline, so the per-trial log says what the model asked. */
+    private static String resolverSuffix(List<String> resolverCalls) {
+        return resolverCalls.isEmpty() ? "" : "  resolve_date=" + resolverCalls;
     }
 }

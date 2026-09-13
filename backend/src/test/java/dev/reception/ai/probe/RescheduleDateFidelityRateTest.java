@@ -212,13 +212,8 @@ class RescheduleDateFidelityRateTest extends IntegrationTest {
             // Every resolve_date call in this conversation, as "MONDAY+1 -> 2026-09-21". The
             // arguments AND the answer, because the question the veto turns on is whether the two
             // agree with what was finally written.
-            List<String> resolverCalls = jdbc.queryForList(
-                    "select concat(tool_arguments->>'weekday', '+', tool_arguments->>'weeks_ahead', "
-                            + "' -> ', coalesce(tool_result->>'date', concat('ERR ', tool_result->>'error'))) "
-                            + "from ai_messages where role = 'TOOL' and tool_name = 'resolve_date' "
-                            + "and conversation_id = ? order by created_at",
-                    String.class,
-                    started.conversationId());
+            List<String> resolverCalls =
+                    jdbc.queryForList(ProbeQueries.RESOLVER_CALLS, String.class, started.conversationId());
             resolverCalls.forEach(call -> {
                 System.out.printf("        resolve_date %s%n", call);
                 resolverAsked.merge(call, 1, Integer::sum);
@@ -228,12 +223,8 @@ class RescheduleDateFidelityRateTest extends IntegrationTest {
             }
 
             // The dates the resolver actually handed back in this conversation.
-            List<String> resolverDates = jdbc.queryForList(
-                    "select tool_result->>'date' from ai_messages where role = 'TOOL' "
-                            + "and tool_name = 'resolve_date' and conversation_id = ? "
-                            + "and tool_result->>'date' is not null",
-                    String.class,
-                    started.conversationId());
+            List<String> resolverDates =
+                    jdbc.queryForList(ProbeQueries.RESOLVER_DATES, String.class, started.conversationId());
 
             if (searches.contains(aria.monday.toString())) {
                 searchedTheNamedDate++;
