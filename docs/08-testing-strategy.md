@@ -167,6 +167,15 @@ Assertions target **tool call sequences and resulting database state**, not the 
 `@Tag("llm")`, excluded from CI, run manually before a release. Flaky-by-nature tests must never gate a
 pipeline.
 
+**The corpus skips itself when it cannot ask the model, and says why.** No key was always a skip — a red
+build on a machine that was never meant to run these teaches people to ignore red builds. A key the
+provider *refuses* used to be the opposite: with the account's credits exhausted, all twelve tests failed
+at the same line and the run reported *"12 tests completed, 12 failed"* with the word quota nowhere in
+it. Run before a release, after a prompt change, that reads as twelve behavioural regressions. It now
+aborts once, quoting the provider's own words, and says in the message that a skip is **not** a pass. The
+discrimination is exact rather than a guess: `ConversationService` raises `AI_UNAVAILABLE` only when the
+adapter threw, so a model that answers badly cannot produce it.
+
 ## 8. End-to-end (Playwright)
 
 One complete flow, because one honest E2E is worth ten brittle ones:
