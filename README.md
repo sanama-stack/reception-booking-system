@@ -40,6 +40,15 @@ believes.
 
 Prerequisites: **Docker** with Compose v2, **JDK 21**, **Node 22+**, **pnpm 11**, and **make**.
 
+`make up` and `make up-all` need only Docker — the applications build inside containers that carry
+their own JDK. The JDK on **your** machine matters for `make test`, `make migrate` and `make seed`,
+which run Gradle on the host. `make check-java` asserts it, and those three targets depend on it, so
+a wrong JDK is named rather than reported as a bare version string:
+
+```bash
+export JAVA_HOME=$(/usr/libexec/java_home -v 21)   # macOS
+```
+
 ```bash
 make up
 ```
