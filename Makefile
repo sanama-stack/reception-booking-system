@@ -229,6 +229,15 @@ check-headers: ## Assert the security headers on the running origin (expects the
 # redact-everything filter passed it: `docker compose logs --tail` spans container restarts, so a
 # line from a previous run satisfied the control while nothing from this one did. Both sentinels
 # now carry $$ and neither can be answered by a stale line.
+#
+# BOTH SENTINELS DEFEND AGAINST A STALE LINE. NOTHING HERE DEFENDS AGAINST A STALE CADDY. The log
+# filters live in a bind-mounted Caddyfile, so editing the file changes what the container can read
+# without changing what the running process loaded — and a `grep` inside the container reads the
+# mount, which is the host file again rather than the configuration in memory. On 2026-09-13 the
+# container's start time and the Caddyfile's mtime were the same second, 37 seconds before the
+# commit that carried the filters, and the admin API on :2019 answered nothing; neither could
+# settle which config was live. Restart Caddy before trusting a green. A pass against a
+# configuration you cannot name is a pass about nothing, and it reads exactly like a real one.
 check-access-log: ## Assert Manage Link tokens are redacted from the access log (needs Caddy running)
 	@app=$$(grep -E '^APP_PORT=' .env | cut -d= -f2); \
 	 origin="http://localhost:$${app}"; \
