@@ -34,6 +34,26 @@ jobs:
       - name: Links, section references, ADR and migration inventories
         run: python3 docs/tools/consistency/check.py
 
+  # G41, and the same shape as the docs job above: a checkout and python3, no containers and no
+  # build, running beside the others rather than gating them.
+  #
+  # IT IS NOT IN THE REQUIRED-CHECKS SET. Branch protection is configured outside this file and no
+  # workflow can assert it, so this comment says what is true today rather than what would be
+  # convenient — the docs job's paragraph is worded the way it is because an earlier version of it
+  # claimed a requirement that did not exist (G26). Adding this job to the set is the principal's
+  # call. Until then a red run here is visible on the PR and does not block the merge.
+  #
+  # This job is why the check does not simply live inside `make test`: the target it checks is one
+  # a person has to choose to run, and the divergence it caught survived ten phases of nobody
+  # choosing to.
+  parity:
+    name: Pipeline parity
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - name: The Makefile runs the suites this workflow runs
+        run: python3 tools/pipeline-parity/check.py
+
   backend:
     name: Backend
     runs-on: ubuntu-latest

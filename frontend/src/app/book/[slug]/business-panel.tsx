@@ -25,10 +25,40 @@ export function BusinessPanel({ business, slug }: { business: PublicBusiness; sl
         hours and the policy are static facts and stay on the server, and only the conversation
         ships JavaScript.
       */}
-      {business.aiEnabled && <ReceptionistPanel slug={slug} business={business} />}
+      {business.receptionistAvailable ? (
+        <ReceptionistPanel slug={slug} business={business} />
+      ) : (
+        <ReceptionistUnavailable />
+      )}
       <OpeningHours business={business} />
       <Policy business={business} />
     </aside>
+  );
+}
+
+/**
+ * What stands where the Receptionist would be when there is none.
+ *
+ * It used to be nothing at all — the panel was rendered conditionally with no else, so a visitor
+ * saw a page with no assistant and no reason given, and the README's claim that "the panel says so"
+ * described a state that had never existed (G42, issue #37).
+ *
+ * It says nothing about *why*. Whether the owner switched the Receptionist off or nobody gave the
+ * server a key is the operator's business, not the visitor's, and the server deliberately answers
+ * one boolean for both — the customer's options are the same either way, which is the same reason
+ * `requireReceptionistAvailable` throws one code for both.
+ *
+ * The form is untouched above it. This is a note about a door that is closed, not a failure.
+ */
+function ReceptionistUnavailable() {
+  return (
+    <Card>
+      <h2 className="text-ink text-sm font-semibold">Booking assistant</h2>
+      <p className="text-ink-muted mt-2 text-sm leading-relaxed">
+        The booking assistant isn&apos;t available right now. You can book on this page as usual —
+        everything you need is in the form.
+      </p>
+    </Card>
   );
 }
 

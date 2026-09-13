@@ -1,5 +1,7 @@
 package dev.reception.publicapi;
 
+import dev.reception.ai.application.ConversationService;
+import dev.reception.business.Business;
 import dev.reception.business.BusinessHoursService;
 import dev.reception.business.BusinessService;
 import dev.reception.catalog.AssignmentService;
@@ -40,23 +42,43 @@ public class PublicBusinessController {
     private final ServiceCatalogService catalog;
     private final EmployeeService employees;
     private final AssignmentService assignments;
+    private final ConversationService conversations;
 
     public PublicBusinessController(
             BusinessService businesses,
             BusinessHoursService hours,
             ServiceCatalogService catalog,
             EmployeeService employees,
-            AssignmentService assignments) {
+            AssignmentService assignments,
+            ConversationService conversations) {
         this.businesses = businesses;
         this.hours = hours;
         this.catalog = catalog;
         this.employees = employees;
         this.assignments = assignments;
+        this.conversations = conversations;
     }
 
+    /**
+     * The page's header, and whether there is a Receptionist on it.
+     *
+     * <p>The owner's switch was the only thing this endpoint reported for ten phases, so a clone
+     * that had never been given a key still advertised a live Receptionist and the customer
+     * discovered otherwise by typing a message and getting an outage back (G42, issue #37).
+     *
+     * <p>It asks {@link ConversationService#receptionistAvailable}, which is the same method
+     * {@code POST /chat} asks before it accepts a message. Deliberately not a second expression
+     * that happens to agree: the page and the endpoint disagreeing is the whole defect, and two
+     * hand-kept copies of one rule is what G28 and G41 were filed about.
+     *
+     * <p>A boolean, never the key. {@code AiProviderIsolationTest} keeps {@code getApiKey} inside
+     * the adapter and nothing on this path asks for it.
+     */
     @GetMapping
     public PublicResponses.BusinessProfile profile() {
-        return PublicResponses.BusinessProfile.of(businesses.read(), hours.read());
+        Business business = businesses.read();
+        return PublicResponses.BusinessProfile.of(
+                business, hours.read(), conversations.receptionistAvailable(business));
     }
 
     /**

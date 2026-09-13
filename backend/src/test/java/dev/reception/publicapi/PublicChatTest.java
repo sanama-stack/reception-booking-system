@@ -339,6 +339,94 @@ class PublicChatTest extends IntegrationTest {
                 .isIn(HttpStatus.UNAUTHORIZED, HttpStatus.FORBIDDEN);
     }
 
+    // ------------------------------------------------- the fresh-clone state
+
+    /**
+     * The state every reader of this repository is in, and the one nothing tested for ten phases.
+     *
+     * <p>{@code .env.example} ships a placeholder key, so {@code isConfigured()} is false and there
+     * is no Receptionist. The page used to advertise one anyway — {@code aiEnabled} was the owner's
+     * switch alone — and the customer found out by typing a message and being told the assistant
+     * could not be reached, which is what a configured assistant says when it is temporarily down
+     * (G42, issue #37).
+     */
+    @Test
+    @DisplayName("with no model configured the page says so, and the door agrees")
+    void a_clone_with_no_model_says_so_before_a_message_is_sent() {
+        model.unavailable();
+
+        assertThat(receptionistAvailable()).isFalse();
+
+        ResponseEntity<String> refused = startSession();
+        assertThat(refused.getStatusCode()).isEqualTo(HttpStatus.SERVICE_UNAVAILABLE);
+        // The message, not just the code. Both paths answer AI_UNAVAILABLE and the codes cannot
+        // tell them apart; the copy is the whole of what the customer is told.
+        assertThat(refused.getBody()).contains("isn't available").doesNotContain("can't reach");
+
+        assertThat(jdbc.queryForObject("select count(*) from ai_conversations", Long.class)).isZero();
+    }
+
+    /**
+     * An outage is not the same thing as no Receptionist, and the page must not conflate them.
+     *
+     * <p>A configured provider that is momentarily unreachable is still a Receptionist: the panel
+     * stays, the conversation stays resumable, and the customer is told it cannot be reached *just
+     * now*. This is the distinction {@code ChatModel.isAvailable} exists to keep.
+     */
+    @Test
+    @DisplayName("a provider outage still leaves a Receptionist on the page")
+    void an_outage_is_not_a_missing_receptionist() {
+        String token = tokenFrom(startSession());
+        model.willFail();
+
+        ResponseEntity<String> response = sendMessage(token, "when are you open?");
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.SERVICE_UNAVAILABLE);
+        assertThat(response.getBody()).contains("can't reach").doesNotContain("isn't available");
+        // Still advertised, because there is still one to talk to once the blip passes.
+        assertThat(receptionistAvailable()).isTrue();
+    }
+
+    /**
+     * The claim the fix is actually about: one rule, read by two surfaces.
+     *
+     * <p>Three states, and in each the answer the page renders and the answer a message gets must
+     * be the same. They were two expressions agreeing by hand until this change, which is G28 and
+     * G41's defect and the reason {@code ConversationService.receptionistAvailable} is public.
+     */
+    @Test
+    @DisplayName("the page and the door never disagree about whether there is a Receptionist")
+    void the_page_and_the_door_never_disagree() {
+        record State(String name, boolean model, boolean owner) {}
+        List<State> states = List.of(
+                new State("a model and the switch on", true, true),
+                new State("no model, switch on", false, true),
+                new State("a model, switch off", true, false));
+
+        for (State state : states) {
+            model.reset();
+            if (!state.model()) {
+                model.unavailable();
+            }
+            aria.owner.patch("/business", Map.of("aiEnabled", state.owner()));
+
+            boolean advertised = receptionistAvailable();
+            boolean accepted = startSession().getStatusCode() == HttpStatus.CREATED;
+
+            assertThat(advertised)
+                    .describedAs("%s: page says %s, door says %s", state.name(), advertised, accepted)
+                    .isEqualTo(accepted);
+            assertThat(advertised)
+                    .describedAs("%s: expected available only when both hold", state.name())
+                    .isEqualTo(state.model() && state.owner());
+        }
+    }
+
+    private boolean receptionistAvailable() {
+        return JsonPath.read(
+                stranger.get("/public/businesses/" + slug).getBody(), "$.receptionistAvailable");
+    }
+
     // ---------------------------------------------------------------- helpers
 
     private ResponseEntity<String> startSession() {

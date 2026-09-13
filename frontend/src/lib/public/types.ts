@@ -47,8 +47,15 @@ export interface PublicBusiness {
   currency: string;
   cancellationWindowHours: number;
   cancellationPolicy: string | null;
-  /** Whether this business runs the Receptionist. Phase 09 reads it to decide on the chat panel. */
-  aiEnabled: boolean;
+  /**
+   * Whether there is a Receptionist to talk to — the owner's switch AND a model that can run.
+   *
+   * Not `aiEnabled`, which is what this was called while it carried only the switch: a clone with
+   * no API key advertised a live panel and the visitor found out by sending a message (G42, issue
+   * #37). The server answers this from one rule that `POST /chat` asks too, so the panel and the
+   * endpoint cannot disagree.
+   */
+  receptionistAvailable: boolean;
   hours: PublicDayHours[];
 }
 

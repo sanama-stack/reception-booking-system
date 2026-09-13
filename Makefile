@@ -19,8 +19,9 @@ E2E_ENV := COMPOSE_PROJECT_NAME=reception-e2e \
 
 .DEFAULT_GOAL := help
 .PHONY: help up up-all up-e2e down down-e2e logs logs-e2e test e2e migrate seed rebuild ps psql \
-        check-ports check-bindings check-docs \
-        check-headers check-access-log check-fake-provider check-secrets
+        check-ports check-bindings check-docs check-pipeline \
+        check-headers check-access-log check-fake-provider check-secrets check-java \
+        check-project
 
 help: ## Show this help
 # [0-9] in the class, because without it a target with a digit in its name — up-e2e — is
@@ -90,7 +91,50 @@ check-ports: .env
 	 esac; \
 	 exit $$fail
 
-up: .env check-ports check-bindings ## Start Postgres, Mailpit and Caddy — run the apps from your IDE
+# G47. docker-compose.yml pins `name: reception`, so the compose project does NOT depend on which
+# directory you are standing in. Two checkouts of this repository therefore cannot run side by side:
+# the second does not collide and fail, it **succeeds** — recreating the first one's containers
+# against its own config, on the first one's volumes. A `down -v` from either then takes the other's
+# database with it.
+#
+# That is not hypothetical. On 2026-09-13 the clean-checkout walk was run on a machine already
+# running this stack from the working copy, with five businesses in it — two demo tenants and three
+# kept deliberately. Had it joined, it would have migrated and seeded somebody's real data and then
+# reported a green that meant nothing, which is the failure class this repository keeps cataloguing.
+# It was caught by hand, before anything ran. Nothing in the repository would have caught it.
+#
+# THE NAME IS NOT THE BUG AND IS DELIBERATELY LEFT ALONE. A fixed project name is what keeps
+# `reception_postgres-data` stable across a `git pull`, and removing it would silently re-point every
+# existing checkout at a new, empty volume named after its directory — turning a documented hazard
+# into data everybody loses once. COMPOSE_PROJECT_NAME already overrides it; $(E2E_ENV) has relied on
+# exactly that for the E2E topology since it was written. What was missing is the refusal.
+#
+# WHAT THIS CANNOT SEE, stated rather than left to be discovered: a project whose containers have
+# been removed by `make down` leaves only volumes, and compose does not label those — so a second
+# checkout brought up against a STOPPED stack still adopts its data silently. The remedy is the same
+# one this message prints, and the residual is why it prints it rather than merely refusing.
+check-project: ## Refuse to act on a compose project another checkout is running
+	@proj="$${COMPOSE_PROJECT_NAME:-reception}"; \
+	 cid=$$(docker ps -aq --filter "label=com.docker.compose.project=$$proj" 2>/dev/null | head -1); \
+	 if [ -n "$$cid" ]; then \
+	   theirs=$$(docker inspect "$$cid" \
+	     --format '{{index .Config.Labels "com.docker.compose.project.working_dir"}}' 2>/dev/null); \
+	   mine=$$(pwd -P); \
+	   if [ -n "$$theirs" ] && [ "$$theirs" != "$$mine" ]; then \
+	     echo "Compose project '$$proj' is already in use by another checkout."; \
+	     echo "  running from  $$theirs"; \
+	     echo "  you are in    $$mine"; \
+	     echo ""; \
+	     echo "Continuing would recreate that checkout's containers against this one's config,"; \
+	     echo "on its volumes — and a later 'down -v' from either would delete the other's data."; \
+	     echo ""; \
+	     echo "Give this checkout its own project and its own volumes:"; \
+	     echo "    COMPOSE_PROJECT_NAME=reception-$$(basename "$$mine" | tr 'A-Z' 'a-z') make up"; \
+	     exit 1; \
+	   fi; \
+	 fi
+
+up: .env check-project check-ports check-bindings ## Start Postgres, Mailpit and Caddy — run the apps from your IDE
 	$(COMPOSE) up -d
 	@app=$$(grep -E '^APP_PORT=' .env | cut -d= -f2); \
 	 mail=$$(grep -E '^MAILPIT_UI_PORT=' .env | cut -d= -f2); \
@@ -105,7 +149,7 @@ up: .env check-ports check-bindings ## Start Postgres, Mailpit and Caddy — run
 	 echo "  Docs     http://localhost:$$app/api/docs"; \
 	 echo "  Mailpit  http://localhost:$$mail"
 
-up-all: .env check-ports check-bindings ## Start everything in containers, including both applications
+up-all: .env check-project check-ports check-bindings ## Start everything in containers, including both applications
 	$(COMPOSE) $(APPS) up -d --build
 	@app=$$(grep -E '^APP_PORT=' .env | cut -d= -f2); \
 	 mail=$$(grep -E '^MAILPIT_UI_PORT=' .env | cut -d= -f2); \
@@ -166,7 +210,7 @@ e2e: ## Run the end-to-end flow against the E2E topology (needs `make up-e2e`)
 #
 # CI does not hit this: the Linux runner installs the browser in its own step, which is exactly why
 # it is written here instead of being left for the next person to rediscover.
-	cd e2e && pnpm install --frozen-lockfile && pnpm exec playwright install chromium && pnpm test
+	cd e2e && pnpm install --frozen-lockfile && pnpm typecheck && pnpm exec playwright install chromium && pnpm test
 
 down: ## Stop everything (keeps the database volume)
 	$(COMPOSE) $(APPS) down
@@ -181,14 +225,71 @@ ps: ## Show container status
 logs: ## Tail logs from all containers
 	$(COMPOSE) $(APPS) logs -f --tail=100
 
-test: ## Run backend and frontend test suites
+# The frontend half ran `lint`, `typecheck` and `build` for ten phases and never `pnpm test`, so
+# G46. `make up` and `make up-all` carry their own JDK inside a container. The three targets below
+# do NOT — they shell out to the host's Gradle — and Gradle refuses to start on a JDK it does not
+# support. What it prints when that happens is the whole message:
+#
+#     * What went wrong:
+#     25.0.4.1
+#
+# Not the word "Java". Not the version it wanted. Not JAVA_HOME. It is true, accurate and useless,
+# and a reader cannot tell which of the two numbers in their head is the wrong one. It cost the
+# clean-checkout walk a cycle on 2026-09-13 — and THREE earlier handoffs had already written down
+# "JAVA_HOME is still not optional on this machine" as something everybody here knows, which is the
+# tell that it should have been a check and not a note. A fact that has to be remembered is a fact
+# that will eventually be forgotten; this repository keeps relearning that in other places.
+#
+# TWENTY-FOUR IS THE WRAPPER'S CEILING, not a preference. gradle-wrapper.properties pins 8.14, and
+# 8.14 does not run on 25 — that is the refusal above, not a toolchain problem. build.gradle.kts
+# asks for a language level of 21 and Gradle's toolchain support would find a 21 to COMPILE with;
+# what fails here is Gradle LAUNCHING. The two are different questions and only one of them is
+# checked here. Moving the wrapper moves this number, and letting them drift apart turns a clear
+# refusal back into "25.0.4.1".
+GRADLE_MIN_JDK := 21
+GRADLE_MAX_JDK := 24
+
+check-java: ## Assert the JDK that would launch Gradle is one Gradle can run on
+	@java_bin="java"; \
+	 if [ -n "$$JAVA_HOME" ]; then java_bin="$$JAVA_HOME/bin/java"; fi; \
+	 if ! "$$java_bin" -version >/dev/null 2>&1; then \
+	   echo "No usable Java at '$$java_bin'."; \
+	   if [ -n "$$JAVA_HOME" ]; then echo "JAVA_HOME is set to '$$JAVA_HOME'."; \
+	   else echo "JAVA_HOME is not set, and no 'java' is on PATH."; fi; \
+	   echo "This project needs JDK $(GRADLE_MIN_JDK). On macOS:"; \
+	   echo "    export JAVA_HOME=\$$(/usr/libexec/java_home -v $(GRADLE_MIN_JDK))"; \
+	   exit 1; \
+	 fi; \
+	 full=$$("$$java_bin" -version 2>&1 | head -1 | sed -n 's/.*version "\([0-9][0-9.]*\).*/\1/p'); \
+	 major=$$(echo "$$full" | cut -d. -f1); \
+	 if [ -z "$$major" ]; then \
+	   echo "Could not read a version from '$$java_bin -version'. Refusing to guess."; \
+	   exit 1; \
+	 fi; \
+	 if [ "$$major" -lt $(GRADLE_MIN_JDK) ] || [ "$$major" -gt $(GRADLE_MAX_JDK) ]; then \
+	   echo "Java $$full will not build this project."; \
+	   echo "  found     $$full, at $$java_bin"; \
+	   echo "  needed    JDK $(GRADLE_MIN_JDK) (Gradle 8.14 runs on $(GRADLE_MIN_JDK) to $(GRADLE_MAX_JDK); the build targets $(GRADLE_MIN_JDK))"; \
+	   if [ "$$major" -gt $(GRADLE_MAX_JDK) ]; then \
+	     echo "  why       Gradle will not start on $$major and reports only the version string"; \
+	   fi; \
+	   echo "On macOS:"; \
+	   echo "    export JAVA_HOME=\$$(/usr/libexec/java_home -v $(GRADLE_MIN_JDK))"; \
+	   echo "Containers are unaffected: 'make up-all' carries its own JDK."; \
+	   exit 1; \
+	 fi
+
+# the target named "backend and frontend test suites" skipped all 82 of the frontend's — issue #36,
+# T150: the name was an assertion and nothing executed it. `format:check` was missing for the same
+# reason. The order below is CI's order, and `make check-pipeline` is what now holds them together.
+test: check-java check-pipeline ## Run backend and frontend test suites
 	cd backend && ./gradlew build
-	cd frontend && pnpm install --frozen-lockfile && pnpm lint && pnpm typecheck && pnpm build
+	cd frontend && pnpm install --frozen-lockfile && pnpm lint && pnpm typecheck && pnpm format:check && pnpm test && pnpm build
 
 # The Flyway task runs on the host, not in a container, so it reads DB_* from the process
 # environment rather than from compose. Without this it takes build.gradle.kts's defaults and
 # targets port 5432, where nothing in this project listens (issue #9).
-migrate: .env ## Apply Flyway migrations against the running database
+migrate: .env check-java check-project ## Apply Flyway migrations against the running database
 	$(COMPOSE) up -d postgres
 	set -a && . ./.env && set +a && cd backend && ./gradlew flywayMigrate
 
@@ -196,7 +297,7 @@ migrate: .env ## Apply Flyway migrations against the running database
 # SERVER_PORT — and with the notifications poller off, so nothing is sent while the fixture is
 # being built. `reception.seed.enabled` is set here and nowhere else: SeedRunner is also
 # @Profile("local") and checks the environment again before it deletes anything (SeedRunner).
-seed: .env ## Load the two-tenant demo dataset (local profile only)
+seed: .env check-java check-project ## Load the two-tenant demo dataset (local profile only)
 	$(COMPOSE) up -d postgres
 	set -a && . ./.env && set +a && cd backend && ./gradlew bootRun --console=plain -q \
 		--args='--spring.main.web-application-type=none --reception.seed.enabled=true --app.notifications.poller-enabled=false'
@@ -340,6 +441,21 @@ check-bindings: .env ## Assert only Caddy is published on all interfaces, in bot
 # No containers, no network, no build: a checkout and Python. It is its own CI job for that reason.
 check-docs: ## Assert the documentation is internally consistent (links, §refs, inventories)
 	@python3 docs/tools/consistency/check.py
+
+# G41, and it found the drift it was written to prevent. `make test` and CI's Frontend job were
+# left to agree by hand, and they did not: the target skipped `pnpm test` and `pnpm format:check`,
+# and `make e2e` skipped `pnpm typecheck`. Both sides are parsed — CI's steps and this file's
+# recipes — and the script names are checked against each project's package.json, so a rename is a
+# failure rather than a silent miss. It fails in both directions: a gate CI holds and a laptop does
+# not is the defect that produced it, and the reverse is the same divergence pointing the other way.
+#
+# What it compares is the script NAME, not the command line. `--no-daemon` and `--with-deps` are
+# where a runner and a laptop are supposed to differ; which suites run is where they are not.
+#
+# `test` depends on this, so the documented local build checks itself against the pipeline. No
+# containers, no network, no build — a checkout and Python, which is why it is also its own CI job.
+check-pipeline: ## Assert `make test` and `make e2e` run the suites CI runs
+	@python3 tools/pipeline-parity/check.py
 
 # Phase 11 §Security's "full-history secret scan", as a target rather than the one-off reading it
 # was listed as for four sittings. History does not get safer with age: every commit ever made is

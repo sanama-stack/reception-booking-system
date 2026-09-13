@@ -59,10 +59,11 @@ public final class PublicResponses {
             String currency,
             int cancellationWindowHours,
             String cancellationPolicy,
-            boolean aiEnabled,
+            boolean receptionistAvailable,
             List<DayHours> hours) {
 
-        public static BusinessProfile of(Business business, List<BusinessHours> hours) {
+        public static BusinessProfile of(
+                Business business, List<BusinessHours> hours, boolean receptionistAvailable) {
             return new BusinessProfile(
                     business.name(),
                     business.description(),
@@ -76,9 +77,16 @@ public final class PublicResponses {
                     business.currency(),
                     business.cancellationWindowHours(),
                     business.cancellationPolicy(),
-                    // Phase 09 reads this to decide whether to render the chat panel at all. It is
-                    // a fact about the page, not a setting a Customer could change.
-                    business.aiEnabled(),
+                    // Whether there is a Receptionist to talk to — the only question this page
+                    // has. Deliberately NOT named `aiEnabled`: that is the owner's switch, and this
+                    // is the switch AND a model that can run, so an owner whose toggle was on would
+                    // have read their own setting back as false. A name meaning something other
+                    // than the field it was copied from is the defect class this project keeps
+                    // paying for (T144, T150).
+                    //
+                    // Passed in rather than computed here. ConversationService.receptionistAvailable
+                    // is the single definition, and POST /chat asks the same one (G42, issue #37).
+                    receptionistAvailable,
                     hours.stream().map(DayHours::of).toList());
         }
     }

@@ -28,4 +28,19 @@ public interface ChatModel {
      * @throws ChatModelException if the provider did not answer usefully
      */
     ChatResponse complete(List<ChatMessage> messages, List<ToolSpec> tools);
+
+    /**
+     * Whether this model can run at all, asked before a customer is offered one.
+     *
+     * <p>On the port rather than on {@code AiProperties} because the application layer must not
+     * know that "configured" means an OpenAI key — the scripted double in the tests needs no key
+     * and is perfectly available, and the E2E's fake provider (ADR-0011) is the real adapter
+     * pointed somewhere else. An implementation that cannot answer is the one that says so.
+     *
+     * <p>This is a question about configuration, not about health. A provider that is configured
+     * and momentarily unreachable answers {@code true} here and fails in
+     * {@link #complete} — the customer's two messages differ, and so must the two paths
+     * (G42, issue #37).
+     */
+    boolean isAvailable();
 }
