@@ -38,9 +38,19 @@ public class ConversationQueryService {
         this.tenant = tenant;
     }
 
+    /**
+     * @param unofferedOnly narrow to Conversations that wrote to a time they never quoted
+     *     (ADR-0012). An owner looking for the one conversation a customer is complaining about has
+     *     no other way to find it: every such Conversation looks ordinary from the outside — the
+     *     booking is real, the Slot was bookable, and nothing failed
+     */
     @Transactional(readOnly = true)
-    public Page<AiConversation> list(int page, int size) {
-        return conversations.findByBusinessIdOrderByStartedAtDesc(tenant.businessId(), PageRequest.of(page, size));
+    public Page<AiConversation> list(int page, int size, boolean unofferedOnly) {
+        PageRequest pageRequest = PageRequest.of(page, size);
+        return unofferedOnly
+                ? conversations.findByBusinessIdAndUnofferedWritesGreaterThanOrderByStartedAtDesc(
+                        tenant.businessId(), 0, pageRequest)
+                : conversations.findByBusinessIdOrderByStartedAtDesc(tenant.businessId(), pageRequest);
     }
 
     @Transactional(readOnly = true)

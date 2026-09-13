@@ -362,9 +362,21 @@ delivering mail for every tenant at once, and there is no per-tenant query again
 | `authorized_appointment_ids` | uuid[] | Which appointments this conversation may act on |
 | `started_at`, `last_message_at` | timestamptz | |
 | `messages_purged_at` | timestamptz | Nullable; when retention deleted this conversation's `ai_messages` |
+| `writes` | int | Appointment writes made through `create_appointment` or `reschedule_appointment` |
+| `unoffered_writes` | int | Of those, how many landed on a time matching no Offered Slot (ADR-0012) |
 
-Index `(business_id, started_at DESC)`, `(session_token_hash)`, and `(last_message_at) WHERE
-messages_purged_at IS NULL` for the retention purge.
+Index `(business_id, started_at DESC)`, `(session_token_hash)`, `(last_message_at) WHERE
+messages_purged_at IS NULL` for the retention purge, and `(business_id, last_message_at DESC) WHERE
+unoffered_writes > 0` for the owner's filter — partial, because the interesting rows are a minority
+and the query that wants them asks only for them.
+
+**Why two counters and not a flag.** An Appointment written to a time the Customer was never shown
+is invisible from every other column: the booking is real, the Slot was bookable, and nothing
+failed. The comparison itself needs no schema — an Offered Slot is read back from `ai_messages`,
+where every `find_available_slots` result already sits — but the transcript is deleted at ninety
+days and these outlive it, so a rate stays computable when the detail is gone. "One write, and it
+missed" and "five writes, one missed" are the same boolean and very different conversations; the
+flag is derivable from the counts and not the other way round.
 
 **Retention: ninety days after a conversation's last activity, the `ai_messages` rows are deleted
 and this row is kept, marked.** The transcript is what holds a Customer's name and phone number as
@@ -452,6 +464,7 @@ business_hours  business_     business_    services      employees      customer
 | `V8__appointment_max_length.sql` | `CHECK` pinning the maximum appointment length the availability bound depends on |
 | `V9__appointment_buffer_ceilings.sql` | Two `CHECK`s pinning the buffer ceilings the same bound depends on |
 | `V10__ai_message_retention.sql` | `ai_conversations.messages_purged_at` and the partial index the retention purge claims on |
+| `V11__offered_slot_counters.sql` | `ai_conversations.writes`, `unoffered_writes` and the partial index the owner's filter reads |
 
 Migrations are additive and never edited after being applied anywhere. Each phase owns its migration; no
 phase edits an earlier one.

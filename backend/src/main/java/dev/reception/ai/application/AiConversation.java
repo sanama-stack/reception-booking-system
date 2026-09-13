@@ -58,6 +58,22 @@ public class AiConversation extends BaseEntity {
     private int estimatedCostCents;
 
     /**
+     * Appointment writes this Conversation made, and how many landed on a time it had never quoted.
+     *
+     * <p>Counters rather than the dates themselves, and here rather than in the Transcript, because
+     * V10 deletes a transcript at ninety days and keeps this row: a rate has to survive that, and a
+     * date a Customer asked about is closer to what was said than to what it cost. A boolean would
+     * not have been derivable back into a rate — "one write, and it missed" and "five writes, one
+     * missed" are the same boolean and very different conversations — while the flag is derivable
+     * from these (ADR-0012).
+     */
+    @Column(nullable = false)
+    private int writes;
+
+    @Column(name = "unoffered_writes", nullable = false)
+    private int unofferedWrites;
+
+    /**
      * The authority set, as the database holds it.
      *
      * <p>A Postgres {@code uuid[]}, mapped with {@code SqlTypes.ARRAY}. An array rather than a child
@@ -108,13 +124,23 @@ public class AiConversation extends BaseEntity {
      * the ceiling.
      */
     public void recordTurn(int messagesAdded, int promptTokens, int completionTokens, int costCents,
-            Set<UUID> authority, Instant now) {
+            Set<UUID> authority, int writes, int unofferedWrites, Instant now) {
         this.messageCount += messagesAdded;
         this.promptTokens += promptTokens;
         this.completionTokens += completionTokens;
         this.estimatedCostCents += costCents;
         this.authorizedAppointmentIds = authority.toArray(UUID[]::new);
+        this.writes += writes;
+        this.unofferedWrites += unofferedWrites;
         this.lastMessageAt = now;
+    }
+
+    public int writes() {
+        return writes;
+    }
+
+    public int unofferedWrites() {
+        return unofferedWrites;
     }
 
     public void close(ConversationStatus terminal) {

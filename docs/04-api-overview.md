@@ -256,7 +256,7 @@ evening and runs past midnight in the business timezone. See `CalendarService`.
 
 | Method | Path | Purpose |
 |---|---|---|
-| GET | `/conversations?page=&size=` | Receptionist transcripts for this business |
+| GET | `/conversations?page=&size=&unofferedOnly=` | Receptionist transcripts for this business; `unofferedOnly=true` narrows to those that wrote to a time they never offered (ADR-0012) |
 | GET | `/conversations/{id}` | Messages and tool calls |
 
 ---

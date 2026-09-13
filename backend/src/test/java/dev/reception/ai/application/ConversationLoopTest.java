@@ -525,6 +525,149 @@ class ConversationLoopTest extends IntegrationTest {
         return conversations.respond(token, message);
     }
 
+    // ------------------------------------------------- Offered Slots (ADR-0012)
+
+    /**
+     * <strong>The check that decides nothing and is the point anyway.</strong>
+     *
+     * <p>#17's failure is invisible from below: ownership is proven, the Slot is real, the engine
+     * returned it and the exclusion constraint has nothing to object to — the day is simply not the
+     * one the Customer named. These four tests are the first thing in the system that can tell the
+     * difference, and none of them asserts a refusal, because there is none to assert (ADR-0012).
+     */
+    @Test
+    @DisplayName("a booking on a Slot the Conversation offered counts as offered")
+    void a_write_to_an_offered_slot_is_counted_as_offered() {
+        model.willCall("find_available_slots", searchArguments(null))
+                .willCall("create_appointment", bookingArguments(aria.at(aria.monday, 10, 0)))
+                .willSay("Booked.");
+
+        respond(start(), "monday at ten please");
+
+        assertThat(writeCounts()).containsExactly(1, 0);
+    }
+
+    /**
+     * The one that would have caught #17 in production.
+     *
+     * <p>The search is restricted to the afternoon, so ten o'clock is a real, bookable, entirely
+     * valid time that this Conversation never put in front of anybody. Every other layer is happy
+     * with it — which is exactly why nothing else notices.
+     */
+    @Test
+    @DisplayName("a booking on a time the Conversation never offered is counted, and still goes through")
+    void a_write_to_a_time_never_offered_is_counted() {
+        model.willCall("find_available_slots", searchArguments("14:00"))
+                .willCall("create_appointment", bookingArguments(aria.at(aria.monday, 10, 0)))
+                .willSay("Booked.");
+
+        ConversationTurn turn = respond(start(), "something monday afternoon");
+
+        assertThat(writeCounts()).containsExactly(1, 1);
+        // Counted, not refused. The booking is real and the customer has it.
+        assertThat(turn.appointmentCreated()).isNotNull();
+        assertThat(jdbc.queryForObject("select count(*) from appointments", Long.class)).isEqualTo(1L);
+    }
+
+    /**
+     * The cross-turn case, and the reason the lookback is the whole Conversation.
+     *
+     * <p>#17's shape is an offer in one turn and a write in a later one — the model reads a date
+     * back out of its own context and gets it wrong on the way. A check that saw only the turn it
+     * ran in would be blind to precisely the failure it exists for.
+     */
+    @Test
+    @DisplayName("Slots offered in an earlier turn still count as offered")
+    void offers_from_an_earlier_turn_are_remembered() {
+        model.willCall("find_available_slots", searchArguments(null))
+                .willSay("Ten o'clock is free.")
+                .willCall("create_appointment", bookingArguments(aria.at(aria.monday, 10, 0)))
+                .willSay("Booked.");
+
+        String token = start();
+        respond(token, "what's free monday?");
+        respond(token, "ten then");
+
+        assertThat(writeCounts()).containsExactly(1, 0);
+    }
+
+    @Test
+    @DisplayName("a refused write is not a write, and a cancellation is not one either")
+    void neither_a_refusal_nor_a_cancellation_enters_the_denominator() {
+        // Never authorized by this conversation, so the tool refuses before anything is written.
+        model.willCall(
+                        "cancel_appointment",
+                        "{\"appointment_id\":\"%s\",\"reason\":null}"
+                                .formatted(aria.bookedAt(aria.at(aria.monday, 10, 0))))
+                .willSay("I can't do that without your code.");
+
+        respond(start(), "cancel it");
+
+        assertThat(writeCounts()).containsExactly(0, 0);
+    }
+
+    /**
+     * The owner's way in — the counters on the wire, and the filter that finds them.
+     *
+     * <p>An owner holding a complaint has no other way to reach the Conversation it is about: the
+     * booking is real, the Slot was bookable, the status is ordinary, and every other column on
+     * that screen says nothing happened. So the filter is not a convenience, and this drives it
+     * over HTTP rather than through the service — the query, the controller parameter and the two
+     * projected fields are four separate things that each have to be right.
+     */
+    @Test
+    @DisplayName("the counters reach the owner, and the filter returns only the conversation that missed")
+    void the_owner_can_find_the_conversation_that_wrote_to_a_time_it_never_offered() {
+        model.willCall("find_available_slots", searchArguments(null))
+                .willCall("create_appointment", bookingArguments(aria.at(aria.monday, 10, 0)))
+                .willSay("Booked.");
+        respond(start(), "monday at ten");
+
+        // The afternoon search never offers eleven o'clock, which is nonetheless free and bookable.
+        model.reset();
+        model.willCall("find_available_slots", searchArguments("14:00"))
+                .willCall("create_appointment", bookingArguments(aria.at(aria.monday, 11, 0)))
+                .willSay("Booked.");
+        respond(start(), "monday afternoon");
+
+        String all = aria.owner.get("/conversations").getBody();
+        assertThat((Integer) JsonPath.read(all, "$.total")).isEqualTo(2);
+
+        String filtered = aria.owner.get("/conversations?unofferedOnly=true").getBody();
+        assertThat((Integer) JsonPath.read(filtered, "$.total"))
+                .as("only the conversation that wrote to a time it never offered")
+                .isEqualTo(1);
+        assertThat((Integer) JsonPath.read(filtered, "$.items[0].writes")).isEqualTo(1);
+        assertThat((Integer) JsonPath.read(filtered, "$.items[0].unofferedWrites")).isEqualTo(1);
+        // snake_case is the Tools' vocabulary and must not have reached a dashboard response.
+        assertThat(filtered).doesNotContain("unoffered_writes");
+    }
+
+    /**
+     * A search of the Monday, optionally from a time of day.
+     *
+     * <p>{@code earliest_time} is how a test makes a perfectly bookable hour into one that was
+     * never offered, without inventing an unbookable time — which would be refused by
+     * {@code reasonNotBookable} and prove something else entirely.
+     */
+    private String searchArguments(String earliestTime) {
+        return """
+                {"service_id":"%s","date_from":"%s","date_to":null,"employee_id":null,\
+                "earliest_time":%s,"latest_time":null}"""
+                .formatted(
+                        aria.serviceId,
+                        aria.monday,
+                        earliestTime == null ? "null" : "\"" + earliestTime + "\"");
+    }
+
+    /** The two ADR-0012 counters on the only conversation, as {@code [writes, unofferedWrites]}. */
+    private List<Integer> writeCounts() {
+        Map<String, Object> row = jdbc.queryForMap("select writes, unoffered_writes from ai_conversations");
+        return List.of(
+                ((Number) row.get("writes")).intValue(),
+                ((Number) row.get("unoffered_writes")).intValue());
+    }
+
     private String bookingArguments(OffsetDateTime startsAt) {
         return """
                 {"service_id":"%s","employee_id":"%s","starts_at":"%s",\

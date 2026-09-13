@@ -9,10 +9,15 @@
  * which is the only arrangement in which a transcript is evidence of anything.
  */
 
-export function conversationsPath(query: { page?: number; size?: number } = {}): string {
+export function conversationsPath(
+  query: { page?: number; size?: number; unofferedOnly?: boolean } = {},
+): string {
   const params = new URLSearchParams();
   if (query.page !== undefined) params.set('page', String(query.page));
   if (query.size !== undefined) params.set('size', String(query.size));
+  // Only when true. A `unofferedOnly=false` in the URL would make the ordinary list look like a
+  // filtered one in a bookmark, and the server's default is already false.
+  if (query.unofferedOnly) params.set('unofferedOnly', 'true');
   const search = params.toString();
   return search ? `/conversations?${search}` : '/conversations';
 }

@@ -30,6 +30,18 @@ public interface AiConversationRepository extends JpaRepository<AiConversation, 
     Page<AiConversation> findByBusinessIdOrderByStartedAtDesc(UUID businessId, Pageable pageable);
 
     /**
+     * The same list, narrowed to Conversations that wrote an Appointment to a time they had never
+     * quoted (ADR-0012).
+     *
+     * <p>A separate method rather than a nullable parameter on the one above, because the two have
+     * different indexes behind them: {@code ai_conversations_unoffered_idx} is partial on
+     * {@code unoffered_writes > 0}, which is the shape that makes a minority of rows cheap to find
+     * and is no use at all to the unfiltered query.
+     */
+    Page<AiConversation> findByBusinessIdAndUnofferedWritesGreaterThanOrderByStartedAtDesc(
+            UUID businessId, int threshold, Pageable pageable);
+
+    /**
      * What this Business has spent since {@code since} — the daily cap's input.
      *
      * <p>{@code coalesce} because a business that has had no conversations today sums to null, and a

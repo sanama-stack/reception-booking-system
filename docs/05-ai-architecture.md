@@ -206,6 +206,16 @@ Five mechanisms, in order of strength:
 5. **Test corpus.** A scripted suite asserts zero invented slots, prices and policies. See
    [08-testing-strategy.md](./08-testing-strategy.md).
 
+**And one measurement, which is not a control.** `OfferedSlots` compares every Appointment write
+against the Slots the Conversation actually quoted, and counts the mismatches on the row
+(`writes`, `unoffered_writes`). It refuses nothing — [ADR-0012](./adr/0012-writes-are-checked-against-offered-slots-and-never-refused.md)
+records why, and [#17](https://github.com/sanama-stack/reception-booking-system/issues/17)'s third candidate is the evidence: a
+guard cross-checking two model-authored fields took wrong writes from 28.0% to 44.0%. An Offered
+Slot is authored by the availability engine instead, so the comparison is sound where that one was
+not; but a refusal is a behaviour change needing its own pre-registered arm, and this ships as
+observation. It is the first thing in the system that can see the defect where it actually
+happens, rather than in a funded probe arm afterwards.
+
 ## 7. Prompt injection
 
 The threat is not a customer jailbreaking a chatbot into rudeness. It is a customer inducing a **tool call

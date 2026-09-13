@@ -31,8 +31,10 @@ public class ConversationQueryController {
 
     @GetMapping
     public ConversationResponses.ConversationPage list(
-            @RequestParam(defaultValue = "0") int page, @RequestParam(defaultValue = "20") int size) {
-        return ConversationResponses.ConversationPage.of(conversations.list(page, Math.min(size, 100)));
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size,
+            @RequestParam(defaultValue = "false") boolean unofferedOnly) {
+        return ConversationResponses.ConversationPage.of(conversations.list(page, Math.min(size, 100), unofferedOnly));
     }
 
     @GetMapping("/{id}")

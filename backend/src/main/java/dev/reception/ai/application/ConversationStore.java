@@ -68,7 +68,9 @@ public class ConversationStore {
             int messagesAdded,
             int promptTokens,
             int completionTokens,
-            AuthorizedAppointments authority) {
+            AuthorizedAppointments authority,
+            int writes,
+            int unofferedWrites) {
         AiConversation current = conversations
                 .findByBusinessIdAndId(businessId, conversationId)
                 .orElseThrow(() -> new IllegalStateException("Conversation vanished mid-turn: " + conversationId));
@@ -79,6 +81,8 @@ public class ConversationStore {
                 completionTokens,
                 costs.costCentsFor(promptTokens, completionTokens),
                 authority.snapshot(),
+                writes,
+                unofferedWrites,
                 clock.instant());
         return conversations.save(current);
     }

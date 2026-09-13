@@ -126,6 +126,8 @@ export const EMPTY_STATES: EmptyStateScreen[] = [
   {
     file: 'app/(dashboard)/conversations/conversations-screen.tsx',
     assertedIn: ['app/(dashboard)/conversations/conversations-screen.test.tsx'],
+    dynamic:
+      'Two titles, chosen by the `unofferedOnly` filter: "No conversations yet" and "Nothing unoffered" are different answers and the screen must not give the first when it means the second (ADR-0012). Both are asserted in its own test.',
   },
   {
     file: 'app/(dashboard)/customers/[id]/customer-history.tsx',
