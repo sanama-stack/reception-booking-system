@@ -418,7 +418,9 @@ argument that it was right.
 - [x] The E2E flow passes in CI
 - [ ] The concurrency test passes repeatedly
 - [ ] All security items are implemented or explicitly listed as accepted risks
-- [ ] No secret is in the repository or its history
+- [x] No secret is in the repository or its history — **2026-09-13**, by running
+      `make check-secrets` rather than by reading: 239 non-merge commits across every ref, the
+      control assertion green (*"all 239 were read"*), no finding
 - [x] The three performance checks pass
 - [x] Frontend unit tests run in CI's Frontend job
 - [x] `revenue` names its remainder after a currency change, per ADR-0010 — with an amount rather
@@ -428,7 +430,13 @@ argument that it was right.
       conversation's last activity, enforced hourly by `TranscriptPurgeJob`. The window is
       `ConversationLimits.TRANSCRIPT_RETENTION_DAYS`, a constant, so widening it is a diff
 - [ ] `README.md`, `.env.example` and `docs/deployment.md` are complete
-- [ ] **Every box in [07-mvp-scope.md](../07-mvp-scope.md) § MVP Definition of Done is ticked** — or the
+- [ ] **Every box in [07-mvp-scope.md](../07-mvp-scope.md) § MVP Definition of Done is ticked** — *walked
+      2026-09-13: **24 of 30 ticked**, and this box is **two rows** from closing.* Three Receptionist
+      rows are carried (defect + gate), and the README demo script is carried under *Gates*. The two
+      that are carried **nowhere** are `make up` **from a clean checkout** and *every phase's tests
+      pass in CI* — neither is a defect and neither is a gate that cannot run, so neither has a home
+      in that document. They are simply **runs nobody has done**, and the second needs the push
+      first. Do those two and this box ticks. — or the
       defect it covers is carried under that document's *Accepted, measured, open defects*, which
       requires a rate, a date and an issue, **or the gate that would decide it is carried under that
       document's *Gates that cannot be run***, which requires what the gate checks, when it last ran
@@ -678,7 +686,9 @@ argument that it was right.
       said three secrets, while §9 itself, the guard's own javadoc, `application-prod.yml` and
       phase 01 all still said *any secret*. All four corrected
 - [x] Security headers in Caddy
-- [ ] Full-history secret scan
+- [x] Full-history secret scan — **2026-09-13**, green. It is `make check-secrets`, a target
+      rather than a one-off reading, so every run rescans the whole history and a secret introduced
+      today is caught by the same command that cleared yesterday. It is **not** a CI job
 - [x] Error-response leakage review — **2026-09-12**, as `ErrorLeakageTest` rather than as a
       reading. `ProblemJsonTest` had asserted the contract against an unknown endpoint — a 404
       raised by the dispatcher, which never had a stack trace, a statement or a class name to
