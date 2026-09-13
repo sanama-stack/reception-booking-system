@@ -580,6 +580,15 @@ as nothing at all.
 > some policy** — and both are held up by a control that requires each derived path to be served
 > with a `200`, because a `401` from the security chain is not evidence that an asset exists.
 >
+> **`ApiDocumentationExposureTest` was the other written list, and it was one path short.** It named
+> four documentation paths as *"the ones an anonymous caller can actually reach"* and omitted
+> `/swagger-ui/swagger-initializer.js`, which is served, anonymous, and covered only because a wider
+> policy happens to catch it. The surface is now derived from both halves that make it up — the
+> framework-mapped endpoints outside `dev.reception`, and the resource paths, through the same
+> `ResourceSurface` the rate-limit coverage reads, so the two cannot disagree about what a pattern
+> means — and reachability is the running application's own answer: a `401` or `403` is the security
+> chain refusing, and anything else got past it, `/docs`'s `302` included.
+>
 > **That exclusion turned out to be one of three, and the widest had not been written down at all.**
 > Every derived control in this repository reads `RequestMappingHandlerMapping` — and this
 > application builds **eight** handler mappings. A resource handler holds the swagger-ui assets; the

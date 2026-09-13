@@ -5,11 +5,15 @@ import static org.assertj.core.api.Assertions.assertThat;
 import dev.reception.common.ratelimit.RateLimitPolicy;
 import dev.reception.common.ratelimit.RateLimitProperties;
 import dev.reception.support.IntegrationTest;
+import dev.reception.support.ResourceSurface;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.TreeSet;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.test.web.client.TestRestTemplate;
 import org.springframework.boot.test.web.server.LocalServerPort;
 import org.springframework.http.HttpEntity;
@@ -19,7 +23,9 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.client.JdkClientHttpRequestFactory;
+import org.springframework.context.ApplicationContext;
 import org.springframework.test.context.TestPropertySource;
+import org.springframework.web.servlet.mvc.method.annotation.RequestMappingHandlerMapping;
 
 /**
  * <strong>The accepted risk in docs/06-security.md §15, and the half of it that was closed.</strong>
@@ -49,9 +55,14 @@ class ApiDocumentationExposureTest extends IntegrationTest {
     /** {@code /openapi/**} is thirty a minute — the tightest of the documentation budgets. */
     private static final int SPEC_BUDGET = 30;
 
-    /** The documentation paths an anonymous caller can actually reach. */
-    private static final List<String> DOCUMENTATION_PATHS =
-            List.of("/openapi", "/openapi/swagger-config", "/swagger-ui/index.html", "/docs");
+    /**
+     * The three subjects §15 names, as a floor under the derivation below.
+     *
+     * <p>Not the surface — the surface is derived. This is the positive control: §15's row is about
+     * {@code /docs}, {@code /openapi} and {@code /swagger-ui}, and a derivation that stopped seeing
+     * any of them would empty the assertions built on it and pass.
+     */
+    private static final List<String> WHAT_SECTION_15_NAMES = List.of("/docs", "/openapi", "/swagger-ui/index.html");
 
     @LocalServerPort
     private int port;
@@ -61,6 +72,18 @@ class ApiDocumentationExposureTest extends IntegrationTest {
 
     @Autowired
     private RateLimitProperties rateLimits;
+
+    @Autowired
+    private ApplicationContext context;
+
+    /**
+     * Two beans implement this type — ours and springdoc's. The qualifier picks the one that routes
+     * real requests; omitting it fails with {@code NoUniqueBeanDefinition}, which reads like a
+     * missing bean and is the opposite.
+     */
+    @Autowired
+    @Qualifier("requestMappingHandlerMapping")
+    private RequestMappingHandlerMapping mappings;
 
     /**
      * Each test speaks from its own address, so the budgets do not leak between them.
@@ -142,17 +165,103 @@ class ApiDocumentationExposureTest extends IntegrationTest {
     @Test
     @DisplayName("every publicly reachable documentation path is covered by a policy")
     void the_documentation_surface_is_matched_by_a_policy() {
-        for (String path : DOCUMENTATION_PATHS) {
+        Set<String> unlimited = new TreeSet<>();
+        for (String path : publicDocumentationPaths()) {
             RateLimitPolicy policy = rateLimits.policies().stream()
                     .filter(candidate -> candidate.matches("GET", path))
                     .findFirst()
                     .orElse(null);
-
-            assertThat(policy)
-                    .as("%s is reachable without a token and no policy matches it. An unlimited "
-                            + "documentation path is 1.8 MB of egress a stranger can draw in a loop.", path)
-                    .isNotNull();
+            if (policy == null) {
+                unlimited.add(path);
+            }
         }
+
+        // Collected rather than asserted in the loop: an assertion inside it reports the first path
+        // and stops, which hides how much of the surface is uncovered — and the surface is derived
+        // now, so the answer is no longer four things a reader already knows.
+        assertThat(unlimited)
+                .as(
+                        """
+                        These are reachable without a token and no policy matches them. An unlimited \
+                        documentation path is 1.8 MB of egress a stranger can draw in a loop.""")
+                .isEmpty();
+    }
+
+    /**
+     * The positive control, and the reason the test above is worth anything now that its subject is
+     * derived.
+     *
+     * <p>The surface used to be four paths somebody typed. <strong>It was one short</strong> —
+     * {@code /swagger-ui/swagger-initializer.js} is served, anonymous, and was never on it — which is
+     * the ordinary fate of a list that describes something it does not read. Derived, the assertion
+     * above covers whatever the application actually exposes; undetectably blind, it covers nothing
+     * and passes.
+     *
+     * <p>Both halves are needed. A derivation that returned an empty set passes a
+     * {@code containsAll}; one that reported every path as reachable passes it too, and would have
+     * swallowed the {@code /openapi.yaml} asymmetry that {@link
+     * #the_disclosure_stops_at_the_json_rendering()} exists to protect.
+     */
+    @Test
+    @DisplayName("the documentation surface is derived, and still sees what §15 is about")
+    void the_documentation_surface_is_really_derived() {
+        Set<String> derived = publicDocumentationPaths();
+
+        assertThat(derived)
+                .as("§15's row is about these three; a derivation that has lost one of them is not "
+                        + "describing the risk the row records")
+                .containsAll(WHAT_SECTION_15_NAMES);
+
+        assertThat(derived)
+                .as("the YAML rendering answers 401 and must not be counted as public. A derivation "
+                        + "that includes it is reporting reachability it has not checked, and would "
+                        + "report anything as reachable")
+                .doesNotContain("/openapi.yaml");
+    }
+
+    /**
+     * Every path an anonymous caller reaches that this application does not serve from its own
+     * controllers — which is, today, exactly the documentation surface.
+     *
+     * <p>Two sources, because the surface has two halves that are invisible to each other. The
+     * framework-mapped endpoints come from {@link RequestMappingHandlerMapping} filtered to handlers
+     * outside {@code dev.reception} — {@code MappedSurfaceTest} pins that same set from the other
+     * side, so a springdoc release adding a path fails there and arrives here. The assets come from
+     * {@link ResourceSurface}, shared with {@code RateLimitCoverageTest} precisely so the two cannot
+     * disagree about what a resource pattern means.
+     *
+     * <p><strong>Reachability is the running application's answer, not a re-reading of
+     * SecurityConfig.</strong> A {@code 401} or {@code 403} is the security chain refusing; anything
+     * else got past it, {@code /docs}'s {@code 302} included — which is why the question is asked
+     * this way round rather than by checking for {@code 200}. A {@code 404} counts as reachable too,
+     * which is the conservative direction — it asks for a policy on a path that is not there — and
+     * is caught by the control rather than tuned away: an application answering {@code 404} to
+     * everything reports its whole surface as public here, {@code /openapi.yaml} included, and that
+     * is precisely what {@link #the_documentation_surface_is_really_derived()} refuses. Two other classes put the same question
+     * to the {@code AuthorizationManager} directly; this one is an HTTP class throughout and asking
+     * over the wire is both simpler here and a stricter test, since it also requires the path to
+     * survive routing.
+     */
+    private Set<String> publicDocumentationPaths() {
+        Set<String> candidates = new TreeSet<>(ResourceSurface.samplePaths(context));
+        mappings.getHandlerMethods().forEach((info, handler) -> {
+            if (handler.getBeanType().getPackageName().startsWith("dev.reception")
+                    || info.getPathPatternsCondition() == null
+                    || info.getMethodsCondition().getMethods().stream()
+                            .noneMatch(method -> method.asHttpMethod() == HttpMethod.GET)) {
+                return;
+            }
+            candidates.addAll(info.getPathPatternsCondition().getPatternValues());
+        });
+
+        Set<String> reachable = new TreeSet<>();
+        candidates.forEach(path -> {
+            int status = get(path).getStatusCode().value();
+            if (status != 401 && status != 403) {
+                reachable.add(path);
+            }
+        });
+        return reachable;
     }
 
     /**

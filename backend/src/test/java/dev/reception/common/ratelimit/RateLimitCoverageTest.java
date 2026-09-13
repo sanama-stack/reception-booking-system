@@ -3,6 +3,7 @@ package dev.reception.common.ratelimit;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import dev.reception.support.IntegrationTest;
+import dev.reception.support.ResourceSurface;
 import jakarta.servlet.ServletContext;
 import jakarta.servlet.http.HttpServletRequest;
 import java.util.LinkedHashMap;
@@ -25,7 +26,6 @@ import org.springframework.security.core.authority.AuthorityUtils;
 import org.springframework.security.web.FilterChainProxy;
 import org.springframework.security.web.access.intercept.AuthorizationFilter;
 import org.springframework.web.method.HandlerMethod;
-import org.springframework.web.servlet.handler.SimpleUrlHandlerMapping;
 import org.springframework.web.servlet.mvc.method.RequestMappingInfo;
 import org.springframework.web.context.WebApplicationContext;
 import org.springframework.web.servlet.mvc.method.annotation.RequestMappingHandlerMapping;
@@ -65,15 +65,6 @@ class RateLimitCoverageTest extends IntegrationTest {
      * the reason is written next to the exemption rather than argued in a commit message.
      */
     private static final Map<String, String> UNLIMITED_ON_PURPOSE = new LinkedHashMap<>();
-
-    /**
-     * The leaf to ask for when a resource pattern ends in {@code **} and so names no file of its own.
-     *
-     * <p>The one assumption in {@link #resourceSamplePaths()}, and it is checked rather than
-     * trusted: every derived path is probed against the running application, so a resource root
-     * with no {@code index.html} fails loudly here instead of quietly contributing nothing.
-     */
-    private static final String DEFAULT_LEAF = "index.html";
 
     /**
      * Two beans implement this type — ours and springdoc's. The qualifier picks the one that routes
@@ -399,34 +390,7 @@ class RateLimitCoverageTest extends IntegrationTest {
      * two halves cannot drift apart quietly.
      */
     private Set<String> resourceSamplePaths() {
-        SimpleUrlHandlerMapping resources =
-                webContext.getBean("resourceHandlerMapping", SimpleUrlHandlerMapping.class);
-        Set<String> samples = new TreeSet<>();
-        resources.getUrlMap().keySet().forEach(pattern -> samples.add(sampleUnder(pattern)));
-        return samples;
-    }
-
-    /**
-     * A concrete path under {@code pattern}, taking every wildcard at its narrowest.
-     *
-     * <p>A {@code *} inside a segment matches zero characters, so it is simply dropped:
-     * {@code /swagger-ui*} becomes {@code /swagger-ui}. A whole segment of {@code **} names no file,
-     * so it becomes {@link #DEFAULT_LEAF} — the one assumption here, and the reason every result is
-     * probed rather than trusted.
-     *
-     * <p>Narrowest is the right choice and not the convenient one: it produces the path a caller
-     * would actually ask for, which is what both the policy and the running application have to be
-     * asked about.
-     */
-    private static String sampleUnder(String pattern) {
-        StringBuilder path = new StringBuilder();
-        for (String segment : pattern.split("/")) {
-            if (segment.isEmpty()) {
-                continue;
-            }
-            path.append('/').append(segment.equals("**") ? DEFAULT_LEAF : segment.replace("*", ""));
-        }
-        return path.toString();
+        return ResourceSurface.samplePaths(webContext);
     }
 
     private RateLimitPolicy policyFor(Endpoint endpoint) {
