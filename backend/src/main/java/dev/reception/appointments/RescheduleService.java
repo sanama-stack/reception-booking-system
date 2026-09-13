@@ -119,9 +119,11 @@ public class RescheduleService {
         // Both are read by PersistenceRefusal, which is the only reason either reaches a Customer
         // as a sentence rather than as a failure.
         //
-        // This is also the one write path that reaches the constraint in ordinary use: BookingService
-        // takes an advisory lock per Employee before its re-check, so a losing booking is refused by
-        // name, while two moves onto one time both pass their re-checks and race to the constraint
+        // This is also the path by which the constraint is reached at all in ordinary use, and the
+        // reason is an absence: BookingService takes an advisory lock per Employee before its
+        // re-check, so two bookings queue and the loser is refused by name. This method takes no
+        // such lock, so any race it is part of — against another move or against a booking — has
+        // both sides passing their re-checks and meeting at the constraint
         // (ConcurrentToolRescheduleTest).
         Appointment saved = appointments.saveAndFlush(appointment);
         events.rescheduled(saved, previousStartsAt, previousEndsAt, previousEmployeeId, actor);
