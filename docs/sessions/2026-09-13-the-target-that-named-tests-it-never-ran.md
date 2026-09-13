@@ -29,6 +29,7 @@
 [#17]: https://github.com/sanama-stack/reception-booking-system/issues/17
 [#36]: https://github.com/sanama-stack/reception-booking-system/issues/36
 [#37]: https://github.com/sanama-stack/reception-booking-system/issues/37
+[#38]: https://github.com/sanama-stack/reception-booking-system/pull/38
 
 ---
 
@@ -36,8 +37,9 @@
 
 | | |
 |---|---|
-| `origin/main` | **`55e5b02`**, unmoved |
-| `dev` | **`f82f463`** — one commit this sitting, `.gitleaks.toml` and `check-secrets`. **Not pushed** |
+| `origin/main` | **`26e09eb`** — [#38] squashed, merged 14:08Z. Was `55e5b02` |
+| `origin/dev` | **`02463a0`** — `main` merged back. **0 behind**, and `git diff origin/main origin/dev` is empty |
+| CI | **Green** on both runs of `6321485`, all five jobs — but read §11 before believing the Backend one |
 | Backend | **1056 tests, 120 classes, 0 failed** — run from a clean clone, not from this working tree |
 | Frontend | **82 tests, 23 files, all passed** — run **separately**, because `make test` does not run them (§4) |
 | Migrations | `V10`, unchanged. No new ADR |
@@ -203,6 +205,10 @@ the truth.
 canonical `EXAMPLE` credentials by design, so committing one demonstrates the scanner's silence, not
 the repository's cleanliness.
 
+**T154** — a CI green does not mean the suite ran. Gradle restores `:test` `FROM-CACHE` when its
+inputs are unchanged, so a documentation commit inherits a pass it did not earn — legitimately, and
+without saying so anywhere but the log.
+
 ---
 
 ## 8. Gaps
@@ -248,3 +254,40 @@ and the revenue assertion moved by exactly the price of the appointment complete
 **Explicitly unproven: G40's boundary**, unchanged from the last handoff. And **nothing here says
 anything about Receptionist behaviour** — §5 is about a configuration default, not about the model,
 and no model answered this sitting either.
+
+---
+
+## 11. The push, and a green that did not run
+
+[#38] went `dev` → `main`, squashed as **`26e09eb`**, ten checks green. **GitHub ran the workflow
+twice on the same SHA** — once for the `push` and once for the `pull_request` — which is why a
+watcher that had correctly seen five-of-five green sat beside a PR reporting *8 passing, 2 pending*.
+Neither reading was wrong; they were counting different things. **Wait for the checks the PR lists,
+not for the run you happened to start watching.**
+
+**The Backend job passed in 38 seconds, against 5m41s on the last sitting.** The log says why:
+
+```text
+> Task :test FROM-CACHE
+8 actionable tasks: 4 executed, 4 from cache
+```
+
+**CI did not execute the backend suite on this commit.** Gradle restored the task, correctly — this
+sitting changed the Makefile, `.gitleaks.toml` and documentation, so the test task's inputs hashed
+identically to a run that had already passed. Nothing is wrong with the cache and nothing is wrong
+with the green.
+
+What is worth writing down is what the green *means*. **The 1056 in §1 comes from the clean-clone
+run, which executed them; it does not come from CI.** A reader who sees a green Backend job on a
+docs-only commit and concludes the suite ran has concluded something the log denies — and on a
+commit that *does* touch backend source the cache key changes and the tests run, so the distinction
+is invisible exactly when it does not matter and invisible again when it does.
+
+### The branch arithmetic after a squash
+
+`dev` reports **52 commits ahead** of `main` over **identical trees**, because the two commits it
+carried are not ancestors of the squash. The merge-back fixes the direction that matters — `dev` is
+**0 behind** — and leaves the ahead count, which is inherent to the workflow and will grow by one
+per squash forever. **`main-only=0` is the number to read; the ahead count says nothing.** The same
+state was recorded after [#35], one sitting ago, which is how it is known to be the shape rather
+than a problem.
