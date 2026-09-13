@@ -565,9 +565,20 @@ as nothing at all.
 >
 > One exclusion could not be closed and is worth naming: `/swagger-ui/**` is served by a resource
 > handler, which declares no handler methods, so it can never appear in a derivation built on
-> `RequestMappingHandlerMapping`. Its policy is required by a written list, and the orphan check
-> verifies that list by **probing the running application** rather than by trusting it. That is the
-> weakest link in this control and the place to look first if the assets are ever unlimited again.
+> `RequestMappingHandlerMapping`. Its policy was required by a written list — a policy *name* bound
+> by hand to a path — and the orphan check verified that list by **probing the running
+> application**.
+>
+> **The probe asked the wrong question, and the branch was vacuous.** It checked that something was
+> mounted at the path; it never checked that the policy keyed to that path *matched* it. Repointing
+> `api-docs-ui` at `/nonsense/**` left the swagger-ui assets unlimited and `RateLimitCoverageTest`
+> entirely green — the consequence was caught, but by `ApiDocumentationExposureTest` driving real
+> requests, not by the control that claims it. The pairing is now computed: the patterns come from
+> the resource mapping itself, the paths from the patterns, and the question asked of a path is the
+> same one asked of an endpoint. No policy name appears in it. A second assertion covers the
+> direction the written list never had — **every path served by a resource handler is matched by
+> some policy** — and both are held up by a control that requires each derived path to be served
+> with a `200`, because a `401` from the security chain is not evidence that an asset exists.
 >
 > **That exclusion turned out to be one of three, and the widest had not been written down at all.**
 > Every derived control in this repository reads `RequestMappingHandlerMapping` — and this

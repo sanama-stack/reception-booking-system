@@ -25,6 +25,7 @@ import org.springframework.security.core.authority.AuthorityUtils;
 import org.springframework.security.web.FilterChainProxy;
 import org.springframework.security.web.access.intercept.AuthorizationFilter;
 import org.springframework.web.method.HandlerMethod;
+import org.springframework.web.servlet.handler.SimpleUrlHandlerMapping;
 import org.springframework.web.servlet.mvc.method.RequestMappingInfo;
 import org.springframework.web.context.WebApplicationContext;
 import org.springframework.web.servlet.mvc.method.annotation.RequestMappingHandlerMapping;
@@ -66,16 +67,13 @@ class RateLimitCoverageTest extends IntegrationTest {
     private static final Map<String, String> UNLIMITED_ON_PURPOSE = new LinkedHashMap<>();
 
     /**
-     * Policies whose target is served by a resource handler rather than a handler method, and a
-     * concrete path each must still resolve to.
+     * The leaf to ask for when a resource pattern ends in {@code **} and so names no file of its own.
      *
-     * <p>These cannot be derived from {@link RequestMappingHandlerMapping} because they are not in
-     * it, so the orphan check probes the running application for them instead. The path is the
-     * assertion: rename or remove the assets and the probe 404s, which is exactly when the policy
-     * has stopped guarding anything.
+     * <p>The one assumption in {@link #resourceSamplePaths()}, and it is checked rather than
+     * trusted: every derived path is probed against the running application, so a resource root
+     * with no {@code index.html} fails loudly here instead of quietly contributing nothing.
      */
-    private static final Map<String, String> SERVED_BY_A_RESOURCE_HANDLER =
-            Map.of("api-docs-ui", "/swagger-ui/index.html");
+    private static final String DEFAULT_LEAF = "index.html";
 
     /**
      * Two beans implement this type — ours and springdoc's. The qualifier picks the one that routes
@@ -180,16 +178,18 @@ class RateLimitCoverageTest extends IntegrationTest {
     @Test
     @DisplayName("no policy guards a path this application no longer maps")
     void no_policy_is_an_orphan() {
+        Set<String> resourcePaths = resourceSamplePaths();
         Set<String> orphans = new TreeSet<>();
         for (RateLimitPolicy policy : rateLimits.policies()) {
             boolean guardsSomething = mappedEndpoints().stream()
                     .anyMatch(endpoint -> policy.matches(endpoint.method(), endpoint.samplePath()));
-            if (!guardsSomething && SERVED_BY_A_RESOURCE_HANDLER.containsKey(policy.name())) {
-                // Not in the handler mapping and not dead either: a static resource is served by
-                // ResourceHttpRequestHandler, which declares no handler methods. There is nothing to
-                // derive from, so the running application is asked instead — the fallback this
-                // project reaches for when a derivation is impossible rather than merely harder.
-                guardsSomething = resolves(SERVED_BY_A_RESOURCE_HANDLER.get(policy.name()));
+            if (!guardsSomething) {
+                // Not in the handler mapping and not necessarily dead: a static resource is served
+                // by ResourceHttpRequestHandler, which declares no handler methods. The paths come
+                // from the resource mapping's own patterns and the question asked of them is the
+                // same one asked of an endpoint — does this policy match it — rather than the
+                // weaker one this branch used to ask. See the class comment on resourceSamplePaths.
+                guardsSomething = resourcePaths.stream().anyMatch(path -> policy.matches("GET", path));
             }
             if (!guardsSomething) {
                 orphans.add(policy.name() + " (" + policy.method() + " " + policy.pathPattern() + ")");
@@ -203,6 +203,83 @@ class RateLimitCoverageTest extends IntegrationTest {
                         renamed and the policy was left behind — in which case the new path is \
                         guarded by whatever wider pattern happens to catch it — or the endpoint is \
                         gone and so should the policy be.""")
+                .isEmpty();
+    }
+
+    /**
+     * The direction the written list never checked: the assets themselves must be limited.
+     *
+     * <p>Until now the resource branch of the orphan check asked only whether something was
+     * <em>mounted</em> at a typed path. It never asked whether the policy keyed to that path
+     * <em>matched</em> it — so a policy repointed at a pattern guarding nothing stayed green here,
+     * with the 1.8 MB of swagger-ui assets unlimited behind it. Measured, not inferred: pointing
+     * {@code api-docs-ui} at {@code /nonsense/**} left this class entirely green.
+     *
+     * <p>This asks the question the other way round and about the paths rather than the policies,
+     * which is why it cannot be satisfied by a policy that has stopped guarding anything.
+     */
+    @Test
+    @DisplayName("every path served by a resource handler is covered by a rate-limit policy")
+    void no_resource_is_unlimited() {
+        Set<String> unlimited = new TreeSet<>();
+        for (String path : resourceSamplePaths()) {
+            if (rateLimits.policies().stream().noneMatch(policy -> policy.matches("GET", path))) {
+                unlimited.add(path);
+            }
+        }
+
+        assertThat(unlimited)
+                .as(
+                        """
+                        These paths are served by a resource handler and no policy matches them. \
+                        Static assets are the cheapest amplifier a system can offer — one swagger-ui \
+                        page load is roughly 1.8 MB — and they are invisible to every derivation \
+                        built on RequestMappingHandlerMapping, so nothing else will report this.""")
+                .isEmpty();
+    }
+
+    /**
+     * The positive control for the two assertions built on {@link #resourceSamplePaths()}.
+     *
+     * <p>Both are emptiness assertions over a derived set, and the derivation has a generator in it
+     * — the one place in this class where a path is constructed rather than read. A generator that
+     * produced nothing, or produced paths this application does not serve, would empty both sets and
+     * pass both.
+     *
+     * <p><strong>{@code 200}, not merely "not a 404".</strong> {@link #resolves} takes anything but
+     * a 404 as evidence that something is mounted, which is the right reading where it is used and
+     * the wrong one here. A generator emitting {@code /swagger-ui*&#47;index.html} — the literal
+     * asterisk, the exact slip this guards against — is refused by the security chain with a
+     * {@code 401}, and a "not a 404" control accepts that as an asset. Measured: written the weaker
+     * way, this test passed against a generator that was producing paths nothing serves. These
+     * assets are public and rate limiting is off in this class, so {@code 200} is the honest
+     * expectation.
+     */
+    @Test
+    @DisplayName("every derived resource path is one the application actually serves")
+    void the_resource_derivation_still_sees_the_assets() {
+        Set<String> paths = resourceSamplePaths();
+
+        assertThat(paths)
+                .as("the resource handler mapping serves the swagger-ui assets; an empty derivation "
+                        + "here silently empties both assertions above")
+                .isNotEmpty();
+
+        Set<String> notServed = new TreeSet<>();
+        paths.forEach(path -> {
+            if (!isServed(path)) {
+                notServed.add(path);
+            }
+        });
+
+        assertThat(notServed)
+                .as(
+                        """
+                        These paths were derived from the resource mapping's own patterns and the \
+                        application does not serve them, so the generator no longer describes what \
+                        is mounted. Either the assets moved — in which case the policies guarding \
+                        them are now orphans and should be reported as such — or a pattern has a \
+                        shape sampleUnder() does not handle and needs teaching.""")
                 .isEmpty();
     }
 
@@ -291,6 +368,65 @@ class RateLimitCoverageTest extends IntegrationTest {
                                 + "another filter or the chain is not the application's — either way this test is "
                                 + "no longer asking the question it claims to ask."))
                 .getAuthorizationManager();
+    }
+
+    /**
+     * Whether the running application actually serves {@code path}.
+     *
+     * <p>Stricter than {@link #resolves} on purpose, and the difference is load-bearing — see
+     * {@link #the_resource_derivation_still_sees_the_assets()}. A refusal is not a resource.
+     */
+    private boolean isServed(String path) {
+        return rest.getForEntity("http://localhost:" + port + "/api" + path, String.class)
+                        .getStatusCode()
+                        .value()
+                == 200;
+    }
+
+    /**
+     * One concrete path under each pattern the resource handler mapping registers.
+     *
+     * <p>Static resources are served by {@code ResourceHttpRequestHandler}, which declares no
+     * handler methods, so they can never appear in a derivation built on {@link
+     * RequestMappingHandlerMapping}. <strong>What used to stand in for them was a policy name
+     * bound by hand to a path</strong>, and the pairing that map asserted was never checked: the
+     * branch probed that something was mounted at the path and stopped there, so the policy it was
+     * keyed to could be repointed at anything without failing.
+     *
+     * <p>The patterns now come from the mapping itself, and the paths from the patterns, so no
+     * policy name appears here at all. {@code MappedSurfaceTest} pins the pattern set from the
+     * other side — a new resource root fails there — and every path built here is probed, so the
+     * two halves cannot drift apart quietly.
+     */
+    private Set<String> resourceSamplePaths() {
+        SimpleUrlHandlerMapping resources =
+                webContext.getBean("resourceHandlerMapping", SimpleUrlHandlerMapping.class);
+        Set<String> samples = new TreeSet<>();
+        resources.getUrlMap().keySet().forEach(pattern -> samples.add(sampleUnder(pattern)));
+        return samples;
+    }
+
+    /**
+     * A concrete path under {@code pattern}, taking every wildcard at its narrowest.
+     *
+     * <p>A {@code *} inside a segment matches zero characters, so it is simply dropped:
+     * {@code /swagger-ui*} becomes {@code /swagger-ui}. A whole segment of {@code **} names no file,
+     * so it becomes {@link #DEFAULT_LEAF} — the one assumption here, and the reason every result is
+     * probed rather than trusted.
+     *
+     * <p>Narrowest is the right choice and not the convenient one: it produces the path a caller
+     * would actually ask for, which is what both the policy and the running application have to be
+     * asked about.
+     */
+    private static String sampleUnder(String pattern) {
+        StringBuilder path = new StringBuilder();
+        for (String segment : pattern.split("/")) {
+            if (segment.isEmpty()) {
+                continue;
+            }
+            path.append('/').append(segment.equals("**") ? DEFAULT_LEAF : segment.replace("*", ""));
+        }
+        return path.toString();
     }
 
     private RateLimitPolicy policyFor(Endpoint endpoint) {
