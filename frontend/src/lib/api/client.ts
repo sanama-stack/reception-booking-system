@@ -241,6 +241,15 @@ export function setSessionExpiredHandler(listener: SessionExpiredListener | null
   onSessionExpired = listener;
 }
 
+/**
+ * Every request the application makes, and the one promise its callers are built on: **this
+ * rejects with an `ApiError` and with nothing else.**
+ *
+ * Every screen branches on `instanceof ApiError` to decide what to say, so the branch for anything
+ * else is written twenty-six times and taken never — which is only true while all three ways out
+ * of here produce one: a dead connection, a refusal the server described, and a reply that could
+ * not be read. `client.test.ts` asserts each.
+ */
 async function request<T>(
   method: string,
   path: string,
@@ -306,7 +315,24 @@ async function request<T>(
     return undefined as T;
   }
 
-  return (await response.json()) as T;
+  try {
+    return (await response.json()) as T;
+  } catch {
+    // The last way a caller could be handed something that is not an `ApiError`. A 2xx whose body
+    // is not JSON — an upstream error page, a truncated reply — threw a bare `SyntaxError` from
+    // here, and the guard above does not close it: a chunked response carries no `Content-Length`.
+    //
+    // It matters because of what every caller does with the distinction. Twenty-six modules
+    // branch on `instanceof ApiError` and show something else when it is false; on the login and
+    // register forms that something else is `null`, which renders nothing — a press that stops
+    // spinning and says no more than it did before. `client.test.ts` asserts the promise this
+    // makes, because a promise that many callers rely on should not be a comment.
+    throw new ApiError({
+      code: 'INTERNAL_ERROR',
+      message: 'The server replied with something this page could not read. Please try again.',
+      status: response.status,
+    });
+  }
 }
 
 export const api = {

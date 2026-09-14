@@ -67,6 +67,7 @@ export function serve(
   mode:
     | { kind: 'pending' }
     | { kind: 'failing'; status?: number; code?: string; detail?: string }
+    | { kind: 'unreadable' }
     | { kind: 'body'; bodies: Bodies },
 ): void {
   vi.stubGlobal(
@@ -91,6 +92,17 @@ export function serve(
               },
               mode.status ?? 500,
             ),
+          );
+
+        case 'unreadable':
+          // A success whose body is not JSON — an upstream error page, a truncated reply. The
+          // interesting case because it is the one way a caller could be handed something that is
+          // not an `ApiError`, and every screen branches on that distinction.
+          return Promise.resolve(
+            new Response('<html>upstream said something else</html>', {
+              status: 200,
+              headers: { 'Content-Type': 'application/json' },
+            }),
           );
 
         case 'body': {
