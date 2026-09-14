@@ -15,9 +15,10 @@ import type { EmployeeDetail, EmployeeList } from '@/lib/staff';
  * is the same counterfactual every other file here rests on: a screen reading the browser's zone
  * instead of this envelope's would draw these times four hours late.
  *
- * Not a `.tsx`, deliberately. `coverage.test.ts` scans `.tsx` files for `<EmptyState` and
- * `useResource`, and a fixture module that matched either would be asked to classify itself as a
- * screen.
+ * Not a `.tsx` — and it no longer has to be. `coverage.test.ts` used to scan every `.tsx` under
+ * `src/`, so a fixture that rendered an `<EmptyState` would have been asked to classify itself as
+ * a screen; it now skips `src/test/` altogether, because the suite's own scaffolding is not one.
+ * The extension stays as it is and has stopped being load-bearing.
  */
 
 export const SERVICE: ServiceDetail = {
