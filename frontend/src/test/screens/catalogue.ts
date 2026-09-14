@@ -292,8 +292,7 @@ export const WRITE_SCREENS: WriteScreen[] = [
   {
     file: 'app/(auth)/register/register-form.tsx',
     failure: 'A banner for anything unfielded, and the field messages on the four inputs.',
-    notYet:
-      'The same press as the login form, against a server that refuses the address. Nothing drives it.',
+    assertedIn: ['app/(auth)/register/register-form.test.tsx'],
   },
   {
     file: 'app/(dashboard)/appointments/[id]/appointment-actions.tsx',
@@ -421,7 +420,7 @@ export const WRITE_SCREENS: WriteScreen[] = [
     file: 'app/book/[slug]/classic-flow.tsx',
     failure:
       'A banner carrying the server message and any Retry-After, with the field messages on the customer fields. A stale-slot refusal re-asks for times and keeps every detail already typed.',
-    notYet: 'The public booking failure is the one a stranger meets and nothing asserts it.',
+    assertedIn: ['app/book/[slug]/classic-flow.test.tsx'],
   },
   {
     file: 'app/book/[slug]/receptionist-panel.tsx',
@@ -433,13 +432,13 @@ export const WRITE_SCREENS: WriteScreen[] = [
     file: 'app/manage/[token]/cancel-dialog.tsx',
     failure:
       'Delegated to the page through onFailed, which renders the refusal above the summary and re-resolves the appointment when the refusal means this screen is stale.',
-    notYet: 'Nothing renders the dialog in a test.',
+    assertedIn: ['app/manage/[token]/cancel-dialog.test.tsx'],
   },
   {
     file: 'app/manage/[token]/reschedule-card.tsx',
     failure:
       'Delegated to the page through onFailed. A stale-slot refusal also re-asks for times and says, in its own banner, that the appointment has not moved.',
-    notYet: 'Nothing renders the card in a test.',
+    assertedIn: ['app/manage/[token]/reschedule-card.test.tsx'],
   },
   {
     file: 'lib/auth/session-context.tsx',
@@ -461,4 +460,4 @@ export const WRITE_SCREENS: WriteScreen[] = [
  *
  * Lowering it is the work. Raising it is a decision somebody has to make on purpose, in a diff.
  */
-export const UNASSERTED_WRITE_FAILURES = 27;
+export const UNASSERTED_WRITE_FAILURES = 23;

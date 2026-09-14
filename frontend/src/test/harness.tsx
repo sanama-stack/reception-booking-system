@@ -35,6 +35,31 @@ export const SESSION: Session = {
 /** Response bodies by path prefix — the longest matching prefix wins. */
 export type Bodies = Record<string, unknown>;
 
+/**
+ * How a request is refused — the two shapes a screen has to tell apart.
+ *
+ * `failing` is a refusal the server described: a code, a sentence, and optionally the fields it
+ * is about. `unreadable` is a `2xx` whose body is not JSON, which is the one way a caller could
+ * be handed something that is not an `ApiError` — the case every screen's else-branch is written
+ * for and almost none had ever been shown.
+ */
+export type Refusal =
+  | { kind: 'unreadable' }
+  | {
+      kind: 'failing';
+      status?: number;
+      code?: string;
+      detail?: string;
+      errors?: Array<{ field: string; message: string }>;
+      /**
+       * Seconds, sent as the `Retry-After` header rather than in the body.
+       *
+       * It is a header on the wire and `client.ts` reads it from there, so a case that put the
+       * number in the JSON would assert a screen against a shape no server produces.
+       */
+      retryAfterSeconds?: number;
+    };
+
 function jsonResponse(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), {
     status,
@@ -56,6 +81,38 @@ function pathOf(input: RequestInfo | URL): string {
 }
 
 /**
+ * One refusal, as the wire would carry it.
+ *
+ * Shared by the whole-server mode and the per-write one so that a write refused mid-screen is
+ * byte-identical to one refused by a server that refuses everything. Two builders would be two
+ * chances for a screen to pass against a shape the server never sends.
+ */
+function refusalResponse(refusal: Refusal): Response {
+  if (refusal.kind === 'unreadable') {
+    return new Response('<html>upstream said something else</html>', {
+      status: 200,
+      headers: { 'Content-Type': 'application/json' },
+    });
+  }
+  return new Response(
+    JSON.stringify({
+      code: refusal.code ?? 'INTERNAL_ERROR',
+      detail: refusal.detail ?? 'The request could not be completed.',
+      ...(refusal.errors ? { errors: refusal.errors } : {}),
+    }),
+    {
+      status: refusal.status ?? 500,
+      headers: {
+        'Content-Type': 'application/json',
+        ...(refusal.retryAfterSeconds !== undefined
+          ? { 'Retry-After': String(refusal.retryAfterSeconds) }
+          : {}),
+      },
+    },
+  );
+}
+
+/**
  * Answers `/auth/me` from {@link SESSION} and everything else according to `mode`.
  *
  * `/auth/me` is answered in every mode on purpose. A dashboard page renders `null` until it has a
@@ -66,14 +123,32 @@ function pathOf(input: RequestInfo | URL): string {
 export function serve(
   mode:
     | { kind: 'pending' }
-    | { kind: 'failing'; status?: number; code?: string; detail?: string }
+    /**
+     * Field-level messages go in the wire's own shape rather than the client's. `fieldErrors` is
+     * keyed by field name, but the server sends an `errors` array and `client.ts` does the
+     * keying — a case handing over the keyed map would skip the one translation a screen's field
+     * messages depend on.
+     */
+    | (Refusal & { kind: 'failing' })
     | { kind: 'unreadable' }
-    | { kind: 'body'; bodies: Bodies },
+    /**
+     * Reads that succeed and, optionally, a write that does not.
+     *
+     * The mode the write half of the catalogue needs. Until it existed every mode was
+     * all-or-nothing, so a screen could be shown a server that refused *everything* — which never
+     * reaches the save button, because the read behind the screen fails first and the loading
+     * state is what the test ends up asserting. `refusing` applies to any request that is not a
+     * GET, narrowed by `path` when one screen writes to more than one place.
+     */
+    | { kind: 'body'; bodies: Bodies; refusing?: Refusal & { path?: string } },
 ): void {
   vi.stubGlobal(
     'fetch',
-    vi.fn((input: RequestInfo | URL): Promise<Response> => {
+    vi.fn((input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
       const path = pathOf(input);
+      // Taken from `init`, which is where `client.ts` puts it; a `Request` object would carry its
+      // own, and nothing in this application builds one.
+      const method = (init?.method ?? 'GET').toUpperCase();
 
       if (path.endsWith('/auth/me')) return Promise.resolve(jsonResponse(SESSION));
 
@@ -84,28 +159,26 @@ export function serve(
           return new Promise<Response>(() => {});
 
         case 'failing':
-          return Promise.resolve(
-            jsonResponse(
-              {
-                code: mode.code ?? 'INTERNAL_ERROR',
-                detail: mode.detail ?? 'The request could not be completed.',
-              },
-              mode.status ?? 500,
-            ),
-          );
+          return Promise.resolve(refusalResponse(mode));
 
         case 'unreadable':
           // A success whose body is not JSON — an upstream error page, a truncated reply. The
           // interesting case because it is the one way a caller could be handed something that is
           // not an `ApiError`, and every screen branches on that distinction.
-          return Promise.resolve(
-            new Response('<html>upstream said something else</html>', {
-              status: 200,
-              headers: { 'Content-Type': 'application/json' },
-            }),
-          );
+          return Promise.resolve(refusalResponse(mode));
 
         case 'body': {
+          // A write is refused before its body is looked for: the point of this mode is a screen
+          // whose reads worked, so the refusal has to happen where the save is, not where the
+          // catalogue is missing an entry.
+          if (
+            mode.refusing &&
+            method !== 'GET' &&
+            (mode.refusing.path === undefined || path.startsWith(mode.refusing.path))
+          ) {
+            return Promise.resolve(refusalResponse(mode.refusing));
+          }
+
           const match = Object.keys(mode.bodies)
             .filter((prefix) => path.startsWith(prefix))
             .sort((a, b) => b.length - a.length)[0];
