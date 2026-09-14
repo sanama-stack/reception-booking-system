@@ -298,7 +298,7 @@ export const WRITE_SCREENS: WriteScreen[] = [
     file: 'app/(dashboard)/appointments/[id]/appointment-actions.tsx',
     failure:
       'A toast carrying the server message. A VERSION_CONFLICT is the exception: it says somebody else changed the appointment and reloads it, because a second attempt from a stale screen would be a guess.',
-    notYet: 'The conflict branch is the one worth watching, and it needs two writers racing.',
+    assertedIn: ['app/(dashboard)/appointments/[id]/appointment-actions.test.tsx'],
   },
   {
     file: 'app/(dashboard)/appointments/[id]/reschedule-section.tsx',
@@ -444,8 +444,7 @@ export const WRITE_SCREENS: WriteScreen[] = [
     file: 'lib/auth/session-context.tsx',
     failure:
       'Nothing, deliberately. The one write here is the sign-out, and the local session is over whether or not the server heard about it; the finally clause is what makes that true.',
-    notYet:
-      'A sign-out that fails is indistinguishable from one that worked, which is the intent, so a test would assert the redirect rather than a message.',
+    assertedIn: ['lib/auth/session-context.test.tsx'],
   },
 ];
 
@@ -460,4 +459,4 @@ export const WRITE_SCREENS: WriteScreen[] = [
  *
  * Lowering it is the work. Raising it is a decision somebody has to make on purpose, in a diff.
  */
-export const UNASSERTED_WRITE_FAILURES = 13;
+export const UNASSERTED_WRITE_FAILURES = 11;

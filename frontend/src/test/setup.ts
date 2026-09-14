@@ -1,7 +1,7 @@
 import '@testing-library/jest-dom/vitest';
 import { afterEach, vi } from 'vitest';
 import { cleanup } from '@testing-library/react';
-import { clearRouteParams, routeParams } from './navigation';
+import { clearRouteParams, clearRouter, router, routeParams } from './navigation';
 
 /**
  * `next/navigation`, stubbed once for the whole suite.
@@ -17,14 +17,7 @@ import { clearRouteParams, routeParams } from './navigation';
  * request the harness matches by prefix anyway, so the test passed *because* the id was missing.
  */
 vi.mock('next/navigation', () => ({
-  useRouter: () => ({
-    push: vi.fn(),
-    replace: vi.fn(),
-    refresh: vi.fn(),
-    back: vi.fn(),
-    forward: vi.fn(),
-    prefetch: vi.fn(),
-  }),
+  useRouter: () => router,
   usePathname: () => '/',
   useSearchParams: () => new URLSearchParams(),
   useParams: () => routeParams,
@@ -68,6 +61,9 @@ afterEach(cleanup);
 // The route is per-test state like the document is. Left in place, a `[id]` page in the next test
 // would render against the previous one's id.
 afterEach(clearRouteParams);
+
+// The router is one object for the whole suite, so a navigation must not outlive its test.
+afterEach(clearRouter);
 
 // `serve()` in the harness installs a `fetch`. Left in place it would answer the next test file's
 // requests from the last case of the previous one.

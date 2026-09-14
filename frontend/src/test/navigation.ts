@@ -1,3 +1,5 @@
+import { vi } from 'vitest';
+
 /**
  * The route parameters `useParams()` answers with.
  *
@@ -21,4 +23,29 @@ export function setRouteParams(params: Record<string, string>): void {
 
 export function clearRouteParams(): void {
   for (const key of Object.keys(routeParams)) delete routeParams[key];
+}
+
+/**
+ * The router `useRouter()` answers with — one object for the whole suite, not a new one per call.
+ *
+ * It was `() => ({ push: vi.fn(), … })`, which builds a fresh set of spies every render. That is
+ * fine for a screen that only needs the router to exist, and useless for the one write whose
+ * entire visible behaviour IS a navigation: signing out shows no message by design, so the
+ * redirect is the only thing a test can hold it to, and there was nothing to assert against.
+ *
+ * Stable so it can be inspected, and cleared between tests by the same file that installs the
+ * stub — otherwise a navigation from one test would be visible to the next, which is the failure
+ * mode `routeParams` above already documents.
+ */
+export const router = {
+  push: vi.fn(),
+  replace: vi.fn(),
+  refresh: vi.fn(),
+  back: vi.fn(),
+  forward: vi.fn(),
+  prefetch: vi.fn(),
+};
+
+export function clearRouter(): void {
+  for (const spy of Object.values(router)) spy.mockClear();
 }
