@@ -168,20 +168,28 @@ export function serve(
           return Promise.resolve(refusalResponse(mode));
 
         case 'body': {
-          // A write is refused before its body is looked for: the point of this mode is a screen
-          // whose reads worked, so the refusal has to happen where the save is, not where the
-          // catalogue is missing an entry.
-          if (
-            mode.refusing &&
-            method !== 'GET' &&
-            (mode.refusing.path === undefined || path.startsWith(mode.refusing.path))
-          ) {
-            return Promise.resolve(refusalResponse(mode.refusing));
-          }
-
           const match = Object.keys(mode.bodies)
             .filter((prefix) => path.startsWith(prefix))
             .sort((a, b) => b.length - a.length)[0];
+
+          /**
+           * A write is refused before its body is looked for — the point of this mode is a screen
+           * whose reads worked, so the refusal happens where the save is.
+           *
+           * `refusing.path` competes with the catalogued prefixes under **the same
+           * longest-match rule**, rather than winning outright. Two endpoints often share a
+           * prefix — `…/chat` and `…/chat/session` — and a refusal aimed at the shorter one
+           * would otherwise take the longer one down with it, which no server does and which
+           * would stop the screen ever reaching the write under test.
+           */
+          const refusalWins =
+            mode.refusing !== undefined &&
+            method !== 'GET' &&
+            (mode.refusing.path === undefined ||
+              (path.startsWith(mode.refusing.path) &&
+                mode.refusing.path.length >= (match?.length ?? 0)));
+
+          if (refusalWins) return Promise.resolve(refusalResponse(mode.refusing!));
 
           // Loud rather than empty. A screen asking for something the case did not anticipate
           // would otherwise render an error state, and the test would read that as the screen

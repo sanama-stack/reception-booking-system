@@ -391,7 +391,7 @@ export const WRITE_SCREENS: WriteScreen[] = [
     file: 'app/(dashboard)/settings/faqs/faq-list.tsx',
     failure:
       'A banner in the add card and another in the row editor, each with its own field messages; removing and reordering toast.',
-    notYet: 'Its test asserts the empty state only.',
+    assertedIn: ['app/(dashboard)/settings/faqs/faq-list.test.tsx'],
   },
   {
     file: 'app/(dashboard)/settings/faqs/receptionist-notes.tsx',
@@ -426,7 +426,7 @@ export const WRITE_SCREENS: WriteScreen[] = [
     file: 'app/book/[slug]/receptionist-panel.tsx',
     failure:
       'The degradation notice in the transcript, carrying the server sentence verbatim, with a restart offered when the server says the conversation can be restarted.',
-    notYet: 'Its test asserts the appointment cards; no turn is made to fail.',
+    assertedIn: ['app/book/[slug]/receptionist-panel.test.tsx'],
   },
   {
     file: 'app/manage/[token]/cancel-dialog.tsx',
@@ -460,4 +460,4 @@ export const WRITE_SCREENS: WriteScreen[] = [
  *
  * Lowering it is the work. Raising it is a decision somebody has to make on purpose, in a diff.
  */
-export const UNASSERTED_WRITE_FAILURES = 15;
+export const UNASSERTED_WRITE_FAILURES = 13;
