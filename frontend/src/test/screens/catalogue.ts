@@ -352,7 +352,7 @@ export const WRITE_SCREENS: WriteScreen[] = [
   {
     file: 'app/(dashboard)/employees/employees-screen.tsx',
     failure: 'Delegated to components/active-toggle.tsx, which toasts the server message.',
-    notYet: 'Its test asserts the two empty states; the toggle is never pressed.',
+    assertedIn: ['app/(dashboard)/employees/employees-screen.test.tsx'],
   },
   {
     file: 'app/(dashboard)/services/[id]/delete-service.tsx',
@@ -374,7 +374,7 @@ export const WRITE_SCREENS: WriteScreen[] = [
   {
     file: 'app/(dashboard)/services/services-screen.tsx',
     failure: 'Delegated to components/active-toggle.tsx, which toasts the server message.',
-    notYet: 'Its test asserts the two empty states; the toggle is never pressed.',
+    assertedIn: ['app/(dashboard)/services/services-screen.test.tsx'],
   },
   {
     file: 'app/(dashboard)/settings/booking/booking-form.tsx',
@@ -385,7 +385,7 @@ export const WRITE_SCREENS: WriteScreen[] = [
     file: 'app/(dashboard)/settings/closures/closures-screen.tsx',
     failure:
       'A banner for the add form with the field messages on the dates; a removal that fails toasts.',
-    notYet: 'Its test asserts the empty state only.',
+    assertedIn: ['app/(dashboard)/settings/closures/closures-screen.test.tsx'],
   },
   {
     file: 'app/(dashboard)/settings/faqs/faq-list.tsx',
@@ -460,4 +460,4 @@ export const WRITE_SCREENS: WriteScreen[] = [
  *
  * Lowering it is the work. Raising it is a decision somebody has to make on purpose, in a diff.
  */
-export const UNASSERTED_WRITE_FAILURES = 23;
+export const UNASSERTED_WRITE_FAILURES = 20;
