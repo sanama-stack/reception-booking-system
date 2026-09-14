@@ -244,3 +244,107 @@ printed rather than only its class name.
 "the call failed" into "the model declined to act" will hand you a dramatic, entirely false finding
 on the day your provider has an outage. Every instrument that has a failure branch needs a counter on
 it.
+
+---
+
+## 11. The arm completed — 2026-09-15
+
+Credits were added to the account and the deciding arm was run to its end. Fifty conversations,
+`PROBE_DATE_STYLE=WEEKDAY`, **0 errored**, `resolve_date` called in **50 of 50**. Result XML
+preserved before the next `--rerun` could overwrite it.
+
+```
+35 of 50 writes landed on the named date (50 trials, 0 never wrote, 0 ERRORED)
+the search included the named date in 19 of 50 trials
+a search WINDOW covered the named date in 19 of 50 trials
+landed on: {2026-09-28=35, 2026-10-05=12, 2026-10-12=2, 2026-09-29=1}
+resolve_date asked: {MONDAY+1 -> 2026-09-28=40, MONDAY+2 -> 2026-10-05=10}
+of the wrong writes, 10 landed on a date resolve_date GAVE and 5 on one it NEVER GAVE
+```
+
+| | control (2026-09-11) | this arm | Fisher, one-sided |
+|---|---|---|---|
+| **Window covered the named date** (primary) | 9/50 = 18.0% | **19/50 = 38.0%** | **p = 0.022** |
+| Strict landing | 18/44 = 40.9% | **35/50 = 70.0%** | **p = 0.0041** |
+| Never wrote | 6 | **0** | — |
+| Nearer reading of the phrase | 24 | **0** | — |
+
+### 11.1 The decision rule, applied literally
+
+§8 says **≤ 18/50 reject; ≥ 19/50 accept, if neither veto in §4 fires.** The primary is **19/50** —
+the rule's exact minimum. Met, not cleared.
+
+- **Veto 1 — never-wrote must not rise above 6.** It is **0**. Does not fire.
+- **Veto 2 — no landing may appear one step off the resolver's own output.** It **fires**, on two
+  trials of fifty:
+
+```
+31  WRONG  landed=2026-10-05  searched=[2026-09-29]                resolver=[2026-09-28]
+44  WRONG  landed=2026-10-05  searched=[2026-09-29]                resolver=[2026-09-28]
+```
+
+Both asked `MONDAY+1`, were answered `2026-09-28`, and wrote `2026-10-05`. That is the veto's
+failure mode stated exactly: the model was given the right date and overshot it by one resolver
+step. Two of fifty, against the seven that raised the veto in §9.
+
+**So the pre-registration, read as written, does not accept this candidate.** Whether a 2-in-50
+overshoot should sink a change that doubled the primary and eliminated both never-wrote and the
+nearer misreading is a judgement — and §8 deliberately did not delegate it to whoever reads the
+numbers afterwards. **`resolve_date` therefore stays shipped-but-under-test until the principal
+calls it.**
+
+### 11.2 What §10.1's fifteen trials got right, and what they got wrong
+
+They said **GAVE 6, NEVER GAVE 0** and concluded the evidence "leans toward the veto not applying".
+At fifty it is **GAVE 10, NEVER GAVE 5**, and two of those five are the veto exactly. The lean was
+in the right direction about the *dominant* residual — the model asking for the wrong week, which
+is now the largest single failure at 10 of 50 — and wrong about the veto, which a zero in fifteen
+trials could never have established.
+
+**T192 — a clean split in a truncated sample is still a truncated sample.** 6/6 and 0/6 is as tidy
+as fifteen trials can look, and the thing it was cleanest about is the thing it had least power to
+see: the veto's failure mode appears at about 4%, which fifteen trials miss 54% of the time.
+
+### 11.3 The primary did not replicate
+
+The 2026-09-11 arm recorded **58%** on the window metric; this one records **38%**. Fisher
+one-sided **p = 0.036** that the earlier figure was genuinely the better one — so this is a real
+gap, not sampling noise, and it is unexplained. Strict landing moved 81.6% → 70%, p = 0.13, which
+is no result either way.
+
+**`81.6%` must not be quoted again.** Two arms of the same candidate, a calendar four days apart,
+disagreeing at p = 0.036 on the metric the decision rests on, means the figure to carry forward is
+this one — and carried with the gap attached.
+
+### 11.4 The counter was watching the reading nobody takes
+
+`OTHER READING` counted the **nearer** occurrence of the weekday — `2026-09-21` here. Across both
+arms measured on 2026-09-15, one hundred conversations, it was taken **zero** times. The reading
+the model actually takes is the **further** one, `2026-10-05`, ten times in fifty — and it was
+being scored as this defect.
+
+`ResolveDateTool`'s javadoc predicted precisely this and declined to fix it in code, on the grounds
+that "the Monday after next" is ambiguous in English and "a resolver that picked a reading in code
+would be guessing with more confidence than the model, not less". A measurement of a boundary the
+design deliberately left open has to be able to see both sides of it.
+
+Both readings are now counted and named separately. **The change lands after this arm and does not
+re-score it**: re-reading a completed run under a rule written once its numbers were visible is the
+thing pre-registration exists to prevent. The next arm gets the better instrument; this one is
+reported as it was scored.
+
+**T193 — a counter aimed at the alternative you thought of measures your imagination.** The
+alternative reading was named in the design a week before the arm ran, and the counter still
+pointed at the other one.
+
+### 11.5 `2026-09-29` is a magnet, across both arms
+
+Every wrong trial here searched `2026-09-29` **first**, and in the same day's ISO arm 37 of 38
+wrong searches went to `2026-09-29` and stopped there. It is `today + 14`, and `date_to` in
+`find_available_slots` is documented as "max 14 days".
+
+**This is a hypothesis and has had no arm of its own.** But it is the same shape as the finding
+already recorded above — landings concentrating on `today+7`, the last row of the seven-day list —
+one horizon further out, and it is now visible in two independent arms on the same day. The
+weekday arm recovers from it by calling the resolver; the ISO arm, which never calls the resolver,
+writes from it.

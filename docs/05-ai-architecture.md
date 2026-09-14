@@ -30,7 +30,8 @@ runtime code.
 
 ## 3. Tools
 
-Eight tools, **plus a ninth under test**. The model has no other way to affect or observe the world.
+Eight tools, **plus a ninth whose arm is measured and whose verdict is open**. The model has no
+other way to affect or observe the world.
 
 | Tool | Reads/Writes | Purpose |
 |---|---|---|
@@ -42,7 +43,7 @@ Eight tools, **plus a ninth under test**. The model has no other way to affect o
 | `lookup_appointment` | R | Prove ownership via code + phone |
 | `cancel_appointment` | **W** | Cancel an authorised appointment |
 | `reschedule_appointment` | **W** | Move an authorised appointment |
-| `resolve_date` | – | Turn a named weekday into a calendar date — **candidate, see below** |
+| `resolve_date` | – | Turn a named weekday into a calendar date — **under test**, measured 2026-09-15, see below |
 
 ### Signatures
 
@@ -87,12 +88,31 @@ resolve_date { weekday: string, weeks_ahead: integer }   // MONDAY..SUNDAY, 0..8
 → { date, day_of_week, days_from_today }
 ```
 
-> **`resolve_date` is not an accepted part of the design yet.** It is the fourth candidate for
-> [#17](https://github.com/sanama-stack/reception-booking-system/issues/17), and its experiment is
-> **unfinished** — see `docs/experiments/2026-09-11-17-deterministic-date-resolution.md`. It reads
-> nothing and writes nothing; it exists because the model doing seven-day-plus date arithmetic is the
-> defect. Three earlier candidates were rejected and two made things measurably worse, so this table
-> row comes out again if the completed arm says so.
+> **`resolve_date`'s arm is finished; its verdict is not.** The fourth candidate for
+> [#17](https://github.com/sanama-stack/reception-booking-system/issues/17), measured in full on
+> 2026-09-15 after the 2026-09-11 outage — see
+> `docs/experiments/2026-09-11-17-deterministic-date-resolution.md`. It reads nothing and writes
+> nothing; it exists because the model doing seven-day-plus date arithmetic is the defect.
+>
+> Against a same-question control: the search window covered the named date in **38%** of trials
+> against 18% (p = 0.022), strict landing **70%** against 41% (p = 0.0041), and both "never wrote"
+> (6) and the nearer misreading of the phrase (24) went to **zero**. Called in 50 of 50 trials.
+>
+> **Read the primary as *met*, not as *cleared*** — 19/50 is the pre-registered rule's exact
+> minimum — and note that the 2026-09-11 arm recorded 58% on the same metric, p = 0.036 that the
+> earlier figure was the better one. The replication gap is unexplained; **81.6%, from that arm,
+> must not be quoted again.**
+>
+> **The rule is "accept at ≥ 19/50 if neither veto fires", and the second veto fires.** It reads
+> *no landing may appear one step off the resolver's own output*; trials 31 and 44 asked
+> `MONDAY+1`, were answered `2026-09-28`, and wrote `2026-10-05`. Two of fifty, against seven in
+> the arm that first raised it. Whether that sinks a candidate which doubled the primary is a
+> judgement the pre-registration deliberately kept for the principal, so **the row stays "under
+> test" until that call is made.**
+>
+> The other ten wrong writes are not the veto: the model asked for the wrong week and the resolver
+> answered correctly. That is the interpretation boundary `ResolveDateTool`'s javadoc declined to
+> move into code — now measured rather than assumed.
 
 **Absent from every signature: `business_id`.** It is structurally impossible for the model to name a
 tenant. This is the isolation property, and it is enforced by the shape of the schema rather than by a check.
