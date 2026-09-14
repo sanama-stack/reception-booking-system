@@ -329,7 +329,7 @@ export const WRITE_SCREENS: WriteScreen[] = [
     file: 'app/(dashboard)/employees/[id]/schedule-section.tsx',
     failure:
       'Delegated to components/week-editor.tsx: a banner above the grid, and the field messages placed on the times they name.',
-    notYet: 'The shared editor has no test, so neither of its two screens has one either.',
+    assertedIn: ['app/(dashboard)/employees/[id]/schedule-section.test.tsx'],
   },
   {
     file: 'app/(dashboard)/employees/[id]/services-section.tsx',
@@ -358,7 +358,7 @@ export const WRITE_SCREENS: WriteScreen[] = [
     file: 'app/(dashboard)/services/[id]/delete-service.tsx',
     failure:
       'The shared ErrorState, uniquely on this side. A refusal is the normal answer here rather than a fault, and the message names what to do instead, so it belongs on the page rather than in a toast that leaves.',
-    notYet: 'The refusal is the whole point of the screen and nothing asserts it.',
+    assertedIn: ['app/(dashboard)/services/[id]/delete-service.test.tsx'],
   },
   {
     file: 'app/(dashboard)/services/[id]/page.tsx',
@@ -408,7 +408,7 @@ export const WRITE_SCREENS: WriteScreen[] = [
     file: 'app/(dashboard)/settings/hours/hours-editor.tsx',
     failure:
       'Delegated to components/week-editor.tsx: a banner above the grid, and the field messages on the times.',
-    notYet: 'The shared editor has no test, so neither of its two screens has one either.',
+    assertedIn: ['app/(dashboard)/settings/hours/hours-editor.test.tsx'],
   },
   {
     file: 'app/(dashboard)/settings/profile/profile-form.tsx',
@@ -460,4 +460,4 @@ export const WRITE_SCREENS: WriteScreen[] = [
  *
  * Lowering it is the work. Raising it is a decision somebody has to make on purpose, in a diff.
  */
-export const UNASSERTED_WRITE_FAILURES = 18;
+export const UNASSERTED_WRITE_FAILURES = 15;
