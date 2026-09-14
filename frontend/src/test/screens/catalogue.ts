@@ -369,7 +369,7 @@ export const WRITE_SCREENS: WriteScreen[] = [
     file: 'app/(dashboard)/services/service-form.tsx',
     failure:
       'A banner plus the field messages. A create that succeeds and whose assignment then fails toasts that halfway state on its own, because the service does exist.',
-    notYet: 'The halfway state is the interesting one and nothing drives it.',
+    assertedIn: ['app/(dashboard)/services/service-form.test.tsx'],
   },
   {
     file: 'app/(dashboard)/services/services-screen.tsx',
@@ -414,7 +414,7 @@ export const WRITE_SCREENS: WriteScreen[] = [
     file: 'app/(dashboard)/settings/profile/profile-form.tsx',
     failure:
       'A banner for anything unfielded, and the field messages on the inputs. SLUG_TAKEN carries no field entry and is placed on the slug field anyway, because that is where the owner just typed.',
-    notYet: 'The component has no test at all.',
+    assertedIn: ['app/(dashboard)/settings/profile/profile-form.test.tsx'],
   },
   {
     file: 'app/book/[slug]/classic-flow.tsx',
@@ -460,4 +460,4 @@ export const WRITE_SCREENS: WriteScreen[] = [
  *
  * Lowering it is the work. Raising it is a decision somebody has to make on purpose, in a diff.
  */
-export const UNASSERTED_WRITE_FAILURES = 20;
+export const UNASSERTED_WRITE_FAILURES = 18;
