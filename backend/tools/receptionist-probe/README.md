@@ -159,7 +159,41 @@ about how customers speak that #17's weekday arm contradicts — so note that a 
 poorly argued and the decision it defends still correct. Finding the hole is not evidence for the
 alternative.
 
-## Phrasing is a variable, and a large one
+## `date_from` lands one day after the date the Customer named
+
+Measured 2026-09-15, three ISO arms on one calendar. The first two put the target at `today + 13`
+and scored 30.0% and — with `resolve_date` removed entirely — 25.0%. Every wrong trial searched
+`2026-09-29` first, which is both `today + 14` and `target + 1`, and those two readings are not
+distinguishable at that distance.
+
+A third arm moved the target to `today + 10` and separated them:
+
+| target | first search | landed on | strict landing |
+|---|---|---|---|
+| `2026-09-28`, Monday | `2026-09-29` = **target + 1** | `2026-09-29` | 12/40 = 30.0% |
+| `2026-09-25`, Friday | `2026-09-26` = **target + 1** (26 of 28) | `2026-09-28` (23 of 24) | 8/32 = 25.0% |
+
+**It is `target + 1`, not `today + 14`.** Everything else follows from the opening hours: a Friday
+target sends the model to Saturday, which is closed, then Sunday, closed, then Monday, where it
+books. A Monday target sends it to Tuesday, which is open, and it books immediately. Two failure
+signatures, one mechanism.
+
+So **distance to the horizon is not the cause** — shortening it from 13 days to 10 moved nothing
+(p = 0.77). Neither is `resolve_date`, which changed nothing when removed (p = 0.77). What remains
+unexplained is that the *same fixture at the same distance* scored 42/47 = 89.4% on 2026-09-11.
+
+Two things follow for anyone measuring here:
+
+- **State the target's distance beside the rate.** `BookingScenario.monday` is
+  `today.plusDays(7).with(nextOrSame(MONDAY))`, so it drifts between 7 and 14 days out depending
+  on the weekday you run on. It is not the cause of this defect, but it changes which dates the
+  failure lands on, and two arms on different weekdays produce different-looking histograms from
+  identical behaviour. `PROBE_TARGET_DAYS` holds it fixed.
+- **A signature that coincides with two explanations is not evidence for either.** `2026-09-29`
+  was read as the horizon bound for two arms because it was also `target + 1`. Only an arm that
+  moved the target could tell them apart, and it cost one run to find out.
+
+## Phrasing is a variable, and a large one## Phrasing is a variable, and a large one
 
 Same harness, same target date, same appointment, fifty conversations each — only the wording
 of the date changed:

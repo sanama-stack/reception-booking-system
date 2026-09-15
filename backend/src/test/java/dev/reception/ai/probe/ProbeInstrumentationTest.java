@@ -178,4 +178,34 @@ class ProbeInstrumentationTest extends IntegrationTest {
         conversations.respond(started.sessionToken(), utterance);
         return started.conversationId();
     }
+
+    /**
+     * <strong>A fifty-trial arm outlives its own login, and the harness has to survive that.</strong>
+     *
+     * <p>The access token lives fifteen minutes. Measured 2026-09-15, an ISO arm ran 16m 32s
+     * because the provider was slow that hour and died at trial 36 with {@code 401 TOKEN_EXPIRED}
+     * while creating the next appointment — thirty-six trials of paid-for model calls thrown away
+     * for a reason that had nothing to do with the model. {@code BookingScenario.bookedAt} now
+     * refreshes once and retries.
+     *
+     * <p>Free to prove, and proven here rather than by running another arm and hoping: dropping
+     * the access cookie is the exact state of a real session fifteen minutes in, which is what
+     * {@code AuthTestClient.expireCookie} exists for. Reverting the retry turns this red.
+     */
+    @Test
+    @DisplayName("the fixture books through an expired access token, because a long arm outlives one")
+    void the_fixture_survives_its_own_session_expiring() {
+        databaseCleaner.clean();
+        BookingScenario aria = BookingScenario.open(rest, port, clock);
+
+        // Fifteen minutes in, as a browser would have it: the access cookie is gone and the
+        // refresh cookie is not.
+        aria.owner.expireCookie("access_token");
+
+        String id = aria.bookedAt(aria.at(aria.monday, 12, 0));
+
+        assertThat(id).isNotBlank();
+        assertThat(jdbc.queryForObject("select count(*) from appointments", Integer.class))
+                .isEqualTo(1);
+    }
 }

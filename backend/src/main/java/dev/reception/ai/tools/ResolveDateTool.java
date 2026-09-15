@@ -54,6 +54,14 @@ import org.springframework.stereotype.Component;
  * measured the same day with {@code PROBE_DATE_STYLE=ISO}, the resolver is called <em>zero</em>
  * times in fifty, because an explicit date needs no arithmetic. An ISO run cannot judge this tool.
  *
+ * <p><strong>It is not what broke the ISO path, and that was tested rather than assumed.</strong>
+ * The same day's ISO arm fell to 12/40 against 42/47 recorded four days earlier, and the obvious
+ * suspect was this tool sitting in the schema the constrained decoder reads even though it is
+ * never called there. Removing it entirely — bean and both prompt passages, verified by dumping
+ * the eight-tool schema and a prompt naming it zero times — moved nothing: 8/32, p = 0.77 that
+ * removal helped. The cause is elsewhere; §12 of the experiment log has the evidence and names
+ * distance-to-horizon as the next hypothesis.
+ *
  * <p><strong>The second veto fires, on two trials of fifty.</strong> The pre-registration's rule
  * is <em>accept at 19/50 or better, if neither veto fires</em>, and the primary came in at exactly
  * 19/50 — the rule's minimum, met rather than cleared. But the veto reads "no landing may appear

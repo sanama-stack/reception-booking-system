@@ -348,3 +348,137 @@ already recorded above — landings concentrating on `today+7`, the last row of 
 one horizon further out, and it is now visible in two independent arms on the same day. The
 weekday arm recovers from it by calling the resolver; the ISO arm, which never calls the resolver,
 writes from it.
+
+---
+
+## 12. The ISO regression, and what it was not — 2026-09-15
+
+§11 reported the WEEKDAY arm. The same day's **ISO** arm came in at **12/40 = 30.0%** strict
+landing, against **42/47 = 89.4%** recorded on 2026-09-11 — a ~60-point fall on the *least*
+ambiguous input a Customer can give, Fisher one-sided **p = 8.6 × 10⁻⁹**.
+
+The hypothesis was that `resolve_date` caused it. It is never called on an ISO arm (0 of 50), but
+it is in the schema the constrained decoder sees, and this repository has already measured that
+the tool JSON moves results hard — *"a probe without the real tools and `strict: true` is
+measuring a different system"*.
+
+### 12.1 The counterfactual, built against the artifact
+
+The candidate was **two** changes, not one: the tool bean *and* two prompt passages naming it.
+Removing only the bean would have left the prompt instructing the model to call a tool that no
+longer exists — a third condition, not the control. So `c81d312`'s hunks were reverse-applied to
+`SystemPromptBuilder` (the file had changed once since, unrelated, so a plain checkout would have
+confounded it) and `@Component` was removed from `ResolveDateTool`.
+
+**Verified before the arm was paid for, by dumping what the model actually receives:**
+`fixtures/tools.json` listed **8 tools** with no `resolve_date`, and `fixtures/prompt.txt`
+mentioned it **0 times**.
+
+### 12.2 The result: the resolver is exonerated
+
+| ISO arm, same day, same fixture, target `2026-09-28` | strict landing | never wrote |
+|---|---|---|
+| Resolver **present** | 12/40 = 30.0% — CI [16.6, 46.5] | 10/50 |
+| Resolver **absent** | 8/32 = **25.0%** — CI [11.5, 43.4] | 18/50 |
+| Recorded 2026-09-11 | 42/47 = **89.4%** | 3/50 |
+
+Removing it helped at **p = 0.77** and hurt at **p = 0.42** — no effect in either direction. Both
+of today's arms sit ~60 points below the recorded one (**p ≈ 5 × 10⁻⁹** and **9 × 10⁻⁹**).
+**Whatever cost the explicit-date path its accuracy, it is not `resolve_date`.**
+
+### 12.3 What the evidence points at instead — hypothesis, not finding
+
+`2026-09-29` is a magnet that survived the removal and grew slightly: **23 of 32** writes landed
+there without the resolver, against 27 of 40 with it, and every wrong trial in both arms searched
+it *first*.
+
+`2026-09-29` is **`today + 14`**, and `date_to` in `find_available_slots` is documented as
+"max 14 days". On 2026-09-11 the target was `today + 10`, comfortably inside that reach, and the
+arm scored 89.4%. On 2026-09-15 the target is `today + 13` — one day short of the edge — and the
+model goes to the edge instead.
+
+Same shape as the concentration on `today+7` already recorded (the last row of the seven-day
+list), one horizon further out, and now visible in **three independent arms on the same day**.
+
+**T194 — distance to the horizon is an uncontrolled variable in every reschedule rate this
+project has recorded.** `BookingScenario.monday` is `today.plusDays(7).with(nextOrSame(MONDAY))`,
+so the target drifts between 7 and 14 days out depending on which weekday the run falls on — and
+every number in this file, in the probe README, and in #17 was taken without stating where its
+target sat relative to `today+14`. The README already warns that the calendar decides whether the
+defect is *reachable*; this is the calendar deciding the *rate*. Two runs four days apart are not
+comparable on this metric until the distance is held fixed or reported.
+
+**The separating experiment has not been run.** An ISO arm with the target at `today + 10` on a
+single day's calendar would decide it: near 89% and distance is the mechanism, near 30% and the
+cause is still unknown.
+
+---
+
+## 13. The signature is `target + 1`, and both hypotheses are dead — 2026-09-15
+
+§12 named distance-to-horizon as the next hypothesis, on the strength of every wrong trial
+searching `2026-09-29` = `today + 14` while `date_to` is advertised as "max 14 days". A third ISO
+arm moved the target to `today + 10` — a Friday, `2026-09-25`, with the business open Monday to
+Friday so the day is genuinely bookable — and holds everything else on one calendar.
+
+| ISO arm, 2026-09-15 | target | first search | landed on | strict landing |
+|---|---|---|---|---|
+| resolver present | `2026-09-28` (Mon), today+13 | `2026-09-29` | `2026-09-29` ×27 | 12/40 = 30.0% |
+| resolver absent | `2026-09-28` (Mon), today+13 | `2026-09-29` | `2026-09-29` ×23 | 8/32 = 25.0% |
+| **target moved** | `2026-09-25` (Fri), today+10 | `2026-09-26` ×26 | `2026-09-28` ×23 | 8/32 = 25.0% |
+
+**Shortening the distance moved nothing: p = 0.77.** Distance is exonerated, as `resolve_date`
+was in §12.
+
+### 13.1 What the third arm actually found
+
+`2026-09-29` was read as `today + 14` for two arms because at that target it is *also*
+`target + 1`. The third arm separates them, and it is **`target + 1`**: the model sets
+`date_from` to the day *after* the date the Customer named.
+
+Everything else follows from the opening hours. A Friday target sends it to Saturday — closed —
+then Sunday — closed — then Monday, where it books, which is why those landings are three days
+past the target rather than one. A Monday target sends it to Tuesday, open, and it books there.
+**Two failure signatures, one mechanism.**
+
+This is sharper than the body of [#17], which describes the model searching
+`[tomorrow, tomorrow+6]`. That mode still exists — 2 of 28 first searches went to tomorrow — but
+it is now the rare one. The common one is a deterministic off-by-one on an explicit ISO date, at
+roughly three quarters of trials, **which is the first failure rate in this thread high enough
+for `probe.py` to screen against.**
+
+### 13.2 Not the timezone, on the evidence available
+
+The test JVM runs at `Pacific/Kiritimati` (UTC+14) against an `Asia/Tbilisi` business, which is
+the obvious source of a +1. It does not survive contact: the first two arms ran when both zones
+read the same calendar date and showed the same `target + 1`. Recorded so the next reader does
+not spend the hypothesis again.
+
+### 13.3 Still unexplained, and now the whole question
+
+The same fixture at the same distance scored **42/47 = 89.4%** on 2026-09-11 and **8/32 = 25.0%**
+today, p = 5.0 × 10⁻⁹. Three candidate causes have been tested and eliminated — the resolver,
+the distance, the timezone. Whatever changed between those four days is the remaining question,
+and nothing in this file answers it.
+
+**T195 — a signature consistent with two explanations is evidence for neither.** `2026-09-29` was
+read as a horizon bound through two arms because it was simultaneously `target + 1`, and no
+amount of re-reading those arms could have told them apart. Moving the variable is what
+separated them, and it cost a run to learn that the cheaper reasoning had been circular.
+
+### 13.4 The arm was truncated, and why that is now fixed
+
+It completed 36 of 50 trials and then failed: `401 TOKEN_EXPIRED`. The fixture's access token
+lives fifteen minutes and the run took **16m 32s**, because the provider was markedly slower at
+that hour — 4 to 5 seconds a call against 1 to 2 earlier the same evening. Thirty-six trials of
+paid model calls, lost to a session ending.
+
+`BookingScenario.bookedAt` now refreshes once on a `401` and retries, and
+`ProbeInstrumentationTest` holds it to that by dropping the access cookie — the exact state of a
+real session fifteen minutes in — and booking through it. Free to run, in CI, and red if the
+retry is removed.
+
+**T196 — a long arm outlives its own login.** Any harness that authenticates once and then runs
+for longer than a token lifetime will throw away everything it has bought, at the least
+convenient moment, for a reason that has nothing to do with what it was measuring. The numbers
+above are from 36 trials rather than 50 for exactly that reason.

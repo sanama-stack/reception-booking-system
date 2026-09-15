@@ -122,6 +122,40 @@ class RescheduleDateFidelityRateTest extends IntegrationTest {
     @Autowired
     private AiProperties properties;
 
+    /**
+     * The date the Customer asks to be moved to, and <strong>how far out it sits</strong>.
+     *
+     * <p>Defaults to {@link BookingScenario#monday}, which is
+     * {@code today.plusDays(7).with(nextOrSame(MONDAY))} — so it drifts between <strong>7 and 14
+     * days out depending on which weekday the run falls on</strong>, and every rate this project
+     * has recorded for a reschedule was taken without saying where in that range its target sat.
+     *
+     * <p>That is not a detail. Measured 2026-09-15, the ISO arm scored 12/40 with the target at
+     * {@code today + 13}, against 42/47 recorded on 2026-09-11 with it at {@code today + 10} —
+     * and every wrong trial searched {@code today + 14} first, which is the bound
+     * {@code find_available_slots} advertises as "max 14 days". Removing {@code resolve_date}
+     * did not close the gap, so distance is the standing hypothesis (T194).
+     *
+     * <p>{@code PROBE_TARGET_DAYS} holds the distance fixed so two arms can differ in it alone,
+     * on one day's calendar. A target on a weekend is <strong>refused rather than measured</strong>:
+     * {@code BookingScenario} opens Monday to Friday, so a Saturday target has no slots, every
+     * trial would answer NO WRITE, and the summary would read as a behavioural collapse — the
+     * same shape of false finding as T36.
+     */
+    private java.time.LocalDate targetDate(BookingScenario aria) {
+        String configured = System.getenv("PROBE_TARGET_DAYS");
+        if (configured == null) return aria.monday;
+
+        java.time.LocalDate today = java.time.LocalDate.now(clock.withZone(BookingScenario.TBILISI));
+        java.time.LocalDate target = today.plusDays(Integer.parseInt(configured));
+        java.time.DayOfWeek day = target.getDayOfWeek();
+        if (day == java.time.DayOfWeek.SATURDAY || day == java.time.DayOfWeek.SUNDAY) {
+            throw new IllegalArgumentException("PROBE_TARGET_DAYS=%s puts the target on %s (%s), which this business is closed on. Pick a distance that lands Monday to Friday."
+                    .formatted(configured, target, day));
+        }
+        return target;
+    }
+
     @Test
     void how_often_does_a_reschedule_land_on_the_date_the_customer_named() {
         assumeTrue(properties.isConfigured(), "no OPENAI_API_KEY configured");
@@ -130,10 +164,12 @@ class RescheduleDateFidelityRateTest extends IntegrationTest {
         BookingScenario aria = BookingScenario.open(rest, port, clock);
         tenants.adopt(UUID.fromString(jdbc.queryForObject("select id::text from businesses", String.class)));
 
-        String bookedAt = aria.monday + " 12:00";
-        String wanted = aria.monday + " 15:00";
-        String dayName = aria.monday.getDayOfWeek().getDisplayName(TextStyle.FULL, Locale.ENGLISH);
-        String spokenDate = "ISO".equals(DATE_STYLE) ? aria.monday.toString() : "the " + dayName + " after next";
+        java.time.LocalDate target = targetDate(aria);
+
+        String bookedAt = target + " 12:00";
+        String wanted = target + " 15:00";
+        String dayName = target.getDayOfWeek().getDisplayName(TextStyle.FULL, Locale.ENGLISH);
+        String spokenDate = "ISO".equals(DATE_STYLE) ? target.toString() : "the " + dayName + " after next";
 
         // The two other defensible readings of "the <day> after next", one step either way.
         //
@@ -153,8 +189,8 @@ class RescheduleDateFidelityRateTest extends IntegrationTest {
         // Both are derived from the target rather than from the clock, so neither can collide with
         // it -- BookingScenario puts its Monday more than a week out, and these are one week
         // either side.
-        java.time.LocalDate nearerReading = aria.monday.minusDays(7);
-        java.time.LocalDate furtherReading = aria.monday.plusDays(7);
+        java.time.LocalDate nearerReading = target.minusDays(7);
+        java.time.LocalDate furtherReading = target.plusDays(7);
 
         System.out.printf(
                 "%d trials. Appointment on %s; the Customer asks for 15:00 and names the day as \"%s\" "
@@ -185,7 +221,7 @@ class RescheduleDateFidelityRateTest extends IntegrationTest {
             // fills up starts refusing 15:00 for reasons that have nothing to do with #17. Both
             // foreign keys into appointments cascade, so one delete is enough.
             jdbc.update("delete from appointments");
-            String id = aria.bookedAt(aria.at(aria.monday, 12, 0));
+            String id = aria.bookedAt(aria.at(target, 12, 0));
             String code = jdbc.queryForObject(
                     "select confirmation_code from appointments where id = ?::uuid", String.class, id);
 
@@ -253,7 +289,7 @@ class RescheduleDateFidelityRateTest extends IntegrationTest {
             List<String> resolverDates =
                     jdbc.queryForList(ProbeQueries.RESOLVER_DATES, String.class, started.conversationId());
 
-            if (searches.contains(aria.monday.toString())) {
+            if (searches.contains(target.toString())) {
                 searchedTheNamedDate++;
             }
 
@@ -274,7 +310,7 @@ class RescheduleDateFidelityRateTest extends IntegrationTest {
                     java.time.LocalDate f = java.time.LocalDate.parse((String) window.get("f"));
                     java.time.LocalDate t =
                             window.get("t") == null ? f : java.time.LocalDate.parse((String) window.get("t"));
-                    if (!f.isAfter(aria.monday) && !t.isBefore(aria.monday)) {
+                    if (!f.isAfter(target) && !t.isBefore(target)) {
                         covered = true;
                         break;
                     }
