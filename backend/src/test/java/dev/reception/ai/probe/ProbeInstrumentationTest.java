@@ -11,6 +11,7 @@ import dev.reception.tenancy.TenantAdoption;
 import java.time.Clock;
 import java.time.DayOfWeek;
 import java.time.LocalDate;
+import java.time.OffsetDateTime;
 import java.time.temporal.TemporalAdjusters;
 import java.util.List;
 import java.util.Optional;
@@ -229,6 +230,68 @@ class ProbeInstrumentationTest extends IntegrationTest {
         assertThat(rendered).endsWith("...[truncated]");
         // Either way the arguments survive, because they are rendered before the cap applies.
         assertThat(rendered).contains("\"date_from\": \"" + aria.monday + "\"");
+    }
+
+    /**
+     * The two projections #40's harness reads. A valid search really does return slots, and the
+     * offered set really does contain the time the fixture leaves free — because the whole question
+     * that harness answers is whether a refusal happened with the slot on the table or without it,
+     * and a projection that quietly returned nothing would answer "without it" every time.
+     */
+    @Test
+    @DisplayName("the offered slots come back, and truncation is reported as the tool set it")
+    void the_offered_slots_and_the_truncation_flag_are_readable() {
+        UUID conversation = searchTheFixturesOpenDay();
+
+        List<String> offered = jdbc.queryForList(ProbeQueries.OFFERED_SLOT_STARTS, String.class, conversation);
+        assertThat(offered).isNotEmpty();
+
+        // 15:00 on the fixture's open day is free by construction -- nothing is booked in this test
+        // -- so it MUST be among the offered starts. This is the assertion #40's harness stands on.
+        OffsetDateTime wanted = aria.at(aria.monday, 15, 0);
+        assertThat(offered.stream().map(OffsetDateTime::parse).map(OffsetDateTime::toInstant))
+                .describedAs("offered starts: %s", offered)
+                .contains(wanted.toInstant());
+
+        // The tool computes this; the harness must not re-derive it from where the list stops.
+        assertThat(jdbc.queryForObject(ProbeQueries.ANY_SEARCH_TRUNCATED, Boolean.class, conversation))
+                .isNotNull();
+    }
+
+    /**
+     * A refused search must contribute <strong>no</strong> offered slots. #40's harness asks whether
+     * a refusal happened with the wanted slot on the table, so a rejected call leaking in as
+     * "offered nothing" is fine and a rejected call raising would lose the trial entirely — and
+     * measured on 2026-09-15, the model's first search is rejected in most conversations.
+     *
+     * <p><strong>This passes with the {@code jsonb_typeof} guard removed, which was checked.</strong>
+     * {@code tool_result->'slots'} is SQL NULL for an error object and
+     * {@code jsonb_array_elements} is strict, so emptiness here comes from NULL-strictness rather
+     * than from the guard. The assertion is kept because the harness depends on the property; the
+     * claim that the guard produces it was wrong and is corrected in {@link ProbeQueries}.
+     */
+    @Test
+    @DisplayName("a refused search contributes no offered slots")
+    void a_refused_search_does_not_break_the_offered_slots_projection() {
+        // No service_id: the tool answers VALIDATION_FAILED, and tool_result has no slots array.
+        model.willCall("find_available_slots", "{\"date_from\":\"%s\"}".formatted(aria.monday))
+                .willSay("Let me check.");
+
+        UUID conversation = ask("what have you got free next Monday?");
+
+        assertThat(jdbc.queryForList(ProbeQueries.OFFERED_SLOT_STARTS, String.class, conversation))
+                .isEmpty();
+        assertThat(jdbc.queryForObject(ProbeQueries.ANY_SEARCH_TRUNCATED, Boolean.class, conversation))
+                .isFalse();
+    }
+
+    /** A valid search of the fixture's open day, which is what both projections above read. */
+    private UUID searchTheFixturesOpenDay() {
+        model.willCall(
+                        "find_available_slots",
+                        "{\"date_from\":\"%s\",\"service_id\":\"%s\"}".formatted(aria.monday, aria.serviceId))
+                .willSay("Here is what I have.");
+        return ask("what have you got free next Monday?");
     }
 
     private UUID ask(String utterance) {

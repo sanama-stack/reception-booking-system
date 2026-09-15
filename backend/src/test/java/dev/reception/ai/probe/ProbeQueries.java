@@ -85,6 +85,49 @@ public final class ProbeQueries {
             + "else tool_result::text end) "
             + "from ai_messages where role = 'TOOL' order by created_at";
 
+    /**
+     * Every slot start time {@code find_available_slots} actually handed back, across a conversation.
+     *
+     * <p><strong>The projection #40 turns on.</strong> That issue is the Receptionist telling a
+     * Customer a free slot is "already booked" and refusing an authorised write. Two explanations
+     * fit that sentence and they point in opposite directions: either the slot <em>was</em> in the
+     * tool's answer and the model contradicted it, or the tool never offered it and the model was
+     * reporting what it had been told. Only the offered set separates them, and it is the one thing
+     * the first observation did not record.
+     *
+     * <p>A refused call — whose {@code tool_result} is an error object with no {@code slots} —
+     * contributes no rows. That is <strong>not</strong> the {@code jsonb_typeof} guard's doing, and
+     * an earlier version of this comment claimed it was: {@code tool_result->'slots'} is SQL NULL
+     * there, and {@code jsonb_array_elements} is strict, so it yields no rows on its own.
+     * <strong>Removing the guard was measured and changed nothing.</strong> It is kept only for the
+     * case the tool does not currently produce — {@code slots} present but not an array, which
+     * would raise — and it is honest to say it has never been seen to fire.
+     *
+     * <p>Note that the jsonb key-exists operator is spelled {@code ?} and would be eaten by JDBC as
+     * a bind placeholder; this deliberately does not use it.
+     */
+    public static final String OFFERED_SLOT_STARTS = "select e->>'starts_at' from ai_messages m, "
+            + "lateral jsonb_array_elements(m.tool_result->'slots') e "
+            + "where m.role = 'TOOL' and m.tool_name = 'find_available_slots' "
+            + "and m.conversation_id = ? "
+            + "and jsonb_typeof(m.tool_result->'slots') = 'array' order by m.created_at";
+
+    /**
+     * Whether any search in a conversation came back cut short by {@code MAX_SLOTS}.
+     *
+     * <p>{@code FindAvailableSlotsTool} sets {@code truncated} itself, comparing how many slots
+     * matched against how many it returned — so the leading candidate mechanism for #40 is a
+     * recorded fact rather than something to be inferred from where a list happens to stop. It was
+     * inferred, on the first observation, from a list ending at 14:45; that inference had zero
+     * trials behind it and this is what replaces it.
+     *
+     * <p>Returns one row, false rather than null when the conversation searched nothing, so a
+     * caller never has to distinguish "not truncated" from "no rows".
+     */
+    public static final String ANY_SEARCH_TRUNCATED =
+            "select coalesce(bool_or((tool_result->>'truncated')::boolean), false) from ai_messages "
+                    + "where role = 'TOOL' and tool_name = 'find_available_slots' and conversation_id = ?";
+
     /** Every {@code date_from} the model searched, in order. The endpoint both harnesses read. */
     static final String SEARCHED_DATES = "select tool_arguments->>'date_from' from ai_messages "
             + "where role = 'TOOL' and tool_name = 'find_available_slots' "
