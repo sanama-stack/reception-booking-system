@@ -482,3 +482,81 @@ retry is removed.
 for longer than a token lifetime will throw away everything it has bought, at the least
 convenient moment, for a reason that has nothing to do with what it was measuring. The numbers
 above are from 36 trials rather than 50 for exactly that reason.
+
+---
+
+## 14. It is `booked + 1`, and the probe cannot see it — 2026-09-15
+
+§13 named the signature `target + 1`. That was wrong in the same way §12's `today + 14` was
+wrong, and for the third time in one evening: **every arm so far booked the appointment on the
+day the Customer then asked for**, so `booked + 1` and `target + 1` were the same date and no
+arm could tell them apart.
+
+### 14.1 The probe says the model can copy a date perfectly
+
+Before separating them, `probe.py` was run against freshly dumped fixtures (9 tools,
+`resolve_date` present, today = 2026-09-15):
+
+| utterance | expected | result |
+|---|---|---|
+| "What have you got free on 2026-09-25?" — today+10, **outside** the seven-day list | FRIDAY | 30 / 30 |
+| "What have you got free on 2026-09-18?" — today+3, **inside** the list | FRIDAY | 20 / 20 |
+| "Anything at 15:00 on 2026-09-25?" — with a time | FRIDAY | 20 / 20 |
+
+**70 of 70.** The model has no difficulty putting an explicit ISO date into `date_from`. Whatever
+this defect is, it is not date handling — and `probe.py` **cannot screen it**, exactly as the
+three-instrument table always said. A claim to the contrary was published to [#17] and retracted;
+the reasoning error was to ask *where* the bad argument is filled rather than *what the model has
+been told before it fills it*.
+
+### 14.2 The separating arm
+
+`PROBE_BOOKED_DAYS` puts the appointment on a different day from the one the Customer names.
+Appointment **2026-09-22**, request **2026-09-25 15:00**, fifty trials:
+
+```
+17 of 42 writes landed on the named date (50 trials, 5 never wrote, 3 ERRORED)
+landed on: {2026-09-23=25, 2026-09-25=17}
+a search WINDOW covered the named date in 41 of 50 trials
+```
+
+**Twenty-five wrong landings, all on `2026-09-23` = `booked + 1`. None on `2026-09-26` =
+`target + 1`.**
+
+The model searches forward from the day after the appointment's **current** date. The date the
+Customer named does not reach `date_from` on a failing trial at all.
+
+### 14.3 The same-day fixture was masking how close the model gets
+
+| ISO, target `today+10` in both arms | strict landing | window covered the named date |
+|---|---|---|
+| appointment on the **same** day | 8/32 = 25.0% | 6/50 |
+| appointment on **another** day | 17/42 = 40.5% | **41/50**, p = 4.9 × 10⁻¹³ |
+
+Strict landing moved at p = 0.125 — suggestive, not a result. The window metric moved by twelve
+orders of magnitude of p. With the days separated the search range nearly always *covers* the
+named date; it simply does not start there. So the same-day framing did not invent the defect,
+but it hid how near a miss it is.
+
+Three trials errored and were counted separately rather than folded into "never wrote" (T36).
+`resolve_date` fired three times and answered `FRIDAY+1 -> 2026-09-25` correctly each time.
+
+### 14.4 The accurate statement of the defect
+
+**On a reschedule, `date_from` is set to the day after the appointment's current date, ignoring
+the date the Customer named.**
+
+This is sharper and more fixable than [#17]'s body, which describes a search over
+`[tomorrow, tomorrow+6]`. It also explains that issue's original transcript without appealing to
+"tomorrow" at all: the model searched the day after where the booking sat.
+
+An untried candidate follows directly. Nothing in the prompt or in
+`reschedule_appointment`'s schema tells the model that a move's search starts from the
+**requested** date; `lookup_appointment` hands it the current one, and that is the date it uses.
+**Not attempted here, and it must not be committed unmeasured** — three of the four candidates
+before it were rejected and two made things measurably worse.
+
+**T197 — separate two variables before naming a signature after either.** `2026-09-29` was
+`today+14` and `target+1`; `target+1` was `target+1` and `booked+1`. Three namings, two of them
+wrong, all three consistent with every observation available at the time. The cost each time was
+one arm; the fix each time was moving one variable rather than re-reading the old arms harder.

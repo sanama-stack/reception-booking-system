@@ -59,8 +59,9 @@ import org.springframework.stereotype.Component;
  * suspect was this tool sitting in the schema the constrained decoder reads even though it is
  * never called there. Removing it entirely — bean and both prompt passages, verified by dumping
  * the eight-tool schema and a prompt naming it zero times — moved nothing: 8/32, p = 0.77 that
- * removal helped. The cause is elsewhere; §12 of the experiment log has the evidence and names
- * distance-to-horizon as the next hypothesis.
+ * removal helped. Distance-to-horizon was tested next and also exonerated (§13). The cause is
+ * elsewhere: on a reschedule the model sets {@code date_from} to the day after the appointment's
+ * <em>current</em> date, ignoring the one the Customer named — §14 of the experiment log.
  *
  * <p><strong>The second veto fires, on two trials of fifty.</strong> The pre-registration's rule
  * is <em>accept at 19/50 or better, if neither veto fires</em>, and the primary came in at exactly

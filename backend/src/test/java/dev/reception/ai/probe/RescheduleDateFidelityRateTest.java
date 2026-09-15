@@ -156,6 +156,40 @@ class RescheduleDateFidelityRateTest extends IntegrationTest {
         return target;
     }
 
+    /**
+     * The day the appointment currently sits on, which is <strong>not</strong> necessarily the day
+     * the Customer is asking for.
+     *
+     * <p>Defaults to the target, which is what this harness has always done and what #17's
+     * original transcript shows: an appointment at 12:00 and a Customer asking for 15:00
+     * <em>the same day</em>. That is a time change, not a date change, and it may be the whole
+     * reason the model moves the date at all.
+     *
+     * <p><strong>Why that is suspected.</strong> Measured 2026-09-15, {@code probe.py} copies an
+     * explicit ISO date into {@code date_from} 70 times out of 70 on a plain availability
+     * question — inside the seven-day list, outside it, with and without a time. The model has no
+     * difficulty with the date itself. The {@code target + 1} drift appears only in this flow,
+     * after {@code lookup_appointment} has told it the booking is already on that date — and a
+     * model reading "move" as "put it on a different day" would produce exactly that.
+     *
+     * <p>{@code PROBE_BOOKED_DAYS} separates the two so the guess can be tested: book on one day,
+     * ask for another, and see whether the drift survives. Weekend days are refused for the same
+     * reason {@link #targetDate} refuses them.
+     */
+    private java.time.LocalDate bookedDate(BookingScenario aria, java.time.LocalDate target) {
+        String configured = System.getenv("PROBE_BOOKED_DAYS");
+        if (configured == null) return target;
+
+        java.time.LocalDate today = java.time.LocalDate.now(clock.withZone(BookingScenario.TBILISI));
+        java.time.LocalDate booked = today.plusDays(Integer.parseInt(configured));
+        java.time.DayOfWeek day = booked.getDayOfWeek();
+        if (day == java.time.DayOfWeek.SATURDAY || day == java.time.DayOfWeek.SUNDAY) {
+            throw new IllegalArgumentException("PROBE_BOOKED_DAYS=%s puts the appointment on %s (%s), which this business is closed on."
+                    .formatted(configured, booked, day));
+        }
+        return booked;
+    }
+
     @Test
     void how_often_does_a_reschedule_land_on_the_date_the_customer_named() {
         assumeTrue(properties.isConfigured(), "no OPENAI_API_KEY configured");
@@ -165,8 +199,9 @@ class RescheduleDateFidelityRateTest extends IntegrationTest {
         tenants.adopt(UUID.fromString(jdbc.queryForObject("select id::text from businesses", String.class)));
 
         java.time.LocalDate target = targetDate(aria);
+        java.time.LocalDate booked = bookedDate(aria, target);
 
-        String bookedAt = target + " 12:00";
+        String bookedAt = booked + " 12:00";
         String wanted = target + " 15:00";
         String dayName = target.getDayOfWeek().getDisplayName(TextStyle.FULL, Locale.ENGLISH);
         String spokenDate = "ISO".equals(DATE_STYLE) ? target.toString() : "the " + dayName + " after next";
@@ -221,7 +256,7 @@ class RescheduleDateFidelityRateTest extends IntegrationTest {
             // fills up starts refusing 15:00 for reasons that have nothing to do with #17. Both
             // foreign keys into appointments cascade, so one delete is enough.
             jdbc.update("delete from appointments");
-            String id = aria.bookedAt(aria.at(target, 12, 0));
+            String id = aria.bookedAt(aria.at(booked, 12, 0));
             String code = jdbc.queryForObject(
                     "select confirmation_code from appointments where id = ?::uuid", String.class, id);
 

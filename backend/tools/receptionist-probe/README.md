@@ -159,41 +159,45 @@ about how customers speak that #17's weekday arm contradicts — so note that a 
 poorly argued and the decision it defends still correct. Finding the hole is not evidence for the
 alternative.
 
-## `date_from` lands one day after the date the Customer named
+## `date_from` lands one day after the appointment's CURRENT date
 
-Measured 2026-09-15, three ISO arms on one calendar. The first two put the target at `today + 13`
-and scored 30.0% and — with `resolve_date` removed entirely — 25.0%. Every wrong trial searched
-`2026-09-29` first, which is both `today + 14` and `target + 1`, and those two readings are not
-distinguishable at that distance.
+Measured 2026-09-15, four ISO arms. **The probe cannot see this one** — that is the first result,
+and it was checked before anything was concluded from the rate tests:
 
-A third arm moved the target to `today + 10` and separated them:
+| probe utterance | expected | result |
+|---|---|---|
+| "What have you got free on 2026-09-25?" — today+10, outside the seven-day list | FRIDAY | 30 / 30 |
+| "What have you got free on 2026-09-18?" — today+3, inside the list | FRIDAY | 20 / 20 |
+| "Anything at 15:00 on 2026-09-25?" — with a time | FRIDAY | 20 / 20 |
 
-| target | first search | landed on | strict landing |
-|---|---|---|---|
-| `2026-09-28`, Monday | `2026-09-29` = **target + 1** | `2026-09-29` | 12/40 = 30.0% |
-| `2026-09-25`, Friday | `2026-09-26` = **target + 1** (26 of 28) | `2026-09-28` (23 of 24) | 8/32 = 25.0% |
+**70 of 70.** The model copies an explicit ISO date into `date_from` without difficulty, so the
+defect is not date handling and this instrument is blind to it — which is what the table at the
+top of this file has always said about a multi-turn failure.
 
-**It is `target + 1`, not `today + 14`.** Everything else follows from the opening hours: a Friday
-target sends the model to Saturday, which is closed, then Sunday, closed, then Monday, where it
-books. A Monday target sends it to Tuesday, which is open, and it books immediately. Two failure
-signatures, one mechanism.
+The rate tests then separated two dates that had always been equal. Every arm in this project's
+history booked the appointment on the day the Customer went on to name:
 
-So **distance to the horizon is not the cause** — shortening it from 13 days to 10 moved nothing
-(p = 0.77). Neither is `resolve_date`, which changed nothing when removed (p = 0.77). What remains
-unexplained is that the *same fixture at the same distance* scored 42/47 = 89.4% on 2026-09-11.
+| appointment | Customer asks for | wrong landings |
+|---|---|---|
+| 2026-09-28 | 2026-09-28 | `2026-09-29` ×27 |
+| 2026-09-25 | 2026-09-25 | `2026-09-28` ×23 (Sat and Sun are closed) |
+| **2026-09-22** | **2026-09-25** | **`2026-09-23` ×25 — and `2026-09-26` ×0** |
 
-Two things follow for anyone measuring here:
+**It is `booked + 1`, not `target + 1` and not `today + 14`.** The model searches forward from
+the day after the appointment's *current* date; the date the Customer named never reaches
+`date_from` on a failing trial.
 
-- **State the target's distance beside the rate.** `BookingScenario.monday` is
-  `today.plusDays(7).with(nextOrSame(MONDAY))`, so it drifts between 7 and 14 days out depending
-  on the weekday you run on. It is not the cause of this defect, but it changes which dates the
-  failure lands on, and two arms on different weekdays produce different-looking histograms from
-  identical behaviour. `PROBE_TARGET_DAYS` holds it fixed.
-- **A signature that coincides with two explanations is not evidence for either.** `2026-09-29`
-  was read as the horizon bound for two arms because it was also `target + 1`. Only an arm that
-  moved the target could tell them apart, and it cost one run to find out.
+Separating the days also showed what the old fixture was hiding: a search *window* covered the
+named date in **41 of 50** trials against 6 of 50 same-day, p = 4.9 × 10⁻¹³. The model gets very
+close and starts in the wrong place.
 
-## Phrasing is a variable, and a large one## Phrasing is a variable, and a large one
+**Three namings, two of them wrong, each consistent with every observation available at the
+time.** `2026-09-29` was simultaneously `today+14` and `target+1`; `target+1` was simultaneously
+`target+1` and `booked+1`. No amount of re-reading the earlier arms could have separated them —
+each cost one arm, and each was settled by moving one variable. `PROBE_TARGET_DAYS` and
+`PROBE_BOOKED_DAYS` exist so the next person can move them in one command.
+
+## Phrasing is a variable, and a large one## Phrasing is a variable, and a large one## Phrasing is a variable, and a large one
 
 Same harness, same target date, same appointment, fifty conversations each — only the wording
 of the date changed:
