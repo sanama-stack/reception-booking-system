@@ -62,6 +62,32 @@ import org.springframework.test.context.TestPropertySource;
  * A refusal is therefore always wrong, and no trial needs a judgement about whether the model was
  * right to decline.
  *
+ * <p><strong>The first arm — 2026-09-16, fifty trials, 0 errored, target {@code today + 12}.</strong>
+ *
+ * <table border="1">
+ *   <caption>Outcomes</caption>
+ *   <tr><th>Outcome</th><th>n</th><th>Rate</th><th>Clopper-Pearson</th></tr>
+ *   <tr><td>REFUSED — this issue</td><td>7/50</td><td>14.0%</td><td>[5.8%, 26.7%]</td></tr>
+ *   <tr><td>ELSEWHERE — #17's wrong date</td><td>31/50</td><td>62.0%</td><td>[47.2%, 75.3%]</td></tr>
+ *   <tr><td>Correct</td><td>12/50</td><td>24.0%</td><td>[13.1%, 38.2%]</td></tr>
+ * </table>
+ *
+ * <p><strong>Of the seven refusals, ZERO had 15:00 among the offered slots.</strong> That is the
+ * arm's finding and it contradicts the issue's own title: the Receptionist was <em>not</em> inventing
+ * a conflict, it was reporting a slot it had genuinely not been given. Five of the seven followed a
+ * search the tool marked {@code truncated}, each offering exactly thirty slots — {@code MAX_SLOTS}
+ * on the nose. Two did not, offering twenty-nine with {@code truncated} false, so the cap is not the
+ * whole story.
+ *
+ * <p><strong>That arm could not finish the argument, because it did not record which day was
+ * searched.</strong> With #17 firing in 31 of 50 trials, "15:00 was not offered" has two readings —
+ * the cap hid it, or the search was aimed at {@code booked + 1} and never covered the day it was on
+ * — and offered/truncated alone cannot separate them. {@link ProbeQueries#SEARCHED_DATES} already
+ * existed and was simply not read: <strong>G17 for the third time, in the instrument built to close
+ * it</strong>. It is read now, and the summary reports how many refusals searched the target day at
+ * all. The next arm can settle the mechanism; this one cannot, and its numbers must not be quoted as
+ * though it had.
+ *
  * <p><strong>#17 competes with #40 for the same scenario, and it wins most trials.</strong> Measured
  * on the two-trial smoke run that proved this harness: both trials wrote to {@code booked + 1} —
  * moving a 2026-09-28 appointment to 2026-09-29 at the requested 15:00 — which is #17's defect and
@@ -179,6 +205,9 @@ class RescheduleRefusalRateTest extends IntegrationTest {
         int refusedWithSlotOffered = 0;
         int refusedWithSlotNotOffered = 0;
         int refusedAfterTruncatedSearch = 0;
+        // Splits the two explanations for "15:00 was not offered": the cap hid it, or the search
+        // never covered the day it was on.
+        int refusedHavingSearchedTheTargetDay = 0;
         Map<String, Integer> landedOn = new LinkedHashMap<>();
 
         for (int trial = 1; trial <= CONVERSATIONS; trial++) {
@@ -229,6 +258,17 @@ class RescheduleRefusalRateTest extends IntegrationTest {
             boolean truncated = Boolean.TRUE.equals(
                     jdbc.queryForObject(ProbeQueries.ANY_SEARCH_TRUNCATED, Boolean.class, started.conversationId()));
 
+            // WHICH DAY WAS SEARCHED, without which "15:00 was not offered" is unreadable.
+            //
+            // The 2026-09-16 arm recorded offered/truncated and not this, and could not tell a slot
+            // hidden by MAX_SLOTS from a slot that was never in range because the search was aimed
+            // at the wrong day -- with #17 firing in 31 of 50 trials, the second is not a remote
+            // possibility. G17 for the third time, in the instrument built to close it: the
+            // projection already existed and was simply not read.
+            List<String> searched =
+                    jdbc.queryForList(ProbeQueries.SEARCHED_DATES, String.class, started.conversationId());
+            boolean searchedTheTargetDay = searched.contains(target.toString());
+
             String expected = target + " 15:00";
             if (expected.equals(landed)) {
                 moved++;
@@ -244,9 +284,13 @@ class RescheduleRefusalRateTest extends IntegrationTest {
                 if (truncated) {
                     refusedAfterTruncatedSearch++;
                 }
+                if (searchedTheTargetDay) {
+                    refusedHavingSearchedTheTargetDay++;
+                }
                 System.out.printf(
-                        "%3d  REFUSED  15:00 offered=%s  truncated=%s  offered=%d slots  tools=%s%n",
-                        trial, slotWasOffered, truncated, offered.size(), tools);
+                        "%3d  REFUSED  15:00 offered=%s  truncated=%s  offered=%d slots  "
+                                + "searched=%s  target searched=%s%n",
+                        trial, slotWasOffered, truncated, offered.size(), searched, searchedTheTargetDay);
             } else {
                 // It wrote, but not where it was asked to. That is #17's territory, not #40's, and
                 // pooling the two would make each look like the other.
@@ -259,7 +303,8 @@ class RescheduleRefusalRateTest extends IntegrationTest {
         System.out.printf(
                 "%n%d moved, %d REFUSED, %d moved elsewhere, of %d trials (%d ERRORED)%n"
                         + "of the refusals: %d had 15:00 among the offered slots, %d did not, "
-                        + "and %d followed a search the tool marked truncated%n"
+                        + "%d followed a search the tool marked truncated, and %d actually searched "
+                        + "the target day at all%n"
                         + "landed on: %s%n"
                         + "target %s, today+%d. A rate taken at a different distance is a different "
                         + "measurement (T194): do not compare it with this one.%n",
@@ -271,6 +316,7 @@ class RescheduleRefusalRateTest extends IntegrationTest {
                 refusedWithSlotOffered,
                 refusedWithSlotNotOffered,
                 refusedAfterTruncatedSearch,
+                refusedHavingSearchedTheTargetDay,
                 landedOn,
                 target,
                 java.time.temporal.ChronoUnit.DAYS.between(today, target));
