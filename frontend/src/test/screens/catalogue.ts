@@ -304,8 +304,7 @@ export const WRITE_SCREENS: WriteScreen[] = [
     file: 'app/(dashboard)/appointments/[id]/reschedule-section.tsx',
     failure:
       'A banner under the picker. A stale-slot refusal also drops the chosen time and re-asks for the times, since the grid was computed against a world that has moved.',
-    notYet:
-      'Its test renders the section and asserts an empty state; no press reaches a refusing server.',
+    assertedIn: ['app/(dashboard)/appointments/[id]/reschedule-section.test.tsx'],
   },
   {
     file: 'app/(dashboard)/appointments/new/page.tsx',
@@ -335,7 +334,7 @@ export const WRITE_SCREENS: WriteScreen[] = [
     file: 'app/(dashboard)/employees/[id]/services-section.tsx',
     failure:
       'A toast carrying the server message. The selection stays as the owner left it rather than snapping back.',
-    notYet: 'The component has no test at all.',
+    assertedIn: ['app/(dashboard)/employees/[id]/services-section.test.tsx'],
   },
   {
     file: 'app/(dashboard)/employees/[id]/time-off-section.tsx',
@@ -459,4 +458,4 @@ export const WRITE_SCREENS: WriteScreen[] = [
  *
  * Lowering it is the work. Raising it is a decision somebody has to make on purpose, in a diff.
  */
-export const UNASSERTED_WRITE_FAILURES = 11;
+export const UNASSERTED_WRITE_FAILURES = 9;
