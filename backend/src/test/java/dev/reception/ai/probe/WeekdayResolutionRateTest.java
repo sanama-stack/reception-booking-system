@@ -46,9 +46,14 @@ import org.springframework.test.context.TestPropertySource;
  * <p>Tagged {@code probe}, so it never runs in CI and never runs alongside the corpus. Fifty
  * conversations take about four minutes and cost a few cents.
  *
- * <p>Two environment variables shape what is measured: {@code PROBE_CONVERSATIONS} is the sample
- * size, and {@code PROBE_WEEKDAY} is the day spoken — which is also the row of the seven-day list
- * the model has to find, and therefore part of the question rather than a detail of it.
+ * <p>Three environment variables shape what is measured. {@code PROBE_CONVERSATIONS} is the sample
+ * size. {@code PROBE_WEEKDAY} is the day spoken and {@code PROBE_ASKED_ON} the day it is spoken on;
+ * the distance between them is the row of the seven-day list the model has to find, which makes the
+ * pair the question rather than a detail of it. The last of the three refuses the run when today is
+ * not that day, because the wrong cell answers in the same format as the right one.
+ *
+ * <p>{@code make rebaseline-weekday} is the recorded row-4 arm — the cell both baselines were taken
+ * in — and archives its own evidence. Prefer it to driving Gradle by hand.
  *
  * <pre>{@code
  * export OPENAI_API_KEY=$(grep '^OPENAI_API_KEY=' ../.env | cut -d= -f2-)
@@ -109,6 +114,25 @@ class WeekdayResolutionRateTest extends IntegrationTest {
     private static final DayOfWeek EXPECTED = DayOfWeek.valueOf(
             Optional.ofNullable(System.getenv("PROBE_WEEKDAY")).orElse("MONDAY").toUpperCase(Locale.ROOT));
 
+    /**
+     * The weekday the run must be taken <em>on</em>, refusing to measure rather than measuring the
+     * wrong thing when it is not.
+     *
+     * <p>{@link #EXPECTED} says which day is spoken; this says which day it is spoken on, and the
+     * pair is the cell of the 7×7 grid being measured. The row the model has to find is the
+     * distance between them, so the asking day is not a detail of the run — it is half the
+     * question. Both recorded baselines, 48 of 50 and 142 of 150, were taken on a THURSDAY asking
+     * about MONDAY, which is row 4.
+     *
+     * <p>Unset by default, which measures whatever today is and prints it. Set it when a run is
+     * meant to reproduce a specific baseline. The failure it prevents is not a wrong answer but a
+     * <strong>right-looking</strong> one: a rate taken in the wrong cell comes out in the same
+     * format, in the same range, with the same summary line, and the only thing separating it from
+     * the number it will be compared against is a weekday nobody re-read.
+     */
+    private static final Optional<DayOfWeek> ASKED_ON = Optional.ofNullable(System.getenv("PROBE_ASKED_ON"))
+            .map(day -> DayOfWeek.valueOf(day.toUpperCase(Locale.ROOT)));
+
     /** Derived, so the day that is spoken and the day that is counted cannot drift apart. */
     private static final String UTTERANCE = "What have you got free next %s?"
             .formatted(EXPECTED.getDisplayName(TextStyle.FULL, Locale.ENGLISH));
@@ -141,6 +165,17 @@ class WeekdayResolutionRateTest extends IntegrationTest {
     void how_often_does_a_spoken_weekday_reach_the_engine_as_that_weekday() {
         assumeTrue(properties.isConfigured(), "no OPENAI_API_KEY configured");
 
+        // Checked before the fixture is built and before a single token is bought. The row is the
+        // distance to the next occurrence of the spoken day, so the same command run a day later
+        // asks a different question and answers it in an identical format.
+        LocalDate today = LocalDate.now(clock.withZone(BookingScenario.TBILISI));
+        ASKED_ON.ifPresent(required -> assumeTrue(
+                today.getDayOfWeek() == required,
+                ("PROBE_ASKED_ON=%s, but today is a %s. Nothing was measured: a rate taken on a "
+                                + "different weekday cannot be compared with the baseline this run was "
+                                + "meant to reproduce.")
+                        .formatted(required, today.getDayOfWeek())));
+
         databaseCleaner.clean();
         BookingScenario.open(rest, port, clock);
         tenants.adopt(UUID.fromString(jdbc.queryForObject("select id::text from businesses", String.class)));
@@ -148,7 +183,6 @@ class WeekdayResolutionRateTest extends IntegrationTest {
         // The conditions, printed before the trials rather than after, so a run that is abandoned
         // half way still says what it was asking. today+1 is row 1 of the prompt's list, so the
         // row is simply the distance to the next occurrence of the day being spoken.
-        LocalDate today = LocalDate.now(clock.withZone(BookingScenario.TBILISI));
         LocalDate target = today.with(TemporalAdjusters.next(EXPECTED));
         long row = ChronoUnit.DAYS.between(today, target);
         System.out.printf(

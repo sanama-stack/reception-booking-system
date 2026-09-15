@@ -140,7 +140,7 @@ The MVP is complete when **all** of the following are true. Each line is verifia
 >
 > | | Rows | Why |
 > |---|---|---|
-> | **Unverifiable** | the three Receptionist behaviour rows | [#17], and the corpus under *Gates that cannot be run*. Credits |
+> | **Unverifiable** | the three Receptionist behaviour rows | [#17], and the corpus under *Gates that cannot be run*. **Not credits any more** — the corpus is runnable and unrun |
 > | **Needs a run** | `make up` from a clean checkout | Nobody has done the clone-to-running walk, and it cannot be done from a working copy |
 > | **Needs CI, not a fix** | every phase's tests pass in CI; the README demo script | CI has not run since `6321485`; the demo needs a key |
 >
@@ -334,6 +334,7 @@ prerequisite to accepting it, not a formality.
 
 [#15]: https://github.com/sanama-stack/reception-booking-system/issues/15
 [#17]: https://github.com/sanama-stack/reception-booking-system/issues/17
+[#40]: https://github.com/sanama-stack/reception-booking-system/issues/40
 
 ---
 
@@ -347,21 +348,32 @@ whole of the difference between this section and the one above.
 An entry leaves this section in one direction only: the gate runs, and its result becomes a tick or a
 measured defect.
 
-### Level 3 — the live-model corpus has not run since 2026-09-10
+### Level 3 — the live-model corpus. **Ran on 2026-09-15. This entry has left this section**
 
 | | |
 |---|---|
 | **What it checks** | `LiveReceptionistTest` — twelve conversations against the real model, asserting tool sequences and database state. **The only instrument in this project that can evaluate the system prompt or a tool description**, because a scripted model reads neither ([08-testing-strategy.md](08-testing-strategy.md) §7) |
-| **Last ran** | **2026-09-10**, green — [the session record](sessions/2026-09-10-the-gap-that-was-hiding-a-wrong-write.md) |
-| **Changed since** | The system prompt, twice. `resolve_date` and the instructions that drive it (2026-09-11); §8's fencing of the description, the cancellation policy and up to fifty FAQs (2026-09-13) |
-| **Why it cannot run** | **The OpenAI account has no credits.** `429`, `insufficient_quota`, `credit_balance_exhausted`. Confirmed by a run on 2026-09-13 which cost nothing, because every call was refused before a token was billed |
-| **To run it again** | Add credits, then `-PincludeTags=llm`. Twelve `gpt-4o-mini` conversations — cents |
-| **Ruling** | **2026-09-13** — recorded as unavailable rather than carried as a pending decision |
+| **Last ran** | **2026-09-15** — **11 of 12 passed**. Previously 2026-09-10, green — [the session record](sessions/2026-09-10-the-gap-that-was-hiding-a-wrong-write.md) |
+| **Why it could not run** | The OpenAI account had no credits: `429`, `insufficient_quota`, `credit_balance_exhausted`, confirmed 2026-09-13. **Credits were restored on 2026-09-15 and the gate was run the same day** |
+| **Result** | One failure: `a customer who proves the appointment is theirs can move it`. The Receptionist told the Customer a free 15:00 slot was "already booked" — a statement no tool produced — and refused an authorised write on the strength of it. [#40] |
+| **Ruling** | **2026-09-13** — recorded as unavailable. **Discharged on 2026-09-15 by running the gate**, which is the one exit this section allows |
 
-**What this does and does not change.** The three Receptionist rows in *Functional* are already
-unticked and already carried under [#17], so this entry does not move them. What it records is that
-they cannot be ticked at all until the corpus runs — a distinction that matters at sign-off, because
-"not yet ticked" reads as work outstanding and this is work that is not currently possible.
+> **This entry is kept, struck through by its own result, rather than deleted.** The rule at the top
+> of this section is that an entry leaves in one direction only — the gate runs, and its result
+> becomes a tick or a measured defect. The gate ran. What it produced is recorded above and on [#40].
+>
+> ⚠️ **The result does not yet qualify for *Accepted, measured, open defects*, and has deliberately
+> not been filed there.** That section requires a **rate**, and this is **one trial**. The corpus runs
+> each case once, so it can establish that a behaviour is reachable and can never establish how often
+> — the same limitation [#15] carries in writing. Naming a rate from a single observation is the error
+> that section exists to prevent, so the defect sits on [#40] with no rate until an instrument that
+> can measure one is built.
+
+**What this does and does not change.** The three Receptionist rows in *Functional* stay unticked —
+but for a materially better reason than before. They were unverifiable; they are now **measured and
+failing**, on a transcript, and box *"It never states a slot, price or policy that did not come from a
+tool"* has a concrete counter-example rather than an absent instrument. "Cannot be checked" has become
+"checked, and red", which is the direction this document wants even though the box did not move.
 
 **The exposure, stated narrowly.** §8's fencing could have made the Receptionist *less willing to use
 the FAQs it fences*, and nothing in levels 1 and 2 would say so — `SystemPromptSafetyTest` asserts the

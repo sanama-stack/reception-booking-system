@@ -167,8 +167,17 @@ Assertions target **tool call sequences and resulting database state**, not the 
 `@Tag("llm")`, excluded from CI, run manually before a release. Flaky-by-nature tests must never gate a
 pipeline.
 
-**Status: unavailable since 2026-09-10.** The account has no credits, and the system prompt has
-changed twice since the corpus last ran. Recorded as a gate that cannot be run in
+**Status: ran on 2026-09-15 — 11 of 12.** The account's credits were exhausted from 2026-09-10 and
+restored on 2026-09-15; the corpus was run the same day, for the first time in five days and against
+a system prompt that had changed several times in between.
+
+**The one failure is the reschedule case**, and it is the kind of failure only this level can see: the
+Receptionist told a Customer that a **free** 15:00 slot was "already booked" — a statement no tool
+produced — and refused an authorised write on the strength of it. Levels 1 and 2 are structurally
+blind to it, because the tools all behaved correctly and a scripted model cannot invent a policy.
+Recorded as [#40](https://github.com/sanama-stack/reception-booking-system/issues/40), **without a
+rate**: the corpus runs each case once, so it proves a behaviour is reachable and never how often.
+Previously recorded as a gate that cannot be run in
 [07-mvp-scope.md](07-mvp-scope.md) § *Gates that cannot be run*, with what it would have checked and
 what must happen for it to run again — **a skip is not a pass**, and the sign-off says so rather than
 leaving a reader to infer it from a green build that excluded these tests by tag.
