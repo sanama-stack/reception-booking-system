@@ -353,9 +353,9 @@ measured defect.
 | | |
 |---|---|
 | **What it checks** | `LiveReceptionistTest` — twelve conversations against the real model, asserting tool sequences and database state. **The only instrument in this project that can evaluate the system prompt or a tool description**, because a scripted model reads neither ([08-testing-strategy.md](08-testing-strategy.md) §7) |
-| **Last ran** | **2026-09-15** — **11 of 12 passed**. Previously 2026-09-10, green — [the session record](sessions/2026-09-10-the-gap-that-was-hiding-a-wrong-write.md) |
+| **Last ran** | **2026-09-16** — **12 of 12**. Before it, 2026-09-15 — **11 of 12**, the failure being [#40]. Before that, 2026-09-10, green — [the session record](sessions/2026-09-10-the-gap-that-was-hiding-a-wrong-write.md) |
 | **Why it could not run** | The OpenAI account had no credits: `429`, `insufficient_quota`, `credit_balance_exhausted`, confirmed 2026-09-13. **Credits were restored on 2026-09-15 and the gate was run the same day** |
-| **Result** | One failure: `a customer who proves the appointment is theirs can move it`. The Receptionist told the Customer a free 15:00 slot was "already booked" — a statement no tool produced — and refused an authorised write on the strength of it. [#40] |
+| **Result** | One failure across two runs: `a customer who proves the appointment is theirs can move it`. The Receptionist told the Customer a free 15:00 slot was "already booked" — a statement no tool produced — and refused an authorised write on the strength of it. **The same case passed the next day**, so the defect is **intermittent and its rate is unknown**. [#40] |
 | **Ruling** | **2026-09-13** — recorded as unavailable. **Discharged on 2026-09-15 by running the gate**, which is the one exit this section allows |
 
 > **This entry is kept, struck through by its own result, rather than deleted.** The rule at the top
@@ -370,10 +370,17 @@ measured defect.
 > can measure one is built.
 
 **What this does and does not change.** The three Receptionist rows in *Functional* stay unticked —
-but for a materially better reason than before. They were unverifiable; they are now **measured and
-failing**, on a transcript, and box *"It never states a slot, price or policy that did not come from a
-tool"* has a concrete counter-example rather than an absent instrument. "Cannot be checked" has become
-"checked, and red", which is the direction this document wants even though the box did not move.
+but for a materially better reason than before. They were unverifiable; box *"It never states a slot,
+price or policy that did not come from a tool"* now has a **concrete counter-example on a transcript**
+rather than an absent instrument. "Cannot be checked" has become "checked, and reachable".
+
+⚠️ **One green run does not tick these boxes, and the second run was green.** The corpus runs each
+case once, so it can show a behaviour is reachable and can never show it is gone — the trap
+[#15](https://github.com/sanama-stack/reception-booking-system/issues/15) was re-opened for, one
+level up. A pass on 2026-09-16 is not evidence against the failure on 2026-09-15; it is evidence that
+the failure is **intermittent**, which is the harder kind to close and the kind this project has
+mis-closed before. These rows tick when a rate harness measures [#40], not when a single-shot corpus
+comes back green.
 
 **The exposure, stated narrowly.** §8's fencing could have made the Receptionist *less willing to use
 the FAQs it fences*, and nothing in levels 1 and 2 would say so — `SystemPromptSafetyTest` asserts the
