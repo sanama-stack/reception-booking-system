@@ -310,8 +310,7 @@ export const WRITE_SCREENS: WriteScreen[] = [
     file: 'app/(dashboard)/appointments/new/page.tsx',
     failure:
       'A banner, with the server field messages placed on the customer fields, and a stale-slot refusal that re-asks for times while keeping what was typed.',
-    notYet:
-      'Its test asserts the empty and the cleared-date states, neither of which is a failed write.',
+    assertedIn: ['app/(dashboard)/appointments/new/page.test.tsx'],
   },
   {
     file: 'app/(dashboard)/customers/[id]/customer-form.tsx',
@@ -322,7 +321,7 @@ export const WRITE_SCREENS: WriteScreen[] = [
     file: 'app/(dashboard)/employees/[id]/page.tsx',
     failure:
       'Delegated to components/active-toggle.tsx, which toasts the server message and leaves the toggle where it was.',
-    notYet: 'No test presses the toggle, here or in the shared control.',
+    assertedIn: ['app/(dashboard)/employees/[id]/page.test.tsx'],
   },
   {
     file: 'app/(dashboard)/employees/[id]/schedule-section.tsx',
@@ -340,13 +339,13 @@ export const WRITE_SCREENS: WriteScreen[] = [
     file: 'app/(dashboard)/employees/[id]/time-off-section.tsx',
     failure:
       'A banner for the add form with the field messages on the dates; a removal that fails toasts instead, because the row it was about is gone from the dialog.',
-    notYet: 'Its test asserts the empty state only.',
+    assertedIn: ['app/(dashboard)/employees/[id]/time-off-section.test.tsx'],
   },
   {
     file: 'app/(dashboard)/employees/employee-form.tsx',
     failure:
       'A banner for anything unfielded, and the field messages on the inputs that render them.',
-    notYet: 'The component has no test at all.',
+    assertedIn: ['app/(dashboard)/employees/employee-form.test.tsx'],
   },
   {
     file: 'app/(dashboard)/employees/employees-screen.tsx',
@@ -362,7 +361,7 @@ export const WRITE_SCREENS: WriteScreen[] = [
   {
     file: 'app/(dashboard)/services/[id]/page.tsx',
     failure: 'Delegated to components/active-toggle.tsx, which toasts the server message.',
-    notYet: 'No test renders this page.',
+    assertedIn: ['app/(dashboard)/services/[id]/page.test.tsx'],
   },
   {
     file: 'app/(dashboard)/services/service-form.tsx',
@@ -378,7 +377,7 @@ export const WRITE_SCREENS: WriteScreen[] = [
   {
     file: 'app/(dashboard)/settings/booking/booking-form.tsx',
     failure: 'A banner for anything unfielded, and the field messages on the policy inputs.',
-    notYet: 'The component has no test at all.',
+    assertedIn: ['app/(dashboard)/settings/booking/booking-form.test.tsx'],
   },
   {
     file: 'app/(dashboard)/settings/closures/closures-screen.tsx',
@@ -451,11 +450,23 @@ export const WRITE_SCREENS: WriteScreen[] = [
  * How many write failures are carried unasserted — a ratchet, the same shape as
  * {@link UNASSERTED_EMPTY_STATES} and for the same reason.
  *
- * **Twenty-eight when this list was written; twenty-seven now.** The login form was taken first
- * because it is the write a stranger meets before anything else, and because its failure branch
- * was the one that used to show nothing at all when the client handed it something that was not an
- * `ApiError` — which `lib/api/client.ts` no longer can.
+ * **Twenty-eight when this list was written. Zero now**, and it stays here at zero rather than
+ * being deleted along with the debt it counted — the next screen to ship an unasserted write
+ * failure should meet this gate rather than a constant somebody removed because it had briefly
+ * stopped mattering. The same reasoning {@link UNASSERTED_EMPTY_STATES} carries.
  *
- * Lowering it is the work. Raising it is a decision somebody has to make on purpose, in a diff.
+ * What closing it took, beyond the tests themselves, was a harness that could express the case
+ * at all: every `serve()` mode was all-or-nothing, so a screen could only be shown a server that
+ * refused *everything* — which never reaches a save button, because the read behind the screen
+ * fails first and the loading state is what gets asserted. `serve({ kind: 'body', refusing })`
+ * is that missing mode, and the count could not move before it existed.
+ *
+ * **Every one of the twenty-eight was proven against a counterfactual** rather than trusted for
+ * passing, and several of those counterfactuals were the obvious simplification: keying week
+ * editor messages by row index, treating any fielded message as shown, closing a dialog on
+ * refusal, snapping a selection back, moving a sign-out's redirect inside its `try`. Each turned
+ * red only the test that watches it.
+ *
+ * Raising it is a decision somebody has to make on purpose, in a diff.
  */
-export const UNASSERTED_WRITE_FAILURES = 6;
+export const UNASSERTED_WRITE_FAILURES = 0;
