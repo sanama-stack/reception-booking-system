@@ -173,6 +173,64 @@ class ProbeInstrumentationTest extends IntegrationTest {
                 .containsExactlyInAnyOrder(first.toString(), first.plusWeeks(1).toString());
     }
 
+    /**
+     * {@link ProbeQueries#ALL_TOOL_CALLS} is what a corpus failure prints, and a corpus failure is
+     * rare, expensive and read once. It has to carry the arguments: on 2026-09-15 the live corpus
+     * caught the Receptionist refusing a reschedule on the claim that a free slot was taken, and
+     * what it had sent to {@code find_available_slots} was unrecoverable, because the only thing
+     * recorded was the tool's name.
+     */
+    @Test
+    @DisplayName("the corpus dump carries each call's arguments and its result, not just the name")
+    void the_tool_call_dump_renders_arguments_and_result() {
+        model.willCall("resolve_date", "{\"weekday\":\"MONDAY\",\"weeks_ahead\":1}")
+                .willCall("find_available_slots", "{\"date_from\":\"%s\"}".formatted(aria.monday))
+                .willSay("Here is what I have.");
+
+        ask("the Monday after next, please");
+
+        List<String> calls = jdbc.queryForList(ProbeQueries.ALL_TOOL_CALLS, String.class);
+
+        // Order made, name, and -- the entire point -- the arguments the model actually sent.
+        assertThat(calls).hasSize(2);
+        assertThat(calls.get(0)).startsWith("resolve_date(").contains("\"weekday\": \"MONDAY\"");
+        assertThat(calls.get(1))
+                .startsWith("find_available_slots(")
+                .contains("\"date_from\": \"" + aria.monday + "\"")
+                .contains(") -> ");
+    }
+
+    /**
+     * A truncated result must announce itself. A slot list is long enough to hit the cap, and a
+     * result silently cut at 300 characters reads exactly like a short one -- which is the reading
+     * error this whole class exists to stop.
+     */
+    @Test
+    @DisplayName("a result past the cap is cut and says that it was")
+    void a_long_result_is_marked_as_truncated() {
+        // A VALID call, with the service_id the tool requires. Without it the tool answers
+        // "service_id is required" in about a hundred characters, the cap never fires, and the
+        // assertion below passes against a truncation that never happened -- which is what the
+        // first draft of this test did, behind an if/else that accepted either outcome.
+        model.willCall(
+                        "find_available_slots",
+                        "{\"date_from\":\"%s\",\"service_id\":\"%s\"}".formatted(aria.monday, aria.serviceId))
+                .willSay("Here is what I have.");
+
+        ask("what have you got free next Monday?");
+
+        String rendered = jdbc.queryForList(ProbeQueries.ALL_TOOL_CALLS, String.class)
+                .getFirst();
+
+        // Asserted unconditionally rather than behind an if. A branch that accepts either outcome
+        // would pass against a cap that never fires, which is a test of nothing: the fixture's open
+        // day returns enough slots to blow 300 characters, and if that ever stops being true this
+        // should go red and be re-read rather than quietly stop exercising the cap.
+        assertThat(rendered).endsWith("...[truncated]");
+        // Either way the arguments survive, because they are rendered before the cap applies.
+        assertThat(rendered).contains("\"date_from\": \"" + aria.monday + "\"");
+    }
+
     private UUID ask(String utterance) {
         ConversationService.StartedConversation started = conversations.start(Optional.empty());
         conversations.respond(started.sessionToken(), utterance);

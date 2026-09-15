@@ -22,8 +22,17 @@ package dev.reception.ai.probe;
  * <p>The two harnesses had near-identical resolver SQL by copy, which is the other half of the
  * problem: a fix applied to one silently left the other blind. It did, for
  * {@code WeekdayResolutionRateTest}, for as long as the resolver has existed.
+ *
+ * <p><strong>There was a third consumer, and G17 had never been applied to it.</strong>
+ * {@code LiveReceptionistTest} read {@code tool_name} alone while {@code tool_arguments} and
+ * {@code tool_result} sat in the same row, so a corpus failure said <em>which</em> tools were called
+ * and never <em>what with</em>. Measured on 2026-09-15: the corpus caught the Receptionist refusing a
+ * reschedule because it claimed a free slot was taken, and the first question anyone asked — what
+ * did it send to {@code find_available_slots}? — could not be answered without paying for the run
+ * again. That is {@link #ALL_TOOL_CALLS}, and it is why this class is public rather than
+ * package-private.
  */
-final class ProbeQueries {
+public final class ProbeQueries {
 
     private ProbeQueries() {}
 
@@ -52,6 +61,29 @@ final class ProbeQueries {
     static final String RESOLVER_DATES = "select tool_result->>'date' from ai_messages where role = 'TOOL' "
             + "and tool_name = 'resolve_date' and conversation_id = ? "
             + "and tool_result->>'date' is not null";
+
+    /**
+     * Every tool call in the database, rendered {@code name({args}) -> {result}} in the order made.
+     *
+     * <p><strong>Deliberately not filtered by conversation</strong>, unlike its three siblings. Its
+     * consumer is {@code LiveReceptionistTest}, whose own {@code toolsCalled()} is unfiltered
+     * because {@code DatabaseCleaner} empties the database before each case — and a failure message
+     * describing different rows from the assertion that produced it is a trap of its own. It is
+     * correct only where the database holds one test's rows, and a rate harness running fifty
+     * conversations into one database must use the filtered queries above.
+     *
+     * <p><strong>The result is truncated at 300 characters and says so when it is.</strong> A slot
+     * list runs to thirty entries and would bury the arguments, which are the part that has
+     * actually been wanted. The marker is there because a silently cut result reads exactly like a
+     * short one, which is the shape this file already exists to prevent.
+     */
+    public static final String ALL_TOOL_CALLS = "select concat(tool_name, '(', "
+            + "coalesce(tool_arguments::text, '{}'), ') -> ', "
+            + "case when tool_result is null then 'null' "
+            + "when length(tool_result::text) > 300 "
+            + "then concat(left(tool_result::text, 300), '...[truncated]') "
+            + "else tool_result::text end) "
+            + "from ai_messages where role = 'TOOL' order by created_at";
 
     /** Every {@code date_from} the model searched, in order. The endpoint both harnesses read. */
     static final String SEARCHED_DATES = "select tool_arguments->>'date_from' from ai_messages "
