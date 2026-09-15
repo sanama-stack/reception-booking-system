@@ -1,3 +1,4 @@
+import type { BusinessProfile } from '@/lib/business';
 import type { AppointmentWithHistory } from '@/lib/appointments';
 import type { ServiceDetail, ServiceList } from '@/lib/catalog';
 import type { Availability } from '@/lib/scheduling';
@@ -98,4 +99,36 @@ export const NO_TIMES: Availability = {
   timezone: 'UTC',
   days: [{ date: '2026-09-20', slots: [] }],
   emptyReason: 'FULLY_BOOKED',
+};
+
+/**
+ * A business profile, shared by the three screens that edit one.
+ *
+ * Lifted here when `receptionist-switch` and `receptionist-notes` needed the same twenty lines
+ * `profile-form` already had: three copies of a fixture are three chances for a screen to be
+ * tested against a shape the others have moved on from.
+ */
+export const PROFILE: BusinessProfile = {
+  id: 'business-1',
+  name: 'Aria Studio',
+  slug: 'aria-studio',
+  timezone: 'UTC',
+  currency: 'GEL',
+  description: null,
+  addressLine: null,
+  city: null,
+  country: null,
+  phone: null,
+  email: null,
+  website: null,
+  slotIntervalMinutes: 15,
+  minLeadTimeMinutes: 60,
+  maxAdvanceDays: 60,
+  cancellationWindowHours: 24,
+  cancellationPolicy: null,
+  aiEnabled: false,
+  aiAdditionalInfo: null,
+  aiDailyCostCapCents: 500,
+  bookingUrl: 'https://book.example/aria-studio',
+  updatedAt: '2026-09-01T09:00:00Z',
 };

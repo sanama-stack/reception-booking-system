@@ -1,7 +1,7 @@
 import userEvent from '@testing-library/user-event';
 import { screen } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
-import type { BusinessProfile } from '@/lib/business';
+import { PROFILE } from '@/test/fixtures';
 import { renderScreen, serve } from '@/test/harness';
 import { ProfileForm } from './profile-form';
 
@@ -17,31 +17,6 @@ import { ProfileForm } from './profile-form';
  * That distinction is invisible to a test that only ever sends a field this form renders, which
  * is why the third case below sends one it does not.
  */
-
-const PROFILE: BusinessProfile = {
-  id: 'business-1',
-  name: 'Aria Studio',
-  slug: 'aria-studio',
-  timezone: 'UTC',
-  currency: 'GEL',
-  description: null,
-  addressLine: null,
-  city: null,
-  country: null,
-  phone: null,
-  email: null,
-  website: null,
-  slotIntervalMinutes: 15,
-  minLeadTimeMinutes: 60,
-  maxAdvanceDays: 60,
-  cancellationWindowHours: 24,
-  cancellationPolicy: null,
-  aiEnabled: false,
-  aiAdditionalInfo: null,
-  aiDailyCostCapCents: 500,
-  bookingUrl: 'https://book.example/aria-studio',
-  updatedAt: '2026-09-01T09:00:00Z',
-};
 
 /**
  * Only changed fields are sent — `changedFields` — so an untouched form answers "nothing to save"

@@ -316,7 +316,7 @@ export const WRITE_SCREENS: WriteScreen[] = [
   {
     file: 'app/(dashboard)/customers/[id]/customer-form.tsx',
     failure: 'A banner for anything unfielded, and the field messages on name and email.',
-    notYet: 'The component has no test at all.',
+    assertedIn: ['app/(dashboard)/customers/[id]/customer-form.test.tsx'],
   },
   {
     file: 'app/(dashboard)/employees/[id]/page.tsx',
@@ -395,13 +395,13 @@ export const WRITE_SCREENS: WriteScreen[] = [
   {
     file: 'app/(dashboard)/settings/faqs/receptionist-notes.tsx',
     failure: 'A banner, and the field message on the notes box.',
-    notYet: 'The component has no test at all.',
+    assertedIn: ['app/(dashboard)/settings/faqs/receptionist-notes.test.tsx'],
   },
   {
     file: 'app/(dashboard)/settings/faqs/receptionist-switch.tsx',
     failure:
       'A banner for anything unfielded, and the server message for the daily cap placed on the cap field.',
-    notYet: 'The component has no test at all.',
+    assertedIn: ['app/(dashboard)/settings/faqs/receptionist-switch.test.tsx'],
   },
   {
     file: 'app/(dashboard)/settings/hours/hours-editor.tsx',
@@ -458,4 +458,4 @@ export const WRITE_SCREENS: WriteScreen[] = [
  *
  * Lowering it is the work. Raising it is a decision somebody has to make on purpose, in a diff.
  */
-export const UNASSERTED_WRITE_FAILURES = 9;
+export const UNASSERTED_WRITE_FAILURES = 6;
