@@ -121,7 +121,7 @@ Three levels, only the third of which touches a network.
 
 ### Level 1 — tools, without any model
 
-Each tool is called directly with a `ToolContext` — the eight, and the ninth that is under test. No LLM
+Each tool is called directly with a `ToolContext` — the eight, and the ninth that is kept without acceptance. No LLM
 involved.
 
 - Correct arguments produce correct results

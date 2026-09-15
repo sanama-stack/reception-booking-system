@@ -62,7 +62,7 @@ If no, it is in [future/future-features.md](./future/future-features.md).
 
 ### Receptionist (AI)
 - OpenAI tool calling with strict JSON schemas
-- Eight tools, **plus a ninth under test** (`resolve_date`, [#17](https://github.com/sanama-stack/reception-booking-system/issues/17)); the model can do nothing else
+- Eight tools, **plus a ninth kept without acceptance** (`resolve_date`, ruled 2026-09-15, [#17](https://github.com/sanama-stack/reception-booking-system/issues/17)); the model can do nothing else
 - Conversation persisted per business
 - Rate limits, turn ceilings, tool-call ceilings, per-business daily spend cap with graceful degradation
 
@@ -319,7 +319,7 @@ went quiet. The rate is part of the entry precisely so that shipping stays a dec
 | **Worst case** | **55.2% wrong** when the customer phrases the date relatively ("the Monday after next") rather than reading out an ISO date — against 10.6% when they read one out, Fisher p = 3.9e-05 |
 | **Measured** | 2026-09-11 — [the experiment record](experiments/2026-09-11-17-deterministic-date-resolution.md) |
 | **Ruling** | 2026-09-11 — phase 09's hallucination box is **not ticked at today's rates**, and a fourth candidate was authorised |
-| **Status** | **Open.** Three candidates rejected, two of them measurably harmful. The fourth, `resolve_date`, moved the primary measure from 18% to 58% (p = 3.5e-05) and is **one arm short of a verdict** — the deciding run stopped at fifteen trials of fifty when the OpenAI account ran out of credits |
+| **Status** | **Open.** Four candidates spent, none accepted; two of the first three were measurably harmful. The fourth, `resolve_date`, completed its arm on 2026-09-15 and was **ruled not accepted and kept** — primary 18% → **38%** (p = 0.022), met at the rule's exact minimum, not replicated, and the second veto fired. **The defect it was aimed at is not the one that matters**: §14 of the experiment record identifies `booked + 1` — `date_from` set to the day after the appointment's *current* date — and the untried fifth candidate follows from it |
 | **Issue** | [#17](https://github.com/sanama-stack/reception-booking-system/issues/17) |
 
 **This is what Functional boxes 9, 10 and 11 rest on**, and it is why all three were widened rather

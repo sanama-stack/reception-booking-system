@@ -43,7 +43,7 @@ other way to affect or observe the world.
 | `lookup_appointment` | R | Prove ownership via code + phone |
 | `cancel_appointment` | **W** | Cancel an authorised appointment |
 | `reschedule_appointment` | **W** | Move an authorised appointment |
-| `resolve_date` | – | Turn a named weekday into a calendar date — **under test**, measured 2026-09-15, see below |
+| `resolve_date` | – | Turn a named weekday into a calendar date — **shipped, not accepted**, ruled 2026-09-15, see below |
 
 ### Signatures
 
@@ -88,7 +88,7 @@ resolve_date { weekday: string, weeks_ahead: integer }   // MONDAY..SUNDAY, 0..8
 → { date, day_of_week, days_from_today }
 ```
 
-> **`resolve_date`'s arm is finished; its verdict is not.** The fourth candidate for
+> **`resolve_date` was ruled on 2026-09-15: not accepted, and kept.** The fourth candidate for
 > [#17](https://github.com/sanama-stack/reception-booking-system/issues/17), measured in full on
 > 2026-09-15 after the 2026-09-11 outage — see
 > `docs/experiments/2026-09-11-17-deterministic-date-resolution.md`. It reads nothing and writes
@@ -106,9 +106,21 @@ resolve_date { weekday: string, weeks_ahead: integer }   // MONDAY..SUNDAY, 0..8
 > **The rule is "accept at ≥ 19/50 if neither veto fires", and the second veto fires.** It reads
 > *no landing may appear one step off the resolver's own output*; trials 31 and 44 asked
 > `MONDAY+1`, were answered `2026-09-28`, and wrote `2026-10-05`. Two of fifty, against seven in
-> the arm that first raised it. Whether that sinks a candidate which doubled the primary is a
-> judgement the pre-registration deliberately kept for the principal, so **the row stays "under
-> test" until that call is made.**
+> the arm that first raised it.
+>
+> **The ruling of 2026-09-15 is that the candidate is not accepted and the tool is kept** — §15 of
+> the experiment record. Not accepted because the primary was met at the rule's exact minimum, did
+> not replicate (58% four days earlier, p = 0.036), and the veto fired. Kept because the control arm
+> *is* the no-resolver arm, so removal is a measured regression — 38% to 18% on the primary, 70% to
+> 41% strict, never-wrote 0 back to 6 — for no measured gain anywhere, the ISO path having exonerated
+> it at p = 0.77.
+>
+> **The veto could not have been satisfied**, which is recorded as a flaw in the pre-registration
+> rather than a reason to accept: written as *any* landing, it fires in 87% of 50-trial arms at the
+> overshoot rate observed here and in 39.5% at a rate of one percent. **T198.**
+>
+> **No further arm is planned.** The row is "shipped, not accepted" and that is its resting state,
+> not a pending decision.
 >
 > The other ten wrong writes are not the veto: the model asked for the wrong week and the resolver
 > answered correctly. That is the interpretation boundary `ResolveDateTool`'s javadoc declined to

@@ -560,3 +560,89 @@ before it were rejected and two made things measurably worse.
 `today+14` and `target+1`; `target+1` was `target+1` and `booked+1`. Three namings, two of them
 wrong, all three consistent with every observation available at the time. The cost each time was
 one arm; the fix each time was moving one variable rather than re-reading the old arms harder.
+
+---
+
+## 15. The ruling — 2026-09-15
+
+**Not accepted. Stays shipped. This pre-registration is closed and is no longer a live gate.**
+
+The call was the principal's to make and was **delegated to this session** on 2026-09-15; it is
+recorded here rather than left to be inferred from the tool still being in the schema.
+
+### 15.1 Why it is not accepted
+
+Three things, each independently sufficient, none of them overridden:
+
+1. **The primary was met at exactly the rule's minimum** — 19/50 where §8 requires ≥ 19/50. No margin.
+2. **The primary did not replicate** — 58% on 2026-09-11 against 38% here, p = 0.036, unexplained
+   (§11.3). A candidate whose headline effect moves twenty points in four days has not shown a
+   stable one.
+3. **Veto 2 fired**, on trials 31 and 44 (§11.1).
+
+Any one of these could be argued past. Together they are not a close call. **The claim that the
+fourth candidate succeeded is withdrawn**, and the figure this file carries forward is **38%**.
+
+### 15.2 Why it is not removed
+
+Rejection of the *claim* is not removal of the *artifact*, and here removal is the worse move. The
+control arm **is** the no-resolver arm, so the cost of deleting it is already measured on the only
+path it touches:
+
+| WEEKDAY path | with | without |
+|---|---|---|
+| Primary — window covered the named date | **38.0%** | 18.0% |
+| Strict landing | **70.0%** | 40.9% |
+| Never wrote | **0** | 6 |
+| Nearer misreading of the phrase | **0** | 24 |
+
+Four signals in the same direction. On the ISO path it is exonerated — removing it moved nothing,
+p = 0.77 and p = 0.42 (§12.2). So deleting it buys back one schema slot and pays a measured
+regression for it.
+
+### 15.3 The veto could not have been satisfied, and that is a flaw in this document
+
+§4's second veto is **absolute** — *"any landing appears at a date one step off the resolver's
+output"* — applied to a stochastic system at n = 50. Its false-rejection behaviour:
+
+| candidate's true overshoot rate | share of 50-trial arms in which the veto fires |
+|---|---|
+| 8% | 98.5% |
+| **4% — what was observed** | **87.0%** |
+| 2% | 63.6% |
+| 1% | 39.5% |
+| 0.5% | 22.2% |
+
+A rule that rejects a one-percent candidate in two arms out of five is not a decision procedure. It
+fired at seven landings in §9's arm and at two in §11's, and it would have fired at one.
+
+**This is named as a defect in the pre-registration, not as a reason to accept the candidate** — the
+candidate is still not accepted, on §15.1's three grounds, of which the veto is only the third. A
+veto needs a rate and a threshold exactly as the primary does. Writing one as an absolute makes
+rejection the only reachable outcome and disguises it as a test.
+
+### 15.4 The question this experiment was for has moved
+
+§14 established that the reschedule defect is **`booked + 1`** — `date_from` set to the day after the
+appointment's *current* date. `resolve_date` does not address that, never did, and is called **0 of
+50** times on the ISO path where the largest unexplained regression sits. This arm was never the
+thing gating [#17], and treating it as such kept the issue closed behind a decision that could not
+have unblocked it.
+
+### 15.5 What follows
+
+- The row in `docs/05-ai-architecture.md` leaves **"under test"**. No further arm is planned for this
+  tool; there is nothing left to test it against that this document has not spent.
+- The residual is documented rather than pending: **10 of 50** wrong writes are the model asking for
+  the wrong week and the resolver answering correctly — the interpretation boundary `ResolveDateTool`
+  declined to move into code — and **5 of 50** landed on a date the resolver never gave.
+- **[#17] is unblocked.** The next candidate is §14.4's — telling the model that a move's search
+  starts from the *requested* date — and it has **zero trials** and needs its own pre-registration
+  before a number is collected.
+
+**T198 — an absolute veto on a nondeterministic system is a rejection with extra steps.** A
+threshold written as "any" cannot distinguish a candidate that fails from one that succeeds with a
+small residual, because at any realistic sample size it fires for both. Every veto needs the rate and
+the threshold its primary was given, and it needs its false-rejection probability computed *before*
+the arm is paid for — which for this one would have taken a single line of arithmetic and would have
+stopped the rule being written that way.
