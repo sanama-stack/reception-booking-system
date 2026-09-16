@@ -173,8 +173,16 @@ public class SystemPromptBuilder {
         //   150 conversations      142 correct — 94.7%. The eight failures were 2026-09-12, the
         //                          SATURDAY row, FIVE times, and 2026-09-11 three times
         //
-        // So the order fix took the Saturday from eight in fifty to five in a hundred and fifty. It
-        // did not remove it, and it is still the majority failure mode. TWO FAILURES DO NOT
+        // So the order fix took the Saturday from eight in fifty to five in a hundred and fifty.
+        //
+        // RE-MEASURED 2026-09-17 IN THE SAME CELL: 150 of 150, 0 errored, resolve_date called 0
+        // times, p = 0.0035 against the 142 above. Not detectable any more at this sample -- which
+        // is NOT the same as gone: the residual is bounded at 2.43%, the cause is unattributed
+        // because several prompt changes landed in between, and six of the seven asking-days have
+        // never been measured at all. Do not read the line below as fixed.
+        //
+        // The paragraph that follows described the state at 142/150 and is kept because its
+        // reasoning is what matters: TWO FAILURES DO NOT
         // CHARACTERISE A DISTRIBUTION: a sample big enough to find a mode is not big enough to say
         // it is the only one, or that another is gone. This is the same error that closed #13 on
         // 10 of 10 while its symptom was still reachable, one level further in.

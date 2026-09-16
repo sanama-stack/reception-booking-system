@@ -104,3 +104,49 @@ remembered as more than it was.
 **A non-zero ERRORED count.** The summary prints it on the same line as the sample size and shouts
 at the end, because a partial run reads as a behavioural collapse — T36. Read that number first; if
 it is not zero, there is no measurement, only a partial one.
+
+
+---
+
+## 7. Result — 2026-09-17
+
+Run at 00:04 Tbilisi on the Thursday, `make rebaseline-weekday`, the arm refusing any other day.
+
+```
+150 of 150 conversations resolved MONDAY correctly (150 searched at all, 0 ERRORED)
+resolve_date was called in 0 of 150 trials; asked: {}
+asked on a THURSDAY, where MONDAY was 2026-09-21 — row 4 of seven.
+```
+
+| | |
+|---|---|
+| **Primary** | **150/150 = 100%**, CI [97.6%, 100%] |
+| Against 142/150 | **p = 0.0035**, one-sided |
+| Pre-registered threshold | ≥ 149/150 |
+| Errored | **0** — it is a measurement, not a partial run |
+| `resolve_date` | **0 of 150** |
+
+**Both §4 conditions are met and the dead band is cleared, not grazed.** §3's rule resolves only at
+≥ 149/150 or ≤ 132/150; this is 150.
+
+**§4's interpretation rule lands on the clean branch.** The resolver was called **zero** times, so the
+arithmetic did not leave the model: this measures list-scanning, exactly what 142/150 measured, and
+the comparison is like-for-like. **The headline number is replaced without a caveat about its
+meaning.**
+
+### 7.1 What this does not establish
+
+**Not that the defect is gone.** Zero failures in 150 bounds the residual at **[0%, 2.43%]**, against
+the old 8/150 = 5.3% [2.3%, 10.2%]. A true rate of 2% yields zero failures in 150 trials about 5% of
+the time. The statement this arm supports is *not detectable at this sample in this cell* — precisely
+the wall §3 said it would hit.
+
+**Not a cause.** Several prompt changes landed between 2026-09-10 and 2026-09-17 and this arm
+attributes the improvement to none of them. It is a re-baseline, not a candidate arm.
+
+**And this project has measured the trap it sits in.** The 89.4% → 25.0% gap is the same fixture at
+the same distance scoring differently four days apart, **p = 5.0 × 10⁻⁹, still unexplained**. One
+clean arm against that background is evidence, not proof. The cell was enforced rather than assumed,
+which is more than any previous arm here can say — and it is still one arm.
+
+**Six of the seven asking-days remain unmeasured**, exactly as before this run.

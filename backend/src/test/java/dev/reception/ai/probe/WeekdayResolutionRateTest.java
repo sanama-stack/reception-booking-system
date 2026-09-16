@@ -60,9 +60,16 @@ import org.springframework.test.context.TestPropertySource;
  * ./gradlew test -PincludeTags=probe --tests '*WeekdayResolutionRateTest'
  * }</pre>
  *
- * <p><strong>It now sees {@code resolve_date}, and the last recorded rate predates it.</strong> The
- * 142/150 this issue carries was measured before the resolver existed, so it is a baseline for a
- * prompt this repository no longer ships. The resolver was aimed at #17 — days beyond the seven-day
+ * <p><strong>Re-baselined 2026-09-17: 150 of 150, row 4, 0 errored, resolver called 0 times.</strong>
+ * Against the superseded 142/150 that is Fisher one-sided p = 0.0035, and the resolver's absence
+ * means both arms measure the same mechanism — list-scanning — so the comparison is like-for-like.
+ * <strong>It does not mean the defect is gone:</strong> zero failures in 150 bounds the residual at
+ * [0%, 2.43%], and a true 2% rate shows zero in 150 about one run in twenty. Six of the seven
+ * asking-days are still unmeasured, and the 89.4% → 25.0% gap recorded elsewhere in this project is
+ * an unexplained day-to-day swing on one fixture at p = 5e-09. One clean arm is evidence, not proof.
+ *
+ * <p>The 142/150 was measured before the resolver existed, so it was a baseline for a prompt this
+ * repository no longer ships. The resolver was aimed at #17 — days beyond the seven-day
  * list — and the day this harness asks about is <em>inside</em> that list, where the prompt says to
  * look the date up rather than resolve it. Whether the model calls it anyway is therefore an open
  * question and a reportable one: a rate that moved because the arithmetic left the model and a rate
