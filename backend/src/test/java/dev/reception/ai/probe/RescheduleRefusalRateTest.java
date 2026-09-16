@@ -223,6 +223,11 @@ class RescheduleRefusalRateTest extends IntegrationTest {
         // Splits the two explanations for "15:00 was not offered": the cap hid it, or the search
         // never covered the day it was on.
         int refusedHavingSearchedTheTargetDay = 0;
+        // The same question over EVERY trial, not only the refusals. The 2026-09-16 arms counted it
+        // for refusals alone, which left the fifth candidate's pre-registration promising a metric
+        // with no control to compare against. Named for the tally, so it cannot collide with the
+        // per-trial boolean below.
+        int trialsSearchingTheTargetDay = 0;
         Map<String, Integer> landedOn = new LinkedHashMap<>();
 
         for (int trial = 1; trial <= CONVERSATIONS; trial++) {
@@ -283,6 +288,9 @@ class RescheduleRefusalRateTest extends IntegrationTest {
             List<String> searched =
                     jdbc.queryForList(ProbeQueries.SEARCHED_DATES, String.class, started.conversationId());
             boolean searchedTheTargetDay = searched.contains(target.toString());
+            if (searchedTheTargetDay) {
+                trialsSearchingTheTargetDay++;
+            }
 
             String expected = target + " 15:00";
             if (expected.equals(landed)) {
@@ -317,6 +325,7 @@ class RescheduleRefusalRateTest extends IntegrationTest {
         // The errored count on the same line as the sample size, never folded into it.
         System.out.printf(
                 "%n%d moved, %d REFUSED, %d moved elsewhere, of %d trials (%d ERRORED)%n"
+                        + "the requested day was searched at all in %d of %d trials%n"
                         + "of the refusals: %d had 15:00 among the offered slots, %d did not, "
                         + "%d followed a search the tool marked truncated, and %d actually searched "
                         + "the target day at all%n"
@@ -328,6 +337,8 @@ class RescheduleRefusalRateTest extends IntegrationTest {
                 movedElsewhere,
                 CONVERSATIONS,
                 errored,
+                trialsSearchingTheTargetDay,
+                CONVERSATIONS - errored,
                 refusedWithSlotOffered,
                 refusedWithSlotNotOffered,
                 refusedAfterTruncatedSearch,
