@@ -29,8 +29,12 @@ import org.springframework.test.context.TestPropertySource;
  * <strong>How often does the Receptionist refuse an authorised reschedule to a slot that is
  * free?</strong>
  *
- * <p>The instrument for <a href="https://github.com/sanama-stack/reception-booking-system/issues/40">
- * issue #40</a>, which has <strong>one observation and no rate</strong>. On 2026-09-15 the level-3
+ * <p>Built for <a href="https://github.com/sanama-stack/reception-booking-system/issues/40">issue
+ * #40</a> and now the sharpest instrument for
+ * <a href="https://github.com/sanama-stack/reception-booking-system/issues/17">#17</a>, which
+ * absorbed it: two arms proved the refusal is #17's wrong-day search taking a different branch, and
+ * #40 was closed on 2026-09-16. <strong>The history below is kept because the retractions are the
+ * point.</strong> When filed, #40 had <strong>one observation and no rate</strong>. On 2026-09-15 the level-3
  * corpus caught the Receptionist telling a Customer that a free 15:00 slot was "already booked" and
  * refusing to move an appointment it had already proven ownership of. On 2026-09-16 the same case
  * passed. One failure in two runs establishes that the behaviour is reachable and intermittent, and
@@ -79,14 +83,25 @@ import org.springframework.test.context.TestPropertySource;
  * on the nose. Two did not, offering twenty-nine with {@code truncated} false, so the cap is not the
  * whole story.
  *
- * <p><strong>That arm could not finish the argument, because it did not record which day was
- * searched.</strong> With #17 firing in 31 of 50 trials, "15:00 was not offered" has two readings —
- * the cap hid it, or the search was aimed at {@code booked + 1} and never covered the day it was on
- * — and offered/truncated alone cannot separate them. {@link ProbeQueries#SEARCHED_DATES} already
- * existed and was simply not read: <strong>G17 for the third time, in the instrument built to close
- * it</strong>. It is read now, and the summary reports how many refusals searched the target day at
- * all. The next arm can settle the mechanism; this one cannot, and its numbers must not be quoted as
- * though it had.
+ * <p><strong>The second arm settled it, and the answer closed #40 into #17.</strong> That arm added
+ * the searched-day column the first one lacked — {@link ProbeQueries#SEARCHED_DATES}, which already
+ * existed and had simply not been read, G17 for the third time in the instrument built to close it.
+ * Fifty trials, 2 errored so the denominator is 48: refused 9/48 = 18.8%, wrong date 29/48 = 60.4%,
+ * correct 10/48 = 20.8%, and wrong by either route <strong>38/48 = 79.2%</strong>, CI [65.0, 89.5].
+ * Consistent with the first arm at p = 0.36.
+ *
+ * <p><strong>All nine refusals searched {@code booked + 1} and nothing else. Zero searched the day
+ * the Customer named.</strong> So the refusal is #17's wrong-day search reaching the Customer as a
+ * decline rather than as a wrong booking: on the wrong day the model either finds 15:00 and books it
+ * there, or {@code MAX_SLOTS} cuts the list before 15:00 and it has nothing to offer. <strong>The cap
+ * selects the failure mode; it does not cause it</strong> — the requested day was never searched, so
+ * the requested slot could not have been offered under any cap. An earlier reading of this harness's
+ * own first arm called truncation the likely mechanism, on five-of-seven; that was support for the
+ * wrong proposition and is retracted.
+ *
+ * <p><strong>This test therefore measures #17, and #40 is closed.</strong> Its value is that it
+ * separates the three outcomes: a candidate that merely converts refusals into wrong bookings moves
+ * the refusal rate and fixes nothing, and only a harness that counts them apart can say so.
  *
  * <p><strong>#17 competes with #40 for the same scenario, and it wins most trials.</strong> Measured
  * on the two-trial smoke run that proved this harness: both trials wrote to {@code booked + 1} —
