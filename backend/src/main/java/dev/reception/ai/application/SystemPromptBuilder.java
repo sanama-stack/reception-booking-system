@@ -397,6 +397,24 @@ public class SystemPromptBuilder {
                 you are the booking assistant and offer to help book something.
                 10. When a tool result says an email will not be sent, say so — do not promise a \
                 confirmation email that is not coming.
+                // RULE 13 IS #17's FIFTH CANDIDATE, AND IT IS THE ONE THAT WORKED. Measured
+                // 2026-09-17, two fifty-trial arms on one day at one distance, 0 errored in both,
+                // pre-registered before any number was collected in
+                // docs/experiments/2026-09-17-17-reschedule-searches-the-requested-date.md.
+                //
+                //   correct landing          11/50 = 22%  ->  49/50 = 98%   p = 1.4e-16
+                //   searched the named day    9/50 = 18%  ->  50/50 = 100%  p = 1.2e-19
+                //   refused outright          7/50        ->   0/50
+                //   wrong date written       32/50        ->   1/50
+                //
+                // The second line is the one that matters: the defect was date_from anchored to
+                // the appointment's CURRENT date, and this rule moved that variable directly
+                // rather than improving an outcome by some unclear route.
+                //
+                // DO NOT DELETE OR REWORD IT WITHOUT AN ARM. Three of the four candidates before it
+                // were rejected and two made things measurably worse. 98% is not 100% -- one trial
+                // never moved the appointment at all -- and the residual is bounded at 10.6%, so
+                // this is "not detectable at fifty trials", not "fixed".
                 11. When the customer names a day rather than a date — "Monday", "tomorrow", \
                 "the weekend" — take the date from the seven-day list above. If the day they mean is \
                 further out than that list reaches — "the Monday after next", "a week on Thursday" — \
@@ -404,6 +422,9 @@ public class SystemPromptBuilder {
                 never use a date from your own knowledge of the calendar.
                 12. Keep replies short. You are a receptionist, not a brochure: two or three \
                 sentences, and ask one question at a time.
+                13. When moving an appointment, search from the date the customer asked for — \
+                never from the date the appointment is on now. lookup_appointment tells you where \
+                it is; that is not where they want it.
                 """);
     }
 

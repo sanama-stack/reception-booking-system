@@ -144,3 +144,65 @@ few dollars. The harness archives its own result XML; `--rerun` overwrites it ot
   weekday, and T194 forbids comparing its rate with an arm at another distance.
 - **It cannot show the defect is gone.** At 50 trials a residual of a few percent is invisible, which
   is the wall [#15] hit. A clean arm means "not detectable at this sample", never "absent".
+
+
+---
+
+## 8. Result — 2026-09-17. **Accepted.**
+
+Both arms on one day, one tree apart from the rule, `PROBE_TARGET_DAYS=12`, target **2026-09-29**
+(Tuesday), fifty trials each, **0 errored in both**.
+
+| | Baseline | Candidate | |
+|---|---|---|---|
+| **Primary — correct landing** | 11/50 = **22.0%** | **49/50 = 98.0%** | Fisher one-sided **p = 1.4 × 10⁻¹⁶** |
+| Refused | 7/50 | **0/50** | Veto 1 threshold was 16/50 — does not fire |
+| Wrong date written | 32/50 | **1/50** | Veto 2 threshold was 38/50 — does not fire |
+| **Searched the requested day** | 9/50 = 18.0% | **50/50 = 100%** | **p = 1.2 × 10⁻¹⁹** |
+
+§4 required ≥ 20/50 on the primary with neither veto firing. The candidate returns **49/50**.
+**Accepted.**
+
+### 8.1 The mechanism moved, and the outcome followed it
+
+The reported metric is what makes this more than a good number. §1 said the defect is `date_from`
+anchored to the appointment's current date; the requested day was searched in **9 of 50** trials
+without the rule and **50 of 50** with it. The candidate did not improve an outcome by an unclear
+route — it moved the exact variable the diagnosis named, and the landing rate followed.
+
+**One trial still failed**, landing on `2026-09-29 12:00` — the appointment never moved. 98% is not
+100%, and the CI is [89.4%, 99.9%].
+
+### 8.2 The vetoes could have fired, and that is the point
+
+Both were written as a rate with a threshold and a false-rejection probability computed before the
+arm — 1.79% and 1.53%. Neither fires: refusals 0 against 16, wrong dates 1 against 38. **T198's first
+application works.** The veto that sank `resolve_date` was written as "any landing" and would have
+fired in 87% of arms at the overshoot rate actually observed; these are vetoes a good candidate can
+pass and a bad one cannot.
+
+### 8.3 The first candidate arm was thrown away, and why
+
+An earlier attempt returned **22 of 22 correct with 28 of 50 errored** — trials 23 to 50 failed
+contiguously on `UnknownHost` and read timeouts, a local network outage rather than anything the
+provider or the candidate did. It was **not reported as a result**: the pre-registration specifies
+fifty trials, and 22/22 is a different denominator produced by an outage, not the number §4 names.
+Archived, and re-run in full once the network returned. **T36 — read the errored count first.**
+
+### 8.4 Rule 13 was verified in the artifact, not inferred
+
+`ProbeFixtureDumpTest` wrote the prompt the model actually receives, and rule 13 is line 57 of it.
+Checked because a 22/22 against a 22% baseline is exactly the result that should prompt someone to
+confirm the change shipped at all — a class-file grep had returned nothing, and it turned out the
+grep was broken rather than the rule missing. The dumped artifact settled it.
+
+### 8.5 What this does not settle
+
+- **[#15] is untouched.** Different mechanism, and rule 11 was not changed.
+- **[#40]'s second mechanism survives.** Two of twenty-three refusals across three arms had the
+  requested slot offered on the requested day and refused anyway; that is not a date problem and
+  this rule does not address it. The candidate arm produced **zero** refusals, which is consistent
+  with the sub-mode being rare rather than gone.
+- **One distance, one phrasing.** ISO at `today + 12`. T194 forbids comparing this rate with an arm
+  at another distance, and a spoken weekday is unmeasured.
+- **98% is not proof of 98%.** Fifty trials bound the residual at [0.1%, 10.6%] failing.

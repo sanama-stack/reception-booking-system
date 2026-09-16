@@ -315,11 +315,11 @@ went quiet. The rate is part of the entry precisely so that shipping stays a dec
 
 | | |
 |---|---|
-| **Rate** | **10.6%** of writes land on a date the customer never named — 5 of 47, CI [3.5%, 23.1%] |
-| **Worst case** | **55.2% wrong** when the customer phrases the date relatively ("the Monday after next") rather than reading out an ISO date — against 10.6% when they read one out, Fisher p = 3.9e-05 |
-| **Measured** | 2026-09-11 — [the experiment record](experiments/2026-09-11-17-deterministic-date-resolution.md) |
+| **Rate** | **2% wrong on the measured scenario** after the fifth candidate — 1 of 50, 2026-09-17. Before it, on that same scenario, **78% wrong** (11/50 correct). The 10.6% this row carried was a *different* scenario measured 2026-09-11 and is not comparable — **T194**, distance to the horizon is uncontrolled across every rate this project recorded before that date |
+| **Worst case** | **Unmeasured since the fix.** The relative-phrasing arm ("the Monday after next") was 55.2% wrong on 2026-09-11 against 10.6% for an ISO date, Fisher p = 3.9e-05. Rule 13 has only been measured against ISO dates, so whether it helps the relative phrasing is **an open question with zero trials** |
+| **Measured** | 2026-09-17 — [the fifth candidate's record](experiments/2026-09-17-17-reschedule-searches-the-requested-date.md). Earlier: 2026-09-11 — [the resolver's](experiments/2026-09-11-17-deterministic-date-resolution.md) |
 | **Ruling** | 2026-09-11 — phase 09's hallucination box is **not ticked at today's rates**, and a fourth candidate was authorised |
-| **Status** | **Open.** Four candidates spent, none accepted; two of the first three were measurably harmful. The fourth, `resolve_date`, completed its arm on 2026-09-15 and was **ruled not accepted and kept** — primary 18% → **38%** (p = 0.022), met at the rule's exact minimum, not replicated, and the second veto fired. **The defect it was aimed at is not the one that matters**: §14 of the experiment record identifies `booked + 1` — `date_from` set to the day after the appointment's *current* date — and the untried fifth candidate follows from it |
+| **Status** | **The fifth candidate was accepted on 2026-09-17** — one prompt rule telling the model that a move searches from the *requested* date. Two fifty-trial arms, one day, one distance, 0 errored in both: correct landing **22% → 98%** (p = 1.4e-16), and the mechanism itself, *searched the requested day*, **18% → 100%** (p = 1.2e-19). Neither pre-registered veto fired. §8 of [the experiment record](experiments/2026-09-17-17-reschedule-searches-the-requested-date.md). **Not closed**: 98% is not 100%, one trial never moved the appointment, the residual is bounded at 10.6%, and the rate is for one phrasing at one distance |
 | **Issue** | [#17](https://github.com/sanama-stack/reception-booking-system/issues/17) |
 
 **This is what Functional boxes 9, 10 and 11 rest on**, and it is why all three were widened rather
