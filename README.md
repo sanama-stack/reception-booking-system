@@ -18,19 +18,39 @@ believes.
 > through the same endpoints the form uses: every slot and price it quotes comes from a tool, and
 > its confirmation card is rendered from the booking the server made, never from what it said.
 > The owner reads every conversation, and every tool call inside it, under **Conversations**.
-> What remains is hardening. See [docs/09-phase-plan.md](docs/09-phase-plan.md) for the build
-> order.
+> **Phase 11 is most of the way through**: the isolation suite, the E2E flow, the seed, the
+> security walk, the performance checks, transcript retention and the frontend runner are all in,
+> and the ten-step demo below was followed end to end on 2026-09-18. Three boxes are open — the
+> concurrency test asserted *repeatedly* rather than once, a final reading of the security list
+> against its own checklist, and `docs/deployment.md`, which is written but has never been run on a
+> host. See [docs/09-phase-plan.md](docs/09-phase-plan.md) for the build order.
 >
-> **One measured defect ships with it.** Asked to reschedule, the receptionist lands the write on
-> a date the customer did not name about **10.6%** of the time — rising to **55.2%** when the date
-> is phrased relatively ("the Monday after next") rather than read out — and has been recorded
-> stating a policy, to justify one, that came from no tool. Ownership is proven, the slot is real
-> and the engine returned it; the day is the part that is wrong, which is the part nothing
-> downstream can check. It is carried with its rate and its evidence in
-> [docs/07-mvp-scope.md](docs/07-mvp-scope.md) § *Accepted, measured, open defects*, and tracked
-> as [#17](https://github.com/sanama-stack/reception-booking-system/issues/17). This paragraph
-> used to say the receptionist "cannot invent a slot, a price or a policy"; the first two hold,
-> the third does not, and it is corrected here rather than quietly dropped.
+> **One measured defect ships with it, and it is much smaller than it was.** Asked to reschedule,
+> the receptionist used to search from the appointment's *current* date rather than the one the
+> customer named, and write the move to the wrong day. One prompt rule, pre-registered and measured
+> on 2026-09-17 over two fifty-trial arms, took the correct landing from **22% to 98%** and the
+> mechanism itself — searching the day the customer actually named — from **18% to 100%**. It is
+> tracked as [#17](https://github.com/sanama-stack/reception-booking-system/issues/17) and carried
+> with its rate and its evidence in [docs/07-mvp-scope.md](docs/07-mvp-scope.md) § *Accepted,
+> measured, open defects*.
+>
+> **It is not closed, and three limits are worth stating plainly.** 98% is not 100% — one trial in
+> fifty still failed to move the appointment at all — and fifty trials only bound the residual to
+> *somewhere below* **10.6%**. That is the upper end of a confidence interval, and it is
+> deliberately spelled out because it is the same number this paragraph used to quote as the *rate*:
+> the two are different quantities measured on different scenarios, and reading one as the other is
+> the mistake the rate is written down to prevent. So this is "not detectable at this sample", never
+> "gone". The arm covered **one phrasing at one distance**: an ISO date twelve days out. The
+> relative phrasing that was the worst case before the fix — "the Monday after next", **55.2%**
+> wrong on 2026-09-11 — has had **zero trials since**, so nothing here says the rule helps it. And
+> a separate mode survives on [#40](https://github.com/sanama-stack/reception-booking-system/issues/40):
+> the receptionist has been recorded declining a legitimate move on the right day, with the
+> requested slot in hand.
+> Ownership is proven, the slot is real and the engine returned it; the day is the part that was
+> wrong, which is the part nothing downstream can check. This paragraph used to say the
+> receptionist "cannot invent a slot, a price or a policy" — the first two hold, the third does
+> not — and then carried the pre-fix rates for a day after they were superseded. Both are
+> corrected here rather than quietly dropped.
 >
 > The receptionist needs an `OPENAI_API_KEY` in `.env`. Without one it degrades to the booking
 > form and says so — which is the ordinary state of a fresh clone, and deliberately not a startup
