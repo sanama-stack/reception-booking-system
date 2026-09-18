@@ -347,6 +347,24 @@ than left to tick on wording written before the defect class was known. The cust
 not a crash: ownership is proven, a real slot is returned by the real engine, a real appointment is
 written, and the only thing wrong is the day — which is the one part nothing downstream can check.
 
+### [#40] — the Receptionist refuses a legitimate move it was offered the slot for
+
+| | |
+|---|---|
+| **Rate** | **≈1.3% of conversations**, derived rather than measured directly: **2 of 23 pooled refusals** had the requested slot offered on the requested day (8.7% of refusals), and refusals ran at ~15% of trials. Across the three arms that is **2 observations in 150 conversations**. Two observations cannot characterise a distribution — the lesson this project has now paid for four times — so this is an order of magnitude, not a rate, and it is written here as one |
+| **Worst case** | **Every observation is of a prompt this repository no longer ships.** Trials 38 and 40 are in the fifth candidate's **baseline** arm, one tree apart from rule 13. On the shipped prompt the candidate arm refused **0 of 50**, which bounds the refusal rate at **5.8%** and establishes nothing about this sub-mode specifically. Whether rule 13 touches it at all is **an open question with zero targeted trials** |
+| **Measured** | 2026-09-17 — [the reopening comment](https://github.com/sanama-stack/reception-booking-system/issues/40#issuecomment-5625346280) and §8.5 of [the fifth candidate's record](experiments/2026-09-17-17-reschedule-searches-the-requested-date.md) |
+| **Ruling** | **None yet, and it is the principal's.** This entry records a measurement and a state; it is not a decision to ship the defect knowingly, which is what every other entry in this section carries |
+| **Status** | Open, and **not** closed by [#17]'s fix. 21 of the 23 refusals descend from the wrong-day search and rule 13 removes them; these two do not, because the day was right, the slot was offered and the search was not truncated. What it needs is a scenario where the wrong-day search *cannot* occur, so mechanism 2 can be counted alone — and at ~1.3% of conversations, fifty trials would see it about half the time. **That is a sample-size problem to solve before an arm is bought, not after.** `RescheduleRefusalRateTest` already records the three fields it needs |
+| **Issue** | [#40](https://github.com/sanama-stack/reception-booking-system/issues/40) |
+
+**Why this entry exists at all, stated against this section's own rule.** From 2026-09-17 to
+2026-09-18 [#40] was in neither this section nor *Gates that cannot be run* — it had been reopened,
+and the sentence below *Gates* saying it "does not yet qualify" was written when it was **one
+trial**. It is now two observations in a hundred and fifty, which is a denominator. A defect in
+neither place is *unnoticed*, which is the state this section exists to make impossible, and it had
+been in that state for a day while the README was being corrected to name it.
+
 **[#15]** ([issue](https://github.com/sanama-stack/reception-booking-system/issues/15)) is related and
 also open. It is **not** listed as accepted here, because its title still names a diagnosis a later
 session disproved and it therefore has no trustworthy rate to carry. Fixing the title is a
@@ -375,7 +393,7 @@ measured defect.
 | **What it checks** | `LiveReceptionistTest` — twelve conversations against the real model, asserting tool sequences and database state. **The only instrument in this project that can evaluate the system prompt or a tool description**, because a scripted model reads neither ([08-testing-strategy.md](08-testing-strategy.md) §7) |
 | **Last ran** | **2026-09-16** — **12 of 12**. Before it, 2026-09-15 — **11 of 12**, the failure being [#40]. Before that, 2026-09-10, green — [the session record](sessions/2026-09-10-the-gap-that-was-hiding-a-wrong-write.md) |
 | **Why it could not run** | The OpenAI account had no credits: `429`, `insufficient_quota`, `credit_balance_exhausted`, confirmed 2026-09-13. **Credits were restored on 2026-09-15 and the gate was run the same day** |
-| **Result** | One failure across two runs: `a customer who proves the appointment is theirs can move it`, the Receptionist declining an authorised move to a free slot. Filed as [#40], measured over two fifty-trial arms, and **closed into [#17] on 2026-09-16** — the refusal is #17's wrong-day search taking a different branch, not a defect of its own |
+| **Result** | One failure across two runs: `a customer who proves the appointment is theirs can move it`, the Receptionist declining an authorised move to a free slot. Filed as [#40], measured over two fifty-trial arms, and closed into [#17] on 2026-09-16 — the refusal read as #17's wrong-day search taking a different branch. **Reopened 2026-09-17, and that closure is retracted**: a third arm recorded `target searched` and found two refusals where the day *was* right and the slot *was* offered. 21 of 23 refusals are #17; two are not. It now has its own entry under *Accepted, measured, open defects* above |
 | **Ruling** | **2026-09-13** — recorded as unavailable. **Discharged on 2026-09-15 by running the gate**, which is the one exit this section allows |
 
 > **This entry is kept, struck through by its own result, rather than deleted.** The rule at the top
@@ -388,6 +406,14 @@ measured defect.
 > — the same limitation [#15] carries in writing. Naming a rate from a single observation is the error
 > that section exists to prevent, so the defect sits on [#40] with no rate until an instrument that
 > can measure one is built.
+>
+> **Superseded 2026-09-18 — the instrument was built and [#40] is now filed above.** The paragraph
+> is kept because its reasoning was right and is the reason the entry above states an order of
+> magnitude rather than a rate. What changed is the denominator: one trial became **two observations
+> in a hundred and fifty**, across three arms, once `target searched` was recorded per refusal.
+> **The gap it left is the lesson.** Between the reopening on 2026-09-17 and this entry, [#40] sat
+> in neither section — which this document defines as *unnoticed* — because "does not yet qualify"
+> was written of one trial and never re-read after the third arm made it false.
 
 **What this does and does not change.** The three Receptionist rows in *Functional* stay unticked —
 but for a materially better reason than before. They were unverifiable; box *"It never states a slot,
@@ -401,9 +427,12 @@ level up.
 
 **What the corpus did here is exactly what it is for, and what it cannot do is exactly why the rate
 harness exists.** It made a defect reachable in one transcript; two fifty-trial arms then established
-that the defect was [#17] wearing a different face, and [#40] closed into it. **These rows tick when
-[#17]'s `date_from` is fixed and measured**, not when a single-shot corpus comes back green — and on
-the scenario those arms used, [#17] is wrong **38 of 48 trials, 79.2%**, CI [65.0%, 89.5%].
+that the defect was [#17] wearing a different face, and [#40] closed into it — **a closure a third
+arm then retracted**, 21 of its 23 refusals being #17 and two being their own defect. **These rows
+tick when [#17]'s `date_from` is fixed and measured**, not when a single-shot corpus comes back
+green — and on the scenario those arms used, [#17] is wrong **38 of 48 trials, 79.2%**, CI [65.0%,
+89.5%]. *Since 2026-09-17 it is fixed and measured at 98% on one phrasing at one distance, and the
+rows still do not tick: see [#17]'s entry above for the three limits that keep them open.*
 
 **The exposure, stated narrowly.** §8's fencing could have made the Receptionist *less willing to use
 the FAQs it fences*, and nothing in levels 1 and 2 would say so — `SystemPromptSafetyTest` asserts the
