@@ -58,6 +58,21 @@ export interface ConversationSummary {
    * of them is not an empty transcript at all.
    */
   messagesPurgedAt: IsoInstant | null;
+  /**
+   * Appointment writes this conversation made, and how many landed on a time it never offered.
+   *
+   * **Counts, not a flag, and they outlive the transcript they were derived from** (ADR-0012). A
+   * write matching no Offered Slot is a time the customer was never shown — the booking is real,
+   * the slot was bookable and nothing failed, which is exactly why no other field on this row can
+   * reveal it. At ninety days `messagesPurgedAt` is set and the transcript is gone; these two
+   * numbers are then all that is left to say the conversation did something surprising.
+   *
+   * `unofferedWrites` runs slightly high by design: `find_available_slots` caps its answer and a
+   * real slot truncated out of it and then booked reads here as unoffered. The overcount is
+   * measurable rather than assumed away — see the server-side log line.
+   */
+  writes: number;
+  unofferedWrites: number;
 }
 
 /**

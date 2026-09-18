@@ -76,6 +76,7 @@ public class ConversationService {
     private final CostTracker costs;
     private final SessionTokens sessions;
     private final ConversationStore store;
+    private final OfferedSlots offeredSlots;
     private final AiConversationRepository conversations;
     private final AiMessageRepository messages;
     private final BusinessService businesses;
@@ -91,6 +92,7 @@ public class ConversationService {
             CostTracker costs,
             SessionTokens sessions,
             ConversationStore store,
+            OfferedSlots offeredSlots,
             AiConversationRepository conversations,
             AiMessageRepository messages,
             BusinessService businesses,
@@ -104,6 +106,7 @@ public class ConversationService {
         this.costs = costs;
         this.sessions = sessions;
         this.store = store;
+        this.offeredSlots = offeredSlots;
         this.conversations = conversations;
         this.messages = messages;
         this.businesses = businesses;
@@ -190,6 +193,9 @@ public class ConversationService {
         int completionTokens = 0;
         int persistedMessages = 1;
         ObjectNode appointmentCreated = null;
+        ObjectNode appointmentUpdated = null;
+        int writes = 0;
+        int unofferedWrites = 0;
         String reply = TOOL_CEILING_FALLBACK;
 
         // Counts tool CALLS, not iterations, and the difference is the whole of the ceiling. A model
@@ -221,7 +227,14 @@ public class ConversationService {
                 // The conversation stays ACTIVE and resumable: an outage is not the customer's
                 // fault and retrying is the right thing for them to do.
                 store.recordTurn(
-                        businessId, conversationId, persistedMessages, promptTokens, completionTokens, authority);
+                        businessId,
+                        conversationId,
+                        persistedMessages,
+                        promptTokens,
+                        completionTokens,
+                        authority,
+                        writes,
+                        unofferedWrites);
                 throw new ApiException(
                         ErrorCode.AI_UNAVAILABLE,
                         "I can't reach the booking assistant just now. You can book directly on this "
@@ -301,16 +314,67 @@ public class ConversationService {
 
                 context.add(ChatMessage.toolResult(call.id(), result));
 
-                // Captured from the tool result, never parsed out of the model's text. This is the
-                // object the confirmation card is rendered from.
-                if ("create_appointment".equals(call.name()) && !result.has("error")) {
-                    appointmentCreated = result;
+                // Captured from the tool result, never parsed out of the model's text. These are
+                // the objects the confirmation card is rendered from.
+                //
+                // Two fields rather than one. A booking and a move are different events and the
+                // panel says different things about them — and a turn can hold both, because five
+                // tool calls are allowed and "move it, and book me another" is one sentence. Folding
+                // them into a single field would make the later write silently win.
+                if (!result.has("error")) {
+                    if ("create_appointment".equals(call.name())) {
+                        appointmentCreated = result;
+                    } else if ("reschedule_appointment".equals(call.name())) {
+                        appointmentUpdated = result;
+                    }
+                }
+
+                /*
+                 * ADR-0012, and it decides nothing: the write has already happened and this cannot
+                 * undo it. What it answers is the question #17 turns on and nothing downstream can
+                 * — was the time the server just wrote one this Conversation ever offered? The
+                 * check runs here, inline, rather than in a pass afterwards, so exactly one place
+                 * knows which Tool calls are writes and there is no window in which the verdict is
+                 * missing.
+                 *
+                 * Inside the try/catch for the same reason it refuses nothing: a fault in an
+                 * observation must not be able to fail a Customer's booking. The booking is
+                 * committed by now either way; losing the count is the cheaper failure.
+                 */
+                try {
+                    Optional<OfferedSlots.Landing> landing =
+                            offeredSlots.landingOf(businessId, conversationId, call.name(), result);
+                    if (landing.isPresent()) {
+                        writes++;
+                        if (!landing.get().offered()) {
+                            unofferedWrites++;
+                        }
+                        // No time and no customer detail: an instant would name when somebody is
+                        // going to be somewhere, and docs/06-security.md §10's rule is that those
+                        // do not reach a log. Whether it was offered is the whole finding, and
+                        // offers_truncated is what says how far the count can be trusted.
+                        log.info(
+                                "Appointment write: {} {} {} {}",
+                                kv("conversation_id", conversationId),
+                                kv("tool", call.name()),
+                                kv("offered", landing.get().offered()),
+                                kv("offers_truncated", landing.get().offersWereTruncated()));
+                    }
+                } catch (RuntimeException e) {
+                    log.error("Offered-Slot check failed for conversation {}", conversationId, e);
                 }
             }
         }
 
         AiConversation updated = store.recordTurn(
-                businessId, conversationId, persistedMessages, promptTokens, completionTokens, authority);
+                businessId,
+                conversationId,
+                persistedMessages,
+                promptTokens,
+                completionTokens,
+                authority,
+                writes,
+                unofferedWrites);
 
         // Asked of the row the store just wrote, not of the copy this method has been holding since
         // before the model calls — which is stale by exactly the messages this turn added.
@@ -321,7 +385,8 @@ public class ConversationService {
             store.close(businessId, conversationId, ConversationStatus.CLOSED);
             status = ConversationStatus.CLOSED;
         }
-        return new ConversationTurn(conversationId, reply, appointmentCreated, status, remaining);
+        return new ConversationTurn(
+                conversationId, reply, appointmentCreated, appointmentUpdated, status, remaining);
     }
 
     private static long millisSince(long startedAtNanos) {

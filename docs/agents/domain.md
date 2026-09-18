@@ -44,7 +44,8 @@ if one appears later, read it instead of the root glossary alone.
 │   ├── 0008-the-manage-page-says-whether-an-address-is-on-file.md
 │   ├── 0009-a-hand-written-rest-client-instead-of-an-sdk.md
 │   ├── 0010-revenue-reports-one-currency-and-names-the-remainder.md
-│   └── 0011-the-e2e-fake-provider-lives-behind-the-base-url.md
+│   ├── 0011-the-e2e-fake-provider-lives-behind-the-base-url.md
+│   └── 0012-writes-are-checked-against-offered-slots-and-never-refused.md
 ├── backend/
 └── frontend/
 ```

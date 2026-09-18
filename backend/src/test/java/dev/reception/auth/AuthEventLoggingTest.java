@@ -10,6 +10,7 @@ import com.jayway.jsonpath.JsonPath;
 import dev.reception.support.AuthTestClient;
 import dev.reception.support.DatabaseCleaner;
 import dev.reception.support.IntegrationTest;
+import dev.reception.support.MappedSurface;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -23,7 +24,6 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.test.web.client.TestRestTemplate;
 import org.springframework.boot.test.web.server.LocalServerPort;
-import org.springframework.web.servlet.mvc.method.RequestMappingInfo;
 import org.springframework.web.servlet.mvc.method.annotation.RequestMappingHandlerMapping;
 
 /**
@@ -254,27 +254,20 @@ class AuthEventLoggingTest extends IntegrationTest {
                 .toList();
     }
 
+    /**
+     * The {@code /auth} surface, as {@code "METHOD /pattern"}.
+     *
+     * <p>{@link MappedSurface#declaringAMethod()} drops the mappings Spring pairs with no verb. That
+     * costs nothing here — the only one is framework-declared Spring's {@code /error}, which {@link
+     * MappedSurface#ours()} has already removed — and it is written down because a narrowing nobody
+     * can see is a narrowing nobody re-examines. {@code MappedSurfaceTest} is where the methodless
+     * set is held to its shape.
+     */
     private Set<String> authSurface() {
-        Set<String> endpoints = new TreeSet<>();
-        mappings.getHandlerMethods().forEach((info, handler) -> {
-            if (!handler.getBeanType().getPackageName().startsWith("dev.reception")) {
-                return;
-            }
-            for (String pattern : patternsOf(info)) {
-                if (!pattern.startsWith("/auth")) {
-                    continue;
-                }
-                info.getMethodsCondition()
-                        .getMethods()
-                        .forEach(method -> endpoints.add(method.asHttpMethod().name() + " " + pattern));
-            }
-        });
-        return endpoints;
-    }
-
-    private static Set<String> patternsOf(RequestMappingInfo info) {
-        return info.getPathPatternsCondition() == null
-                ? Set.of()
-                : info.getPathPatternsCondition().getPatternValues();
+        return MappedSurface.of(mappings)
+                .ours()
+                .declaringAMethod()
+                .under("/auth")
+                .signatures();
     }
 }

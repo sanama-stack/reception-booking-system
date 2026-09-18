@@ -11,6 +11,7 @@ import dev.reception.tenancy.TenantAdoption;
 import java.time.Clock;
 import java.time.DayOfWeek;
 import java.time.LocalDate;
+import java.time.OffsetDateTime;
 import java.time.temporal.TemporalAdjusters;
 import java.util.List;
 import java.util.Optional;
@@ -173,9 +174,159 @@ class ProbeInstrumentationTest extends IntegrationTest {
                 .containsExactlyInAnyOrder(first.toString(), first.plusWeeks(1).toString());
     }
 
+    /**
+     * {@link ProbeQueries#ALL_TOOL_CALLS} is what a corpus failure prints, and a corpus failure is
+     * rare, expensive and read once. It has to carry the arguments: on 2026-09-15 the live corpus
+     * caught the Receptionist refusing a reschedule on the claim that a free slot was taken, and
+     * what it had sent to {@code find_available_slots} was unrecoverable, because the only thing
+     * recorded was the tool's name.
+     */
+    @Test
+    @DisplayName("the corpus dump carries each call's arguments and its result, not just the name")
+    void the_tool_call_dump_renders_arguments_and_result() {
+        model.willCall("resolve_date", "{\"weekday\":\"MONDAY\",\"weeks_ahead\":1}")
+                .willCall("find_available_slots", "{\"date_from\":\"%s\"}".formatted(aria.monday))
+                .willSay("Here is what I have.");
+
+        ask("the Monday after next, please");
+
+        List<String> calls = jdbc.queryForList(ProbeQueries.ALL_TOOL_CALLS, String.class);
+
+        // Order made, name, and -- the entire point -- the arguments the model actually sent.
+        assertThat(calls).hasSize(2);
+        assertThat(calls.get(0)).startsWith("resolve_date(").contains("\"weekday\": \"MONDAY\"");
+        assertThat(calls.get(1))
+                .startsWith("find_available_slots(")
+                .contains("\"date_from\": \"" + aria.monday + "\"")
+                .contains(") -> ");
+    }
+
+    /**
+     * A truncated result must announce itself. A slot list is long enough to hit the cap, and a
+     * result silently cut at 300 characters reads exactly like a short one -- which is the reading
+     * error this whole class exists to stop.
+     */
+    @Test
+    @DisplayName("a result past the cap is cut and says that it was")
+    void a_long_result_is_marked_as_truncated() {
+        // A VALID call, with the service_id the tool requires. Without it the tool answers
+        // "service_id is required" in about a hundred characters, the cap never fires, and the
+        // assertion below passes against a truncation that never happened -- which is what the
+        // first draft of this test did, behind an if/else that accepted either outcome.
+        model.willCall(
+                        "find_available_slots",
+                        "{\"date_from\":\"%s\",\"service_id\":\"%s\"}".formatted(aria.monday, aria.serviceId))
+                .willSay("Here is what I have.");
+
+        ask("what have you got free next Monday?");
+
+        String rendered = jdbc.queryForList(ProbeQueries.ALL_TOOL_CALLS, String.class)
+                .getFirst();
+
+        // Asserted unconditionally rather than behind an if. A branch that accepts either outcome
+        // would pass against a cap that never fires, which is a test of nothing: the fixture's open
+        // day returns enough slots to blow 300 characters, and if that ever stops being true this
+        // should go red and be re-read rather than quietly stop exercising the cap.
+        assertThat(rendered).endsWith("...[truncated]");
+        // Either way the arguments survive, because they are rendered before the cap applies.
+        assertThat(rendered).contains("\"date_from\": \"" + aria.monday + "\"");
+    }
+
+    /**
+     * The two projections #40's harness reads. A valid search really does return slots, and the
+     * offered set really does contain the time the fixture leaves free — because the whole question
+     * that harness answers is whether a refusal happened with the slot on the table or without it,
+     * and a projection that quietly returned nothing would answer "without it" every time.
+     */
+    @Test
+    @DisplayName("the offered slots come back, and truncation is reported as the tool set it")
+    void the_offered_slots_and_the_truncation_flag_are_readable() {
+        UUID conversation = searchTheFixturesOpenDay();
+
+        List<String> offered = jdbc.queryForList(ProbeQueries.OFFERED_SLOT_STARTS, String.class, conversation);
+        assertThat(offered).isNotEmpty();
+
+        // 15:00 on the fixture's open day is free by construction -- nothing is booked in this test
+        // -- so it MUST be among the offered starts. This is the assertion #40's harness stands on.
+        OffsetDateTime wanted = aria.at(aria.monday, 15, 0);
+        assertThat(offered.stream().map(OffsetDateTime::parse).map(OffsetDateTime::toInstant))
+                .describedAs("offered starts: %s", offered)
+                .contains(wanted.toInstant());
+
+        // The tool computes this; the harness must not re-derive it from where the list stops.
+        assertThat(jdbc.queryForObject(ProbeQueries.ANY_SEARCH_TRUNCATED, Boolean.class, conversation))
+                .isNotNull();
+    }
+
+    /**
+     * A refused search must contribute <strong>no</strong> offered slots. #40's harness asks whether
+     * a refusal happened with the wanted slot on the table, so a rejected call leaking in as
+     * "offered nothing" is fine and a rejected call raising would lose the trial entirely — and
+     * measured on 2026-09-15, the model's first search is rejected in most conversations.
+     *
+     * <p><strong>This passes with the {@code jsonb_typeof} guard removed, which was checked.</strong>
+     * {@code tool_result->'slots'} is SQL NULL for an error object and
+     * {@code jsonb_array_elements} is strict, so emptiness here comes from NULL-strictness rather
+     * than from the guard. The assertion is kept because the harness depends on the property; the
+     * claim that the guard produces it was wrong and is corrected in {@link ProbeQueries}.
+     */
+    @Test
+    @DisplayName("a refused search contributes no offered slots")
+    void a_refused_search_does_not_break_the_offered_slots_projection() {
+        // No service_id: the tool answers VALIDATION_FAILED, and tool_result has no slots array.
+        model.willCall("find_available_slots", "{\"date_from\":\"%s\"}".formatted(aria.monday))
+                .willSay("Let me check.");
+
+        UUID conversation = ask("what have you got free next Monday?");
+
+        assertThat(jdbc.queryForList(ProbeQueries.OFFERED_SLOT_STARTS, String.class, conversation))
+                .isEmpty();
+        assertThat(jdbc.queryForObject(ProbeQueries.ANY_SEARCH_TRUNCATED, Boolean.class, conversation))
+                .isFalse();
+    }
+
+    /** A valid search of the fixture's open day, which is what both projections above read. */
+    private UUID searchTheFixturesOpenDay() {
+        model.willCall(
+                        "find_available_slots",
+                        "{\"date_from\":\"%s\",\"service_id\":\"%s\"}".formatted(aria.monday, aria.serviceId))
+                .willSay("Here is what I have.");
+        return ask("what have you got free next Monday?");
+    }
+
     private UUID ask(String utterance) {
         ConversationService.StartedConversation started = conversations.start(Optional.empty());
         conversations.respond(started.sessionToken(), utterance);
         return started.conversationId();
+    }
+
+    /**
+     * <strong>A fifty-trial arm outlives its own login, and the harness has to survive that.</strong>
+     *
+     * <p>The access token lives fifteen minutes. Measured 2026-09-15, an ISO arm ran 16m 32s
+     * because the provider was slow that hour and died at trial 36 with {@code 401 TOKEN_EXPIRED}
+     * while creating the next appointment — thirty-six trials of paid-for model calls thrown away
+     * for a reason that had nothing to do with the model. {@code BookingScenario.bookedAt} now
+     * refreshes once and retries.
+     *
+     * <p>Free to prove, and proven here rather than by running another arm and hoping: dropping
+     * the access cookie is the exact state of a real session fifteen minutes in, which is what
+     * {@code AuthTestClient.expireCookie} exists for. Reverting the retry turns this red.
+     */
+    @Test
+    @DisplayName("the fixture books through an expired access token, because a long arm outlives one")
+    void the_fixture_survives_its_own_session_expiring() {
+        databaseCleaner.clean();
+        BookingScenario aria = BookingScenario.open(rest, port, clock);
+
+        // Fifteen minutes in, as a browser would have it: the access cookie is gone and the
+        // refresh cookie is not.
+        aria.owner.expireCookie("access_token");
+
+        String id = aria.bookedAt(aria.at(aria.monday, 12, 0));
+
+        assertThat(id).isNotBlank();
+        assertThat(jdbc.queryForObject("select count(*) from appointments", Integer.class))
+                .isEqualTo(1);
     }
 }

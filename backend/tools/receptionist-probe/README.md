@@ -58,7 +58,16 @@ there too: fifty conversations cannot separate 96% from 100% (Fisher, one-sided,
 
 ## Running it
 
-The fixtures are written by a test and are gitignored, because they are outputs:
+First, prove the instrument. No key, no network and no fixtures needed:
+
+```bash
+python3 probe.py --self-test
+```
+
+It drives the loop against scripted responses and asserts that it is bounded the way
+`ConversationService.runTurn` is bounded. `make check-probe` runs the same thing, and so does CI.
+
+The fixtures — all three — are written by a test and are gitignored, because they are outputs:
 
 ```bash
 cd backend
@@ -150,7 +159,45 @@ about how customers speak that #17's weekday arm contradicts — so note that a 
 poorly argued and the decision it defends still correct. Finding the hole is not evidence for the
 alternative.
 
-## Phrasing is a variable, and a large one
+## `date_from` lands one day after the appointment's CURRENT date
+
+Measured 2026-09-15, four ISO arms. **The probe cannot see this one** — that is the first result,
+and it was checked before anything was concluded from the rate tests:
+
+| probe utterance | expected | result |
+|---|---|---|
+| "What have you got free on 2026-09-25?" — today+10, outside the seven-day list | FRIDAY | 30 / 30 |
+| "What have you got free on 2026-09-18?" — today+3, inside the list | FRIDAY | 20 / 20 |
+| "Anything at 15:00 on 2026-09-25?" — with a time | FRIDAY | 20 / 20 |
+
+**70 of 70.** The model copies an explicit ISO date into `date_from` without difficulty, so the
+defect is not date handling and this instrument is blind to it — which is what the table at the
+top of this file has always said about a multi-turn failure.
+
+The rate tests then separated two dates that had always been equal. Every arm in this project's
+history booked the appointment on the day the Customer went on to name:
+
+| appointment | Customer asks for | wrong landings |
+|---|---|---|
+| 2026-09-28 | 2026-09-28 | `2026-09-29` ×27 |
+| 2026-09-25 | 2026-09-25 | `2026-09-28` ×23 (Sat and Sun are closed) |
+| **2026-09-22** | **2026-09-25** | **`2026-09-23` ×25 — and `2026-09-26` ×0** |
+
+**It is `booked + 1`, not `target + 1` and not `today + 14`.** The model searches forward from
+the day after the appointment's *current* date; the date the Customer named never reaches
+`date_from` on a failing trial.
+
+Separating the days also showed what the old fixture was hiding: a search *window* covered the
+named date in **41 of 50** trials against 6 of 50 same-day, p = 4.9 × 10⁻¹³. The model gets very
+close and starts in the wrong place.
+
+**Three namings, two of them wrong, each consistent with every observation available at the
+time.** `2026-09-29` was simultaneously `today+14` and `target+1`; `target+1` was simultaneously
+`target+1` and `booked+1`. No amount of re-reading the earlier arms could have separated them —
+each cost one arm, and each was settled by moving one variable. `PROBE_TARGET_DAYS` and
+`PROBE_BOOKED_DAYS` exist so the next person can move them in one command.
+
+## Phrasing is a variable, and a large one## Phrasing is a variable, and a large one## Phrasing is a variable, and a large one
 
 Same harness, same target date, same appointment, fifty conversations each — only the wording
 of the date changed:
@@ -165,6 +212,45 @@ arm's trials against 20% of the second's.
 
 So a rate measured with an explicit ISO date is a **best case**, and customers do not talk that way.
 State the phrasing beside the number, the way the weekday test states its weekday.
+
+## What it replays, and what it does not
+
+Of `ConversationService.runTurn`, the probe replays the **budget** and nothing else of it. That is
+the part a measurement rests on: the budget decides which tool calls happen, and what this file
+scores is the arguments of the calls that happened.
+
+Everything else `runTurn` does is absent on purpose — the twenty-message context window (there is
+one turn, so there is no history), persistence, the forty-message ceiling and the daily cost cap
+(refusals before the loop, not decisions inside it), the Offered-Slot check (that measures writes;
+this measures arguments), and the polite hand-off sentence (reported as `(tool ceiling)`). The list
+is in `probe.py`'s header as well, because **an absence nobody wrote down is indistinguishable from
+a bug**.
+
+### The bound it replayed was not the application's
+
+For its whole life before 2026-09-14 the probe counted **rounds**: `for _ in range(MAX_ROUNDS)`,
+with `MAX_ROUNDS = 6`, and every tool call in a response executed because it arrived. The
+application counts **tool calls** — five of them, `ConversationLimits.MAX_TOOL_CALLS_PER_TURN`,
+checked before each model call and again *between the calls of one response*.
+
+The comment reconciling them read *"the application's own limit is
+`ConversationLimits.MAX_TOOL_CALLS_PER_TURN`; this only has to be no smaller"* — which compares two
+numbers that were never in the same unit. Measured against a model asking for eight tools at once:
+
+| | tool calls made | model calls made |
+|---|---|---|
+| the application | 5 | 1 |
+| the probe, counting rounds | **48** | **6** |
+
+Nine and a half times the calls, and the probe scores the `date_from` of every one of them with
+`all()`. This is not a sampling difference like the ones above; it is the instrument outliving the
+turn it is imitating, and it bites hardest exactly where the probe is meant to be useful — on a
+prompt that makes the model go in circles, which is the case the ceiling exists for.
+
+**Two of the three assertions in the self-test's separating case catch it, and the third does not.**
+The one that stays green is the one whose label names the ceiling: `turn ended at the ceiling` reads
+`(tool ceiling)` under both loops, because both of them do end at a ceiling — just not the same one.
+An assertion written about a bound is not automatically one that can see the bound change.
 
 ## The rule that produced all of this
 

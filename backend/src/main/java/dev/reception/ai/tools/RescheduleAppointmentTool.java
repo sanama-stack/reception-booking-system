@@ -7,6 +7,7 @@ import dev.reception.appointments.Actor;
 import dev.reception.appointments.Appointment;
 import dev.reception.appointments.RescheduleService;
 import dev.reception.business.BusinessService;
+import dev.reception.catalog.ServiceCatalogService;
 import dev.reception.customers.CustomerService;
 import dev.reception.staff.EmployeeService;
 import java.time.ZoneId;
@@ -38,16 +39,19 @@ import org.springframework.stereotype.Component;
 public class RescheduleAppointmentTool implements Tool {
 
     private final RescheduleService reschedule;
+    private final ServiceCatalogService catalog;
     private final EmployeeService employees;
     private final BusinessService businesses;
     private final CustomerService customers;
 
     public RescheduleAppointmentTool(
             RescheduleService reschedule,
+            ServiceCatalogService catalog,
             EmployeeService employees,
             BusinessService businesses,
             CustomerService customers) {
         this.reschedule = reschedule;
+        this.catalog = catalog;
         this.employees = employees;
         this.businesses = businesses;
         this.customers = customers;
@@ -87,11 +91,27 @@ public class RescheduleAppointmentTool implements Tool {
                 Actor.ai());
 
         ZoneId zone = businesses.read().timezone();
+        var service = catalog.read(moved.serviceId());
         ObjectNode result = ToolResults.object();
         result.put("appointment_id", moved.getId().toString());
+        // The code the Customer already has. A reschedule deliberately does not reissue it — see
+        // this class's note on why — so this is the same string create_appointment returned, and
+        // the card can show it beside the new time rather than leaving a gap where it was.
+        result.put("confirmation_code", moved.confirmationCode());
         result.put("starts_at", moved.startsAt().atZone(zone).toOffsetDateTime().toString());
         result.put("ends_at", moved.endsAt().atZone(zone).toOffsetDateTime().toString());
+        // Everything from here down exists so this result projects onto the same
+        // PublicResponses.BookedAppointment create_appointment's does. A moved Appointment is a
+        // confirmed Appointment fully described, and one card should render either; the fields were
+        // absent while nothing rendered a card for a move, which is the gap this closes.
+        result.put("timezone", zone.getId());
+        result.put("service_name", service.name());
+        result.put("service_duration_minutes", service.durationMinutes());
         result.put("employee_name", employees.read(moved.employeeId()).fullName());
+        // The Appointment's own snapshot, never the Service's current price. A Service repriced
+        // after the booking must not make the card disagree with what the Customer will pay.
+        result.put("price", moved.priceAmount().toPlainString());
+        result.put("currency", moved.currency());
         result.put("reschedule_email_sent", customers.read(moved.customerId()).hasEmail());
         return result;
     }

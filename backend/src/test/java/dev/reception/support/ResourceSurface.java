@@ -15,9 +15,17 @@ import org.springframework.web.servlet.handler.SimpleUrlHandlerMapping;
  *
  * <p>That is the whole reason this is a class rather than a private method twice. A generator copied
  * between two tests is two generators, and the day they disagree is the day one of them is asserting
- * something about paths the other does not believe exist. The repository has five copies of {@code
- * patternsOf} and they have been harmless; this one produces a <em>value</em> that two assertions
- * compare against the world, which is a different risk.
+ * something about paths the other does not believe exist.
+ *
+ * <p>This javadoc used to continue: <em>"the repository has five copies of {@code patternsOf} and
+ * they have been harmless; this one produces a value that two assertions compare against the world,
+ * which is a different risk."</em> <strong>The distinction was real and the conclusion was
+ * wrong.</strong> The copies never disagreed with each other — they agreed, about what they could
+ * not see. All of them paired a pattern with a verb, so a mapping declaring no verb contributed
+ * nothing to any of them and was reported as nothing by all of them, and a blind spot shared by six
+ * controls is invisible from inside every one. {@code MappedSurfaceTest} is what that cost. There
+ * are now no copies: {@link MappedSurface} is the single derivation, and it hands the methodless
+ * mappings back rather than swallowing them.
  */
 public final class ResourceSurface {
 

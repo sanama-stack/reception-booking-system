@@ -157,8 +157,33 @@ public final class BookingScenario {
     }
 
     /** The id of an appointment booked at this time, failing loudly if the booking was refused. */
+    /**
+     * Books, refreshing the owner's session once if the access token has expired underneath it.
+     *
+     * <p><strong>A long probe arm outlives its own login.</strong> The access token lives fifteen
+     * minutes and a fifty-conversation arm can take longer than that — measured 2026-09-15, an
+     * ISO arm ran 16m 32s when the provider was slow and died at trial 36 with
+     * {@code 401 TOKEN_EXPIRED} while creating the next appointment. Nothing was wrong with the
+     * model or the fixture; the run simply lasted longer than a session does.
+     *
+     * <p>Retried rather than pre-emptively refreshed, because the trip is only needed on the one
+     * trial that straddles the boundary, and because a refresh on a schedule would silently stop
+     * exercising the expiry path if the lifetime ever changed. One retry only: a second 401 is a
+     * real failure and must not become a loop that hides it.
+     *
+     * <p>The refresh rotates both cookies and {@link AuthTestClient} stores whatever it is sent,
+     * so there is no token handling here — the same reason that class does not touch one.
+     */
     public String bookedAt(OffsetDateTime startsAt) {
         ResponseEntity<String> response = book(startsAt);
+        if (response.getStatusCode().value() == 401) {
+            ResponseEntity<String> refreshed = owner.post("/auth/refresh", null);
+            if (!refreshed.getStatusCode().is2xxSuccessful()) {
+                throw new IllegalStateException(
+                        "Fixture could not refresh an expired session: " + refreshed.getBody());
+            }
+            response = book(startsAt);
+        }
         if (!response.getStatusCode().is2xxSuccessful()) {
             throw new IllegalStateException("Fixture could not book: " + response.getBody());
         }

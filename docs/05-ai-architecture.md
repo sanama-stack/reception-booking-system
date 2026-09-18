@@ -30,7 +30,8 @@ runtime code.
 
 ## 3. Tools
 
-Eight tools, **plus a ninth under test**. The model has no other way to affect or observe the world.
+Eight tools, **plus a ninth whose arm is measured and whose verdict is open**. The model has no
+other way to affect or observe the world.
 
 | Tool | Reads/Writes | Purpose |
 |---|---|---|
@@ -42,7 +43,7 @@ Eight tools, **plus a ninth under test**. The model has no other way to affect o
 | `lookup_appointment` | R | Prove ownership via code + phone |
 | `cancel_appointment` | **W** | Cancel an authorised appointment |
 | `reschedule_appointment` | **W** | Move an authorised appointment |
-| `resolve_date` | – | Turn a named weekday into a calendar date — **candidate, see below** |
+| `resolve_date` | – | Turn a named weekday into a calendar date — **shipped, not accepted**, ruled 2026-09-15, see below |
 
 ### Signatures
 
@@ -87,12 +88,43 @@ resolve_date { weekday: string, weeks_ahead: integer }   // MONDAY..SUNDAY, 0..8
 → { date, day_of_week, days_from_today }
 ```
 
-> **`resolve_date` is not an accepted part of the design yet.** It is the fourth candidate for
-> [#17](https://github.com/sanama-stack/reception-booking-system/issues/17), and its experiment is
-> **unfinished** — see `docs/experiments/2026-09-11-17-deterministic-date-resolution.md`. It reads
-> nothing and writes nothing; it exists because the model doing seven-day-plus date arithmetic is the
-> defect. Three earlier candidates were rejected and two made things measurably worse, so this table
-> row comes out again if the completed arm says so.
+> **`resolve_date` was ruled on 2026-09-15: not accepted, and kept.** The fourth candidate for
+> [#17](https://github.com/sanama-stack/reception-booking-system/issues/17), measured in full on
+> 2026-09-15 after the 2026-09-11 outage — see
+> `docs/experiments/2026-09-11-17-deterministic-date-resolution.md`. It reads nothing and writes
+> nothing; it exists because the model doing seven-day-plus date arithmetic is the defect.
+>
+> Against a same-question control: the search window covered the named date in **38%** of trials
+> against 18% (p = 0.022), strict landing **70%** against 41% (p = 0.0041), and both "never wrote"
+> (6) and the nearer misreading of the phrase (24) went to **zero**. Called in 50 of 50 trials.
+>
+> **Read the primary as *met*, not as *cleared*** — 19/50 is the pre-registered rule's exact
+> minimum — and note that the 2026-09-11 arm recorded 58% on the same metric, p = 0.036 that the
+> earlier figure was the better one. The replication gap is unexplained; **81.6%, from that arm,
+> must not be quoted again.**
+>
+> **The rule is "accept at ≥ 19/50 if neither veto fires", and the second veto fires.** It reads
+> *no landing may appear one step off the resolver's own output*; trials 31 and 44 asked
+> `MONDAY+1`, were answered `2026-09-28`, and wrote `2026-10-05`. Two of fifty, against seven in
+> the arm that first raised it.
+>
+> **The ruling of 2026-09-15 is that the candidate is not accepted and the tool is kept** — §15 of
+> the experiment record. Not accepted because the primary was met at the rule's exact minimum, did
+> not replicate (58% four days earlier, p = 0.036), and the veto fired. Kept because the control arm
+> *is* the no-resolver arm, so removal is a measured regression — 38% to 18% on the primary, 70% to
+> 41% strict, never-wrote 0 back to 6 — for no measured gain anywhere, the ISO path having exonerated
+> it at p = 0.77.
+>
+> **The veto could not have been satisfied**, which is recorded as a flaw in the pre-registration
+> rather than a reason to accept: written as *any* landing, it fires in 87% of 50-trial arms at the
+> overshoot rate observed here and in 39.5% at a rate of one percent. **T198.**
+>
+> **No further arm is planned.** The row is "shipped, not accepted" and that is its resting state,
+> not a pending decision.
+>
+> The other ten wrong writes are not the veto: the model asked for the wrong week and the resolver
+> answered correctly. That is the interpretation boundary `ResolveDateTool`'s javadoc declined to
+> move into code — now measured rather than assumed.
 
 **Absent from every signature: `business_id`.** It is structurally impossible for the model to name a
 tenant. This is the isolation property, and it is enforced by the shape of the schema rather than by a check.
@@ -174,6 +206,7 @@ is a request and a constraint is a guarantee:
 |---|---|
 | Never state a time not returned by `find_available_slots` | The booking re-validates; a fabricated time is rejected |
 | Never confirm before `create_appointment` returns success | The UI renders confirmation from `appointmentCreated`, not from prose |
+| Never confirm a move before `reschedule_appointment` returns success | The UI renders the moved card from `appointmentUpdated`, not from prose |
 | Never state a price, duration or policy not in context | Prices come only from tool results |
 | Never invent hours, parking, payment methods or policies | Nothing else is in the prompt to draw on |
 | If the answer is not in the context, say so and offer the phone number | — |
@@ -191,13 +224,29 @@ Five mechanisms, in order of strength:
 1. **Structural.** Slot times, prices and durations exist in the reply only because a tool returned them.
    A fabricated slot fails re-validation at booking and returns `409` or a `422`.
 2. **The confirmation is not prose.** The UI renders the booking card from the API's `appointmentCreated`
-   object. If the model says "you're booked" without a successful tool call, no card appears — the lie is
-   visible rather than convincing.
+   object, and the moved card from `appointmentUpdated`. If the model says "you're booked" or "you're moved"
+   without a successful tool call, no card appears — the lie is visible rather than convincing.
+
+   **This was missing for a move until phase 11.** `reschedule_appointment` returned the `starts_at` the
+   server had landed on, and the loop dropped it, so the strongest control in this list did not cover the
+   one path [#17](https://github.com/sanama-stack/reception-booking-system/issues/17) measures: a customer who was
+   moved had only the model's sentence to read the new date from. `ConversationService` now captures the
+   reschedule result on the same terms it captures a booking's.
 3. **Bounded knowledge.** The prompt contains the business's real data and nothing else, so there is no
    plausible-but-wrong general knowledge to reach for.
 4. **Explicit ignorance path.** "I don't know, here's the number" is a first-class, instructed answer.
 5. **Test corpus.** A scripted suite asserts zero invented slots, prices and policies. See
    [08-testing-strategy.md](./08-testing-strategy.md).
+
+**And one measurement, which is not a control.** `OfferedSlots` compares every Appointment write
+against the Slots the Conversation actually quoted, and counts the mismatches on the row
+(`writes`, `unoffered_writes`). It refuses nothing — [ADR-0012](./adr/0012-writes-are-checked-against-offered-slots-and-never-refused.md)
+records why, and [#17](https://github.com/sanama-stack/reception-booking-system/issues/17)'s third candidate is the evidence: a
+guard cross-checking two model-authored fields took wrong writes from 28.0% to 44.0%. An Offered
+Slot is authored by the availability engine instead, so the comparison is sound where that one was
+not; but a refusal is a behaviour change needing its own pre-registered arm, and this ships as
+observation. It is the first thing in the system that can see the defect where it actually
+happens, rather than in a funded probe arm afterwards.
 
 ## 7. Prompt injection
 
@@ -225,6 +274,7 @@ validated, then re-validated by the application service, which does not know or 
 | Failure | Behaviour |
 |---|---|
 | Tool returns a domain error (`SLOT_UNAVAILABLE`, `CANCELLATION_WINDOW_CLOSED`) | Returned to the model as a structured result with a human-readable message so it can explain and offer alternatives |
+| Tool write refused by the database (the exclusion constraint, the `@Version` check) | Not a throw. `PersistenceRefusal` reads it as the same `SLOT_UNAVAILABLE` or `VERSION_CONFLICT` the HTTP edge returns, and it is handled as the row above. The translation lived only at the HTTP edge until phase 11, so a Customer who lost a race was told the Receptionist had broken |
 | Tool throws unexpectedly | Generic tool error to the model, full stack trace to logs, one retry, then degrade |
 | Model returns malformed arguments | Near-impossible under strict schemas; if seen, one structured retry, then degrade |
 | Provider timeout or 5xx | `503 AI_UNAVAILABLE`; UI shows the Classic Flow |

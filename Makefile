@@ -21,7 +21,7 @@ E2E_ENV := COMPOSE_PROJECT_NAME=reception-e2e \
 .PHONY: help up up-all up-e2e down down-e2e logs logs-e2e test e2e migrate seed rebuild ps psql \
         check-ports check-bindings check-docs check-pipeline \
         check-headers check-access-log check-fake-provider check-secrets check-java \
-        check-project
+        check-project rebaseline-weekday
 
 help: ## Show this help
 # [0-9] in the class, because without it a target with a digit in its name — up-e2e — is
@@ -179,6 +179,39 @@ logs-e2e: ## Dump the E2E topology's container logs (what a CI failure needs)
 # has been shown to fail when the policy is replaced by a counter.
 check-fake-provider: ## Run the fake AI provider's self-test (no containers needed)
 	node infra/fake-provider/selftest.js
+
+# The probe's own check, and the same shape as the double's above: it asserts the property that
+# makes the instrument usable — that its loop is bounded the way ConversationService.runTurn is
+# bounded — and that property HAS failed. The probe counted rounds where the application counts
+# tool calls, so against a model asking for eight tools at once it made 48 calls where a turn makes
+# five. No key, no network and no fixtures.
+check-probe: ## Run the Receptionist probe's self-test (no key, no containers needed)
+	python3 backend/tools/receptionist-probe/probe.py --self-test
+
+# The row-4 arm of #15, which is the ONLY cell comparable with the numbers that issue carries.
+#
+# Both recorded baselines -- 48 of 50, then 142 of 150 -- were taken on a THURSDAY asking about
+# MONDAY. The row the model has to find is the distance between those two days, so the same command
+# on any other day measures a different cell of a 7x7 grid and reports it in the same format, in the
+# same range, with the same summary line. That is why the check below refuses instead of warning:
+# the failure mode here is not a wrong-looking number, it is a RIGHT-looking one.
+#
+# Asia/Tbilisi, not `date`, because the test JVM is pinned to Pacific/Kiritimati (+14) by
+# build.gradle.kts and the test reads the business's own zone. The two disagree about which day it
+# is for ten hours out of every twenty-four, and only one of them is the day being measured.
+#
+# 150 rather than 50 because 48/50 against a perfect 50/50 is Fisher p = 0.25 one-sided, which is no
+# result at all. Separating 96% from 100% needs about a hundred and fifty, and twelve minutes.
+#
+# Gradle does not stream this test's output, so BUILD SUCCESSFUL says nothing about whether a single
+# conversation reached the model -- the test asserts nothing and passes either way. The XML is
+# archived before the next --rerun overwrites it, and the ERRORED count is what to read first.
+REBASELINE_DAY := Thursday
+REBASELINE_TRIALS := 150
+REBASELINE_XML := build/test-results/test/TEST-dev.reception.ai.probe.WeekdayResolutionRateTest.xml
+
+rebaseline-weekday: check-java ## Re-measure #15's weekday rate in the row-4 arm (Thursdays only, ~12 min, buys credits)
+	@today=$$(TZ=Asia/Tbilisi date '+%A'); 	 if [ "$$today" != "$(REBASELINE_DAY)" ]; then 	   echo "Refusing: it is $$today in Asia/Tbilisi, and this arm is $(REBASELINE_DAY)-only."; 	   echo "  why      #15's 142/150 was taken on a $(REBASELINE_DAY) asking about MONDAY -- row 4 of seven."; 	   echo "           The row is the distance between the two days, so another day measures another"; 	   echo "           cell and prints it identically. A number from the wrong cell is worse than none."; 	   echo "  instead  wait for $(REBASELINE_DAY) -- or take a deliberately NEW baseline, and label it as one:"; 	   echo "               cd backend && PROBE_CONVERSATIONS=$(REBASELINE_TRIALS) \\"; 	   echo "                 ./gradlew test -PincludeTags=probe --tests '*WeekdayResolutionRateTest' --rerun"; 	   exit 1; 	 fi; 	 key=$$(grep '^OPENAI_API_KEY=' .env 2>/dev/null | cut -d= -f2-); 	 if [ -z "$$key" ]; then 	   echo "No OPENAI_API_KEY in .env. This arm buys $(REBASELINE_TRIALS) live conversations."; 	   exit 1; 	 fi; 	 stamp=$$(TZ=Asia/Tbilisi date '+%Y-%m-%dT%H%M%S'); 	 cd backend; 	 OPENAI_API_KEY="$$key" PROBE_CONVERSATIONS=$(REBASELINE_TRIALS) PROBE_WEEKDAY=MONDAY PROBE_ASKED_ON=THURSDAY 	   ./gradlew test -PincludeTags=probe --tests '*WeekdayResolutionRateTest' --rerun; 	 gradle_status=$$?; 	 if [ ! -f "$(REBASELINE_XML)" ]; then 	   echo "No result XML -- nothing was measured (gradle exited $$gradle_status)."; 	   exit 1; 	 fi; 	 mkdir -p probe-runs; 	 cp "$(REBASELINE_XML)" "probe-runs/$$stamp-row4.xml"; 	 python3 -c "import sys,xml.etree.ElementTree as ET; [sys.stdout.write(t.text or '') for t in ET.parse('$(REBASELINE_XML)').getroot().iter('system-out')]" 	   > "probe-runs/$$stamp-row4.log"; 	 echo; 	 echo "evidence  backend/probe-runs/$$stamp-row4.{xml,log}"; 	 echo; 	 tail -n 12 "probe-runs/$$stamp-row4.log"; 	 exit $$gradle_status
 
 # Expects `make up-e2e` to be running. It is deliberately not a dependency of this target: bringing
 # the stack up takes minutes and rebuilds images, and a test target that silently does that is a

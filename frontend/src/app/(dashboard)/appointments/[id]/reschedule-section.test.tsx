@@ -1,5 +1,6 @@
-import { describe, expect, it } from 'vitest';
-import { fireEvent, screen } from '@testing-library/react';
+import { describe, expect, it, vi } from 'vitest';
+import { fireEvent, screen, waitFor } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { renderWithToasts, serve } from '@/test/harness';
 import { RescheduleSection } from './reschedule-section';
 import { APPOINTMENT, EMPLOYEES, NO_TIMES, SERVICE } from '@/test/fixtures';
@@ -57,5 +58,103 @@ describe('RescheduleSection', () => {
 
     expect(await screen.findByText('Pick a date')).toBeInTheDocument();
     expect(screen.getByText('Times are computed one day at a time.')).toBeVisible();
+  });
+});
+
+/**
+ * The move refused, and the branch that leaves the panel rather than staying in it.
+ *
+ * Two dispositions, and the difference is about whether this screen can still be trusted.
+ * An ordinary refusal keeps the panel open, banners the server's sentence, drops the chosen time
+ * and re-asks for the times — because the grid was computed against a world that has since
+ * moved, most obviously somebody taking the slot first, and leaving a dead list up invites a
+ * second press on a time that is already gone.
+ *
+ * `VERSION_CONFLICT` is different: the appointment itself changed under this screen, so there is
+ * nothing here worth re-asking. It reloads and closes.
+ */
+
+const TIMES = {
+  timezone: 'UTC',
+  days: [
+    {
+      date: '2026-09-22',
+      slots: [
+        {
+          startsAt: '2026-09-22T10:00:00Z',
+          endsAt: '2026-09-22T10:45:00Z',
+          employee: { id: 'employee-1', fullName: 'Nino Beridze' },
+        },
+      ],
+    },
+  ],
+  emptyReason: null,
+};
+
+function movePanel(onReload = vi.fn(() => Promise.resolve()), onDone = vi.fn()) {
+  renderWithToasts(
+    <RescheduleSection
+      appointment={APPOINTMENT.appointment}
+      service={SERVICE}
+      employees={EMPLOYEES}
+      timezone="UTC"
+      onUpdated={vi.fn()}
+      onReload={onReload}
+      onDone={onDone}
+    />,
+  );
+  return { onReload, onDone };
+}
+
+async function pickATimeAndMove(): Promise<void> {
+  fireEvent.change(screen.getByLabelText('New date'), { target: { value: '2026-09-22' } });
+  await userEvent.click(await screen.findByRole('button', { name: '10:00' }));
+  await userEvent.click(screen.getByRole('button', { name: 'Move appointment' }));
+}
+
+describe('RescheduleSection, refused', () => {
+  it('banners the server sentence and drops the time that has gone', async () => {
+    serve({
+      kind: 'body',
+      bodies: { '/availability': TIMES },
+      refusing: {
+        kind: 'failing',
+        status: 409,
+        code: 'SLOT_UNAVAILABLE',
+        detail: 'That time has just been taken.',
+      },
+    });
+    const { onDone } = movePanel();
+
+    await pickATimeAndMove();
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('That time has just been taken.');
+    // The choice is dropped, so the same doomed press cannot be repeated.
+    expect(screen.getByRole('button', { name: 'Move appointment' })).toBeDisabled();
+    // And the panel stays, because the owner still wants to move this appointment.
+    expect(onDone).not.toHaveBeenCalled();
+  });
+
+  /**
+   * The exception. The appointment changed underneath, so re-asking for times on this screen
+   * would be answering a question about a booking that no longer looks like this one.
+   */
+  it('reloads and closes on a version conflict instead of re-asking', async () => {
+    serve({
+      kind: 'body',
+      bodies: { '/availability': TIMES },
+      refusing: {
+        kind: 'failing',
+        status: 409,
+        code: 'VERSION_CONFLICT',
+        detail: 'This appointment was changed by someone else.',
+      },
+    });
+    const { onReload, onDone } = movePanel();
+
+    await pickATimeAndMove();
+
+    await waitFor(() => expect(onReload).toHaveBeenCalledTimes(1));
+    expect(onDone).toHaveBeenCalledTimes(1);
   });
 });

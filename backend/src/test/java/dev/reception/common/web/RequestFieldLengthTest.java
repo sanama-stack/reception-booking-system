@@ -3,6 +3,7 @@ package dev.reception.common.web;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import dev.reception.support.IntegrationTest;
+import dev.reception.support.MappedSurface;
 import jakarta.validation.constraints.Size;
 import java.lang.reflect.ParameterizedType;
 import java.lang.reflect.RecordComponent;
@@ -144,10 +145,7 @@ class RequestFieldLengthTest extends IntegrationTest {
         Set<String> bounded = new TreeSet<>();
         Set<String> unbounded = new TreeSet<>();
 
-        mappings.getHandlerMethods().forEach((info, handler) -> {
-            if (!handler.getBeanType().getPackageName().startsWith("dev.reception")) {
-                return;
-            }
+        MappedSurface.of(mappings).ours().handlers().forEach(handler -> {
             for (MethodParameter parameter : handler.getMethodParameters()) {
                 if (parameter.getParameterAnnotation(RequestBody.class) == null) {
                     continue;

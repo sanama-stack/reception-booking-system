@@ -117,6 +117,14 @@ something surprising, and it is **deleted ninety days after the Conversation's l
 Conversation itself is kept, because it holds what the Receptionist cost and no free text.
 _Avoid_: History, log, messages, chat record
 
+**Offered Slot**:
+A Slot the Receptionist has quoted to a Customer during a Conversation. It is what a later write is
+checked against: an Appointment written to a time matching no Offered Slot is a time the Customer was
+never shown, which nothing downstream can detect on its own — the time is real and the Appointment is
+valid. Not stored in its own right; it is read back from the Transcript, and so is gone when the
+Transcript is.
+_Avoid_: Quote, proposal, suggestion, option, candidate
+
 **Classic Flow**:
 The deterministic, non-conversational booking path (service → employee → date → slot → confirm) that calls
 the same endpoints the Receptionist's Tools call.

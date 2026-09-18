@@ -9,6 +9,22 @@
  * the payoff of the Caddy decision (docs/06-security.md §2).
  */
 
+/**
+ * Every `code` the server can put on a problem+json body (docs/04-api-overview.md §3), plus the
+ * client-only ones at the end.
+ *
+ * **It is a claim about the server's vocabulary, and the claim is checked** —
+ * `docs/tools/consistency/check.py` compares this list against the `ErrorCode` enum that declares
+ * them. It is checked because this list was originally copied from §3's *table* rather than from
+ * the enum, and a table is a published copy: it inherited that table's phase-01 omissions instead
+ * of the server's actual vocabulary, and nothing could report the difference.
+ *
+ * Membership is not a reachability claim. `UNSUPPORTED_MEDIA_TYPE` is here and cannot be provoked
+ * from this client — `JsonOnlyWriteFilter` refuses the three content types an HTML form can
+ * produce, and both of this module's `fetch` calls send `application/json` or no content type at
+ * all — but a code the server can emit belongs in the vocabulary whether or not this caller can
+ * reach it, because the alternative is a list nobody can check.
+ */
 export type ErrorCode =
   | 'VALIDATION_FAILED'
   | 'EMAIL_TAKEN'
@@ -35,6 +51,7 @@ export type ErrorCode =
   | 'INVALID_CONFIRMATION_CODE'
   | 'MANAGE_TOKEN_INVALID'
   | 'RATE_LIMITED'
+  | 'UNSUPPORTED_MEDIA_TYPE'
   | 'AI_UNAVAILABLE'
   | 'AI_LIMIT_REACHED'
   | 'UNAUTHENTICATED'
@@ -122,7 +139,13 @@ async function normaliseError(response: Response): Promise<ApiError> {
   const retryAfter = response.headers.get('Retry-After');
 
   return new ApiError({
-    code: (problem.code as ErrorCode) ?? 'INTERNAL_ERROR',
+    // Asserted rather than narrowed, and deliberately: a code this union has not heard of is
+    // passed through verbatim, because `ErrorState` prints the code under the message and it is
+    // the one diagnostic a user can read back. Mapping the unknown onto a known member would
+    // replace that with a false one and lose the only clue. The fallback is for a body carrying
+    // no `code` at all — it sits outside the assertion so the type checker can still see that
+    // `problem.code` is optional, which it could not when the cast came first.
+    code: (problem.code ?? 'INTERNAL_ERROR') as ErrorCode,
     message: problem.detail ?? problem.title ?? 'The request could not be completed.',
     status: response.status,
     fieldErrors,
@@ -181,11 +204,20 @@ async function refreshSession(baseUrl: string): Promise<boolean> {
 /**
  * The codes that say the session a caller had is over, with nothing left to recover it from.
  *
- * Deliberately an explicit list rather than `status === 401`. Two other 401s are emphatically not
- * this: a failed sign-in (`INVALID_CREDENTIALS`), which happens to someone who has no session and
- * is already looking at the form, and an expired Manage Link (`MANAGE_TOKEN_INVALID`), which
- * belongs to a public visitor who never had one. Notifying on either would sign out a bystander,
- * and on the login screen it would redirect that screen to itself.
+ * Deliberately an explicit list rather than `status === 401`. Seven codes carry a 401 and only
+ * these two mean the session is over. Two more are the refresh path below. The remaining **three**
+ * are emphatically not this: a failed sign-in (`INVALID_CREDENTIALS`), which happens to someone who
+ * has no session and is already looking at the form; an expired Manage Link
+ * (`MANAGE_TOKEN_INVALID`), which belongs to a public visitor who never had one; and a customer's
+ * failed appointment lookup (`INVALID_CONFIRMATION_CODE`), which belongs to one who never will.
+ * Notifying on any of them would sign out a bystander, and on the login screen it would redirect
+ * that screen to itself.
+ *
+ * It counted two correctly when it was written, and phase 08 falsified it the next day by adding a
+ * third non-session 401 in the backend. Nothing links a new enum constant to a sentence in another
+ * language that counts them — and checking the sentence against docs/04-api-overview.md §3 would
+ * not have caught it either, because that table published `INVALID_CONFIRMATION_CODE` as a `404`
+ * until the same commit as this line.
  */
 const SESSION_IS_OVER: ReadonlySet<ErrorCode> = new Set(['UNAUTHENTICATED', 'TOKEN_REUSED']);
 
@@ -209,6 +241,15 @@ export function setSessionExpiredHandler(listener: SessionExpiredListener | null
   onSessionExpired = listener;
 }
 
+/**
+ * Every request the application makes, and the one promise its callers are built on: **this
+ * rejects with an `ApiError` and with nothing else.**
+ *
+ * Every screen branches on `instanceof ApiError` to decide what to say, so the branch for anything
+ * else is written twenty-six times and taken never — which is only true while all three ways out
+ * of here produce one: a dead connection, a refusal the server described, and a reply that could
+ * not be read. `client.test.ts` asserts each.
+ */
 async function request<T>(
   method: string,
   path: string,
@@ -274,7 +315,24 @@ async function request<T>(
     return undefined as T;
   }
 
-  return (await response.json()) as T;
+  try {
+    return (await response.json()) as T;
+  } catch {
+    // The last way a caller could be handed something that is not an `ApiError`. A 2xx whose body
+    // is not JSON — an upstream error page, a truncated reply — threw a bare `SyntaxError` from
+    // here, and the guard above does not close it: a chunked response carries no `Content-Length`.
+    //
+    // It matters because of what every caller does with the distinction. Twenty-six modules
+    // branch on `instanceof ApiError` and show something else when it is false; on the login and
+    // register forms that something else is `null`, which renders nothing — a press that stops
+    // spinning and says no more than it did before. `client.test.ts` asserts the promise this
+    // makes, because a promise that many callers rely on should not be a comment.
+    throw new ApiError({
+      code: 'INTERNAL_ERROR',
+      message: 'The server replied with something this page could not read. Please try again.',
+      status: response.status,
+    });
+  }
 }
 
 export const api = {

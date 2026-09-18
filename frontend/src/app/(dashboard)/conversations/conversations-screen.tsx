@@ -30,6 +30,8 @@ export function ConversationsScreen({
   path,
   timezone,
   onPage,
+  unofferedOnly,
+  onUnofferedOnly,
 }: {
   path: string;
   /**
@@ -41,18 +43,45 @@ export function ConversationsScreen({
    */
   timezone: Timezone;
   onPage: (page: number) => void;
+  /** Whether the list is narrowed to conversations that wrote to a time they never offered. */
+  unofferedOnly: boolean;
+  onUnofferedOnly: (value: boolean) => void;
 }) {
   const conversations = useResource<ConversationPage>(path);
+
+  /*
+    Rendered above the table *and* above the empty state, because "no conversations at all" and
+    "none unoffered" are different answers and the second is only legible if the control that
+    produced it is still on screen. An empty state with no way back is a dead end.
+  */
+  const filter = (
+    <div className="flex justify-end">
+      <Button
+        variant={unofferedOnly ? 'primary' : 'secondary'}
+        size="sm"
+        onClick={() => onUnofferedOnly(!unofferedOnly)}
+      >
+        {unofferedOnly ? 'Showing unoffered only' : 'Show unoffered only'}
+      </Button>
+    </div>
+  );
 
   return (
     <ResourceGate resource={conversations}>
       {(result) => {
         if (result.items.length === 0) {
           return (
-            <EmptyState
-              title="No conversations yet"
-              description="A conversation appears here the first time somebody speaks to the receptionist on your booking page. Nothing is recorded for a visitor who only reads the page."
-            />
+            <div className="flex flex-col gap-4">
+              {filter}
+              <EmptyState
+                title={unofferedOnly ? 'Nothing unoffered' : 'No conversations yet'}
+                description={
+                  unofferedOnly
+                    ? 'Every appointment the receptionist wrote landed on a time it had offered the customer first. That is the state you want this screen in.'
+                    : 'A conversation appears here the first time somebody speaks to the receptionist on your booking page. Nothing is recorded for a visitor who only reads the page.'
+                }
+              />
+            </div>
           );
         }
 
@@ -64,11 +93,13 @@ export function ConversationsScreen({
 
         return (
           <div className="flex flex-col gap-4">
+            {filter}
             <Table>
               <thead>
                 <tr>
                   <Th>Started</Th>
                   <Th>Status</Th>
+                  <Th>Wrote</Th>
                   <Th>Rows</Th>
                   <Th>Cost</Th>
                   <Th>Last activity</Th>
@@ -94,6 +125,32 @@ export function ConversationsScreen({
                       >
                         {LABELS[conversation.status]}
                       </span>
+                    </Td>
+                    {/*
+                      The marker, and the only thing on this screen an owner cannot find any other
+                      way (ADR-0012). A conversation that booked somebody onto a time it never
+                      offered looks completely ordinary from every other column: the appointment is
+                      real, the slot was bookable, the status is `CLOSED` and nothing failed.
+
+                      Deliberately quiet when there is nothing to say — a conversation that wrote
+                      nothing shows a dash rather than "0 of 0", because most conversations book
+                      nothing and a column of zeroes trains an owner to stop reading the column.
+                    */}
+                    <Td className="whitespace-nowrap tabular-nums">
+                      {conversation.writes === 0 ? (
+                        <span className="text-ink-muted">—</span>
+                      ) : conversation.unofferedWrites > 0 ? (
+                        <span
+                          className="border-warning/40 bg-warning/10 text-ink inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-medium"
+                          title="Wrote an appointment to a time this conversation never offered the customer."
+                        >
+                          {conversation.unofferedWrites} of {conversation.writes} unoffered
+                        </span>
+                      ) : (
+                        <span className="text-ink-muted">
+                          {conversation.writes} {conversation.writes === 1 ? 'booking' : 'bookings'}
+                        </span>
+                      )}
                     </Td>
                     {/*
                       "Rows", not "messages". The count includes the tool calls and tool results the

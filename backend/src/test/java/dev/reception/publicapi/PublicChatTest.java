@@ -11,6 +11,7 @@ import dev.reception.support.DatabaseCleaner;
 import dev.reception.support.IntegrationTest;
 import java.time.Clock;
 import java.time.Instant;
+import java.time.OffsetDateTime;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -185,6 +186,103 @@ class PublicChatTest extends IntegrationTest {
 
         assertThat(skeleton(JsonPath.read(turn.getBody(), "$.appointmentCreated")))
                 .as("a Receptionist booking and a Classic Flow booking are the same event")
+                .isEqualTo(skeleton(JsonPath.read(booked.getBody(), "$")));
+    }
+
+    /**
+     * A move earns the same card a booking does, and for the same reason.
+     *
+     * <p>{@code reschedule_appointment} has always returned the {@code starts_at} the server landed
+     * on; the loop dropped it, so after a move the model's prose was the only account of the new
+     * time a Customer could read. That is the surface issue #17 measures, and it is the one place
+     * the hallucination control docs/05-ai-architecture.md §6 calls the strongest in the system was
+     * simply absent.
+     *
+     * <p><strong>The booking carries an address on purpose.</strong> With none, a move enqueues
+     * nothing and {@code confirmationSent} is {@code false} whatever the projection reads — so a
+     * test written that way passes while the field is sourced from the wrong key. The tools name
+     * that fact per action ({@code confirmation_email_sent} against {@code reschedule_email_sent}),
+     * {@code path()} on an absent key yields a missing node, and {@code asBoolean()} on that is
+     * {@code false}: a single hard-coded key would tell every moving Customer that nothing is
+     * coming. This asserts the true case, which is the only one that can fail.
+     */
+    @Test
+    @DisplayName("a move comes back as a card, and it says a message is coming")
+    void a_move_is_projected_into_the_public_vocabulary() {
+        ResponseEntity<String> booked = aria.book(
+                aria.at(aria.monday, 10, 0),
+                aria.employeeId,
+                "Ana Tsereteli",
+                BookingScenario.CUSTOMER_PHONE,
+                "ana@example.com");
+        assertThat(booked.getStatusCode()).isEqualTo(HttpStatus.CREATED);
+        String appointmentId = JsonPath.read(booked.getBody(), "$.appointment.id");
+        String code = JsonPath.read(booked.getBody(), "$.appointment.confirmationCode");
+
+        String manageToken = manageTokens.issue(
+                java.util.UUID.fromString(appointmentId),
+                aria.at(aria.monday, 11, 0).toInstant());
+        Map<String, Object> session = new HashMap<>();
+        session.put("manageToken", manageToken);
+        String token = tokenFrom(stranger.post("/public/businesses/" + slug + "/chat/session", session));
+
+        model.willCall("reschedule_appointment", rescheduleArguments(appointmentId)).willSay("Moved.");
+        ResponseEntity<String> response = sendMessage(token, "move it to twelve");
+
+        // The new time the server landed on, not the one the model said. Parsed rather than
+        // compared as text: OffsetDateTime.toString() elides zero seconds and the wire does not.
+        assertThat(OffsetDateTime.parse(JsonPath.read(response.getBody(), "$.appointmentUpdated.startsAt")))
+                .isEqualTo(aria.at(aria.monday, 12, 0));
+        // A move deliberately does not reissue the code, and the card must not imply it did.
+        assertThat((String) JsonPath.read(response.getBody(), "$.appointmentUpdated.confirmationCode"))
+                .isEqualTo(code);
+        assertThat((String) JsonPath.read(response.getBody(), "$.appointmentUpdated.service.name"))
+                .isEqualTo("Haircut");
+        assertThat((String) JsonPath.read(response.getBody(), "$.appointmentUpdated.timezone"))
+                .isEqualTo(BookingScenario.TBILISI.getId());
+        // The regression this test exists for.
+        assertThat((Boolean) JsonPath.read(response.getBody(), "$.appointmentUpdated.confirmationSent"))
+                .as("an address is on file, so the reschedule email really was enqueued")
+                .isTrue();
+        // Nothing was booked, and the two fields do not stand in for one another.
+        assertThat((Object) JsonPath.read(response.getBody(), "$.appointmentCreated")).isNull();
+        assertThat(response.getBody()).doesNotContain("reschedule_email_sent").doesNotContain("service_name");
+    }
+
+    /**
+     * One card shape, whichever event produced it.
+     *
+     * <p>The sibling of {@link #one_card_shape_serves_both_doors()}, extended to the third door. A
+     * moved Appointment is a confirmed Appointment fully described, which is the whole reason
+     * {@code appointmentUpdated} is {@code BookedAppointment} and not a narrower record — and the
+     * reason {@code reschedule_appointment}'s result was widened rather than a second shape
+     * declared. Comparing structures is what keeps that true: a field added to one tool's result
+     * and not the other fails here, naming itself.
+     */
+    @Test
+    @DisplayName("a moved card and a booked card are the same shape, key for key")
+    void one_card_shape_serves_a_move_too() {
+        Map<String, Object> classic = new HashMap<>();
+        classic.put("serviceId", aria.serviceId);
+        classic.put("employeeId", aria.employeeId);
+        classic.put("startsAt", aria.at(aria.monday, 15, 0).toString());
+        classic.put("customer", Map.of("fullName", "Ana", "phone", "+995555123456"));
+        ResponseEntity<String> booked = stranger.post("/public/businesses/" + slug + "/appointments", classic);
+        assertThat(booked.getStatusCode()).isEqualTo(HttpStatus.CREATED);
+
+        String appointmentId = aria.bookedAt(aria.at(aria.monday, 10, 0));
+        String manageToken = manageTokens.issue(
+                java.util.UUID.fromString(appointmentId),
+                aria.at(aria.monday, 11, 0).toInstant());
+        Map<String, Object> session = new HashMap<>();
+        session.put("manageToken", manageToken);
+        String token = tokenFrom(stranger.post("/public/businesses/" + slug + "/chat/session", session));
+
+        model.willCall("reschedule_appointment", rescheduleArguments(appointmentId)).willSay("Moved.");
+        ResponseEntity<String> turn = sendMessage(token, "move it to twelve");
+
+        assertThat(skeleton(JsonPath.read(turn.getBody(), "$.appointmentUpdated")))
+                .as("a move and a booking are both a confirmed Appointment fully described")
                 .isEqualTo(skeleton(JsonPath.read(booked.getBody(), "$")));
     }
 
@@ -442,6 +540,12 @@ class PublicChatTest extends IntegrationTest {
 
     private static String tokenFrom(ResponseEntity<String> response) {
         return JsonPath.read(response.getBody(), "$.sessionToken");
+    }
+
+    private String rescheduleArguments(String appointmentId) {
+        return """
+                {"appointment_id":"%s","new_starts_at":"%s","employee_id":null}"""
+                .formatted(appointmentId, aria.at(aria.monday, 12, 0));
     }
 
     private String bookingArguments() {

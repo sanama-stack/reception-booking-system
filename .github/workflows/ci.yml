@@ -54,6 +54,30 @@ jobs:
       - name: The Makefile runs the suites this workflow runs
         run: python3 tools/pipeline-parity/check.py
 
+  # The third of the checkout-and-python3 jobs, and it guards an INSTRUMENT rather than the
+  # product. That is the argument for it being here at all: probe.py is the file this project
+  # screens prompt candidates with, it replays ConversationService.runTurn by hand, and for its
+  # whole life it replayed a bound the application does not have — counting rounds where the loop
+  # counts tool calls, which against a model asking for eight tools at once is 48 calls where a
+  # turn makes five. Nothing reported it, and the reason is worth writing down: this repository
+  # already knew instruments need controls — ProbeInstrumentationTest is that lesson (G17) and is
+  # deliberately untagged so CI runs it — but that control is Java and probe.py is Python, off the
+  # classpath and out of the build. The rule could not reach it. This job is where it reaches.
+  #
+  # IT IS NOT IN THE REQUIRED-CHECKS SET, for the same reason the parity job above is not and with
+  # the same caveat: branch protection lives outside this file and no workflow can assert it.
+  #
+  # No working-directory, deliberately. `tools/pipeline-parity/check.py` pairs every directory CI
+  # runs commands in with a make target, and a fourth directory there is a failure by design; this
+  # job runs from the root, as the docs and parity jobs do.
+  loop-parity:
+    name: Receptionist loop parity
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - name: The probe replays the loop's budget, not one of its own
+        run: python3 backend/tools/receptionist-probe/probe.py --self-test
+
   backend:
     name: Backend
     runs-on: ubuntu-latest

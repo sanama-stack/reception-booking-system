@@ -22,8 +22,17 @@ package dev.reception.ai.probe;
  * <p>The two harnesses had near-identical resolver SQL by copy, which is the other half of the
  * problem: a fix applied to one silently left the other blind. It did, for
  * {@code WeekdayResolutionRateTest}, for as long as the resolver has existed.
+ *
+ * <p><strong>There was a third consumer, and G17 had never been applied to it.</strong>
+ * {@code LiveReceptionistTest} read {@code tool_name} alone while {@code tool_arguments} and
+ * {@code tool_result} sat in the same row, so a corpus failure said <em>which</em> tools were called
+ * and never <em>what with</em>. Measured on 2026-09-15: the corpus caught the Receptionist refusing a
+ * reschedule because it claimed a free slot was taken, and the first question anyone asked — what
+ * did it send to {@code find_available_slots}? — could not be answered without paying for the run
+ * again. That is {@link #ALL_TOOL_CALLS}, and it is why this class is public rather than
+ * package-private.
  */
-final class ProbeQueries {
+public final class ProbeQueries {
 
     private ProbeQueries() {}
 
@@ -52,6 +61,72 @@ final class ProbeQueries {
     static final String RESOLVER_DATES = "select tool_result->>'date' from ai_messages where role = 'TOOL' "
             + "and tool_name = 'resolve_date' and conversation_id = ? "
             + "and tool_result->>'date' is not null";
+
+    /**
+     * Every tool call in the database, rendered {@code name({args}) -> {result}} in the order made.
+     *
+     * <p><strong>Deliberately not filtered by conversation</strong>, unlike its three siblings. Its
+     * consumer is {@code LiveReceptionistTest}, whose own {@code toolsCalled()} is unfiltered
+     * because {@code DatabaseCleaner} empties the database before each case — and a failure message
+     * describing different rows from the assertion that produced it is a trap of its own. It is
+     * correct only where the database holds one test's rows, and a rate harness running fifty
+     * conversations into one database must use the filtered queries above.
+     *
+     * <p><strong>The result is truncated at 300 characters and says so when it is.</strong> A slot
+     * list runs to thirty entries and would bury the arguments, which are the part that has
+     * actually been wanted. The marker is there because a silently cut result reads exactly like a
+     * short one, which is the shape this file already exists to prevent.
+     */
+    public static final String ALL_TOOL_CALLS = "select concat(tool_name, '(', "
+            + "coalesce(tool_arguments::text, '{}'), ') -> ', "
+            + "case when tool_result is null then 'null' "
+            + "when length(tool_result::text) > 300 "
+            + "then concat(left(tool_result::text, 300), '...[truncated]') "
+            + "else tool_result::text end) "
+            + "from ai_messages where role = 'TOOL' order by created_at";
+
+    /**
+     * Every slot start time {@code find_available_slots} actually handed back, across a conversation.
+     *
+     * <p><strong>The projection #40 turns on.</strong> That issue is the Receptionist telling a
+     * Customer a free slot is "already booked" and refusing an authorised write. Two explanations
+     * fit that sentence and they point in opposite directions: either the slot <em>was</em> in the
+     * tool's answer and the model contradicted it, or the tool never offered it and the model was
+     * reporting what it had been told. Only the offered set separates them, and it is the one thing
+     * the first observation did not record.
+     *
+     * <p>A refused call — whose {@code tool_result} is an error object with no {@code slots} —
+     * contributes no rows. That is <strong>not</strong> the {@code jsonb_typeof} guard's doing, and
+     * an earlier version of this comment claimed it was: {@code tool_result->'slots'} is SQL NULL
+     * there, and {@code jsonb_array_elements} is strict, so it yields no rows on its own.
+     * <strong>Removing the guard was measured and changed nothing.</strong> It is kept only for the
+     * case the tool does not currently produce — {@code slots} present but not an array, which
+     * would raise — and it is honest to say it has never been seen to fire.
+     *
+     * <p>Note that the jsonb key-exists operator is spelled {@code ?} and would be eaten by JDBC as
+     * a bind placeholder; this deliberately does not use it.
+     */
+    public static final String OFFERED_SLOT_STARTS = "select e->>'starts_at' from ai_messages m, "
+            + "lateral jsonb_array_elements(m.tool_result->'slots') e "
+            + "where m.role = 'TOOL' and m.tool_name = 'find_available_slots' "
+            + "and m.conversation_id = ? "
+            + "and jsonb_typeof(m.tool_result->'slots') = 'array' order by m.created_at";
+
+    /**
+     * Whether any search in a conversation came back cut short by {@code MAX_SLOTS}.
+     *
+     * <p>{@code FindAvailableSlotsTool} sets {@code truncated} itself, comparing how many slots
+     * matched against how many it returned — so the leading candidate mechanism for #40 is a
+     * recorded fact rather than something to be inferred from where a list happens to stop. It was
+     * inferred, on the first observation, from a list ending at 14:45; that inference had zero
+     * trials behind it and this is what replaces it.
+     *
+     * <p>Returns one row, false rather than null when the conversation searched nothing, so a
+     * caller never has to distinguish "not truncated" from "no rows".
+     */
+    public static final String ANY_SEARCH_TRUNCATED =
+            "select coalesce(bool_or((tool_result->>'truncated')::boolean), false) from ai_messages "
+                    + "where role = 'TOOL' and tool_name = 'find_available_slots' and conversation_id = ?";
 
     /** Every {@code date_from} the model searched, in order. The endpoint both harnesses read. */
     static final String SEARCHED_DATES = "select tool_arguments->>'date_from' from ai_messages "

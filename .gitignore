@@ -57,3 +57,7 @@ backend/tools/receptionist-probe/fixtures/
 # stats.py lives in the repo and is meant to be run; running it makes these.
 __pycache__/
 *.pyc
+
+# Raw probe evidence, archived per run so the next --rerun cannot overwrite it. The numbers that
+# matter are quoted in docs/experiments/ and on the issue; these are the working files behind them.
+backend/probe-runs/

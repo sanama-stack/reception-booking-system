@@ -28,6 +28,8 @@ const BASE: ConversationSummary = {
   startedAt: '2026-01-04T09:00:00Z',
   lastMessageAt: '2026-01-04T09:06:00Z',
   messagesPurgedAt: null,
+  writes: 0,
+  unofferedWrites: 0,
 };
 
 function detail(over: Partial<ConversationSummary> = {}): ConversationDetail {

@@ -26,6 +26,13 @@ public final class ConversationResponses {
      *     field an empty transcript beneath a non-zero count is indistinguishable from a
      *     conversation that was opened and never spoken in — and the transcript screen says exactly
      *     that about it
+     * @param writes Appointment writes this Conversation made through {@code create_appointment} or
+     *     {@code reschedule_appointment}
+     * @param unofferedWrites how many of those landed on a time matching no Offered Slot — a time
+     *     the Customer was never shown (ADR-0012). Projected as a count and not a flag because a
+     *     rate is the figure this is read in, and because it outlives the transcript it was derived
+     *     from: at ninety days the messages are gone and these two numbers are all that is left to
+     *     say the Conversation did something surprising
      */
     public record ConversationSummary(
             UUID id,
@@ -37,7 +44,9 @@ public final class ConversationResponses {
             UUID customerId,
             Instant startedAt,
             Instant lastMessageAt,
-            Instant messagesPurgedAt) {
+            Instant messagesPurgedAt,
+            int writes,
+            int unofferedWrites) {
 
         public static ConversationSummary of(AiConversation conversation) {
             return new ConversationSummary(
@@ -50,7 +59,9 @@ public final class ConversationResponses {
                     conversation.customerId(),
                     conversation.startedAt(),
                     conversation.lastMessageAt(),
-                    conversation.messagesPurgedAt());
+                    conversation.messagesPurgedAt(),
+                    conversation.writes(),
+                    conversation.unofferedWrites());
         }
     }
 

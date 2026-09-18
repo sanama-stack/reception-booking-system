@@ -35,6 +35,50 @@ import org.springframework.stereotype.Component;
  * be guessing with more confidence than the model, not less. What moves into code is the
  * <em>arithmetic</em>, which has one right answer.
  *
+ * <p><strong>Measured, and NOT yet accepted.</strong> Fifty live conversations on 2026-09-15, the arm the
+ * 2026-09-11 sitting could not finish because the API ran out of credits. The resolver was called
+ * in <strong>50 of 50</strong> trials, against a same-question control taken on 2026-09-11:
+ *
+ * <pre>
+ *                                   control      with resolver     Fisher, one-sided
+ *   window covered the named date   9/50  18.0%   19/50  38.0%     p = 0.022
+ *   strict landing                  18/44 40.9%   35/50  70.0%     p = 0.0041
+ *   never wrote                     6             0
+ *   nearer reading of the phrase    24            0
+ * </pre>
+ *
+ * <p><strong>Two cautions attach to that table.</strong> It did not reproduce the primary the
+ * 2026-09-11 arm recorded — 58% then, 38% now, p = 0.036 that the earlier number was genuinely
+ * better — so it clears its pre-registered 38% threshold by landing exactly on it, and
+ * <strong>81.6% must not be quoted again</strong>. And the arm below it is not comparable at all:
+ * measured the same day with {@code PROBE_DATE_STYLE=ISO}, the resolver is called <em>zero</em>
+ * times in fifty, because an explicit date needs no arithmetic. An ISO run cannot judge this tool.
+ *
+ * <p><strong>It is not what broke the ISO path, and that was tested rather than assumed.</strong>
+ * The same day's ISO arm fell to 12/40 against 42/47 recorded four days earlier, and the obvious
+ * suspect was this tool sitting in the schema the constrained decoder reads even though it is
+ * never called there. Removing it entirely — bean and both prompt passages, verified by dumping
+ * the eight-tool schema and a prompt naming it zero times — moved nothing: 8/32, p = 0.77 that
+ * removal helped. Distance-to-horizon was tested next and also exonerated (§13). The cause is
+ * elsewhere: on a reschedule the model sets {@code date_from} to the day after the appointment's
+ * <em>current</em> date, ignoring the one the Customer named — §14 of the experiment log.
+ *
+ * <p><strong>The second veto fires, on two trials of fifty.</strong> The pre-registration's rule
+ * is <em>accept at 19/50 or better, if neither veto fires</em>, and the primary came in at exactly
+ * 19/50 — the rule's minimum, met rather than cleared. But the veto reads "no landing may appear
+ * one step off the resolver's own output", and trials 31 and 44 are exactly that: the resolver was
+ * asked {@code MONDAY+1}, answered {@code 2026-09-28}, and the model wrote {@code 2026-10-05}.
+ * Whether a 2-in-50 overshoot should sink a candidate that doubled the primary is a judgement the
+ * pre-registration deliberately did not delegate to whoever reads the numbers. <strong>Until that
+ * call is made this tool stays what it was: shipped on {@code dev}, under test.</strong>
+ *
+ * <p><strong>The rest of the residual is interpretation, exactly where the paragraph above said it
+ * would be.</strong> Of the fifteen wrong writes, ten landed on a date the resolver <em>gave</em> and
+ * five on one it never gave. The resolver's arguments say why: the model asked for
+ * {@code MONDAY+1} forty times and {@code MONDAY+2} ten times, and was served the right answer to
+ * both questions every time. So the arithmetic this tool took over is not the thing still failing
+ * — choosing the week is, and that was left here deliberately.
+ *
  * <p><strong>No horizon check here.</strong> This tool answers "what date is that?" and nothing
  * else; whether the business will take a booking that far out belongs to
  * {@code find_available_slots}, which already enforces it and already explains itself when it

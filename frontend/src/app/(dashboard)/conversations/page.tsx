@@ -14,15 +14,21 @@ import { ConversationsScreen } from './conversations-screen';
  *
  * There is no search. A conversation has no name and no natural key an owner would remember, so a
  * search box would be a box with nothing to type in it; the list is newest-first and the newest is
- * the one being asked about. Phase 10 owns whatever filtering the analytics screen wants.
+ * the one being asked about.
+ *
+ * There is **one** filter, and it earns its place by answering a question nothing else can: which
+ * conversations wrote an appointment to a time they never offered (ADR-0012). Those rows are
+ * invisible from every other column — the booking is real and nothing failed — so without this an
+ * owner holding a complaint has no way to find the conversation it is about.
  */
 export default function ConversationsPage() {
   const { session } = useSession();
   const [page, setPage] = useState(0);
+  const [unofferedOnly, setUnofferedOnly] = useState(false);
 
   if (!session) return null;
 
-  const path = conversationsPath({ page });
+  const path = conversationsPath({ page, unofferedOnly });
 
   return (
     <div className="mx-auto flex max-w-4xl flex-col gap-6">
@@ -42,6 +48,13 @@ export default function ConversationsPage() {
         path={path}
         timezone={session.business.timezone}
         onPage={setPage}
+        unofferedOnly={unofferedOnly}
+        onUnofferedOnly={(value) => {
+          // Back to page one. Page four of the unfiltered list is almost never a page of the
+          // filtered one, and landing on an empty page reads as "nothing found".
+          setPage(0);
+          setUnofferedOnly(value);
+        }}
       />
     </div>
   );

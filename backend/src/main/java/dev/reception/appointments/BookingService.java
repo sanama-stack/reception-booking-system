@@ -180,8 +180,12 @@ public class BookingService {
 
         // saveAndFlush, not save. The INSERT — and therefore the exclusion constraint — must run
         // while this method is still on the stack, or a lost race would surface at commit time as a
-        // 500 from a place that has no idea what it was doing. GlobalExceptionHandler turns the
-        // violation into 409 SLOT_UNAVAILABLE by constraint name.
+        // 500 from a place that has no idea what it was doing. PersistenceRefusal turns the
+        // violation into SLOT_UNAVAILABLE by constraint name, for both of the edges that call this
+        // — a 409 over HTTP, and the same sentence read out by the Receptionist. That second one
+        // was missing until phase 11: this comment named GlobalExceptionHandler, which the
+        // Receptionist does not pass through, and a Customer who lost the race was told the
+        // Receptionist had broken.
         Appointment saved = appointments.saveAndFlush(booked);
         events.created(saved, actor);
         // In this transaction, which is the whole of ADR-0005: a booking that rolls back takes its

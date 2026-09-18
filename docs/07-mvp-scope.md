@@ -62,7 +62,7 @@ If no, it is in [future/future-features.md](./future/future-features.md).
 
 ### Receptionist (AI)
 - OpenAI tool calling with strict JSON schemas
-- Eight tools, **plus a ninth under test** (`resolve_date`, [#17](https://github.com/sanama-stack/reception-booking-system/issues/17)); the model can do nothing else
+- Eight tools, **plus a ninth kept without acceptance** (`resolve_date`, ruled 2026-09-15, [#17](https://github.com/sanama-stack/reception-booking-system/issues/17)); the model can do nothing else
 - Conversation persisted per business
 - Rate limits, turn ceilings, tool-call ceilings, per-business daily spend cap with graceful degradation
 
@@ -140,9 +140,22 @@ The MVP is complete when **all** of the following are true. Each line is verifia
 >
 > | | Rows | Why |
 > |---|---|---|
-> | **Unverifiable** | the three Receptionist behaviour rows | [#17], and the corpus under *Gates that cannot be run*. Credits |
+> | **Unverifiable** | the three Receptionist behaviour rows | [#17], and the corpus under *Gates that cannot be run*. **Not credits any more** — the corpus is runnable and unrun |
 > | **Needs a run** | `make up` from a clean checkout | Nobody has done the clone-to-running walk, and it cannot be done from a working copy |
 > | **Needs CI, not a fix** | every phase's tests pass in CI; the README demo script | CI has not run since `6321485`; the demo needs a key |
+>
+> **Updated 2026-09-18 — the demo-script row has closed, and the list now stands at 27 ticked, 3
+> open.** The numbers above are left as the 2026-09-13 walk found them, because they are that walk's
+> record and not a running total: two of its six closed after it, when the clean-checkout walk and
+> CI were **run** rather than carried. The demo script is the third, followed end to end on the
+> topology its own step 1 names. **Counted rather than reasoned** — the first draft of this note
+> said 25 and 5, by carrying the walk's own figures forward as if nothing had closed since.
+>
+> **The three that remain are the three Receptionist rows, and they are now one question, not
+> three.** All three turn on [#17], which was measured and fixed on 2026-09-17 — 22% → 98% correct
+> landing — but 98% is not 100%, the residual is bounded at 10.6%, and the rate is for one phrasing
+> at one distance. Nothing about the demo-script walk decides them: one conversation that books the
+> day it was asked about is one trial, which is the error [#40] was reopened for.
 >
 > **No row was ticked by reading alone.** Each names the test that carries it, and two were measured
 > during the walk rather than cited: `.env.example` by comparing every `${VAR}` placeholder against
@@ -290,11 +303,18 @@ The MVP is complete when **all** of the following are true. Each line is verifia
       than read.* Every `${VAR}` placeholder in `application*.yml` and the three compose files was
       compared against `.env.example`'s keys: **35 used, 35 documented, none missing**. Worth repeating
       as a check rather than a reading — it is a `comm` over two sorted lists
-- [ ] `README.md` contains a demo script a stranger can follow — *walked 2026-09-13:* **blocked on the
-      same credits.** The script exists and step 9's second half was browser-verified on 2026-09-13
-      (*"without a key the panel says so"*). Its first half needs a working `OPENAI_API_KEY`, so the
-      script cannot be followed end to end without deviation — which is phase 11's own row, carried
-      under *Gates that cannot be run*
+- [x] `README.md` contains a demo script a stranger can follow — *ticked 2026-09-18, by following
+      it.* All ten steps, on step 1's own topology (`make up`, both applications from the terminal,
+      `make seed`), with the running backend asserted to carry rule 13 first. **Step 9's first half
+      is what had been missing and it now runs**: the Receptionist quoted 40.00 GEL and the real
+      afternoon slots for the date it was asked about, booked 23 September at 16:00 as `RT7QVP05`,
+      and the confirmation card was rendered from the booking rather than from the sentence — with
+      the whole transcript and `create_appointment`'s `SENT`/`RETURNED` payload readable under
+      **Conversations**. The 2026-09-13 reading of this row was right about its cause: the credits
+      returned on 2026-09-15 and nothing re-walked the script for three days. **Two deviations are
+      recorded on [phase 11](phases/phase-11-hardening-and-deployment.md)'s twin of this row** — a
+      sign-out standing in for step 5's *private window*, and step 3's own wrong sentence about the
+      Week view, corrected in the same commit
 
 ---
 
@@ -315,17 +335,35 @@ went quiet. The rate is part of the entry precisely so that shipping stays a dec
 
 | | |
 |---|---|
-| **Rate** | **10.6%** of writes land on a date the customer never named — 5 of 47, CI [3.5%, 23.1%] |
-| **Worst case** | **55.2% wrong** when the customer phrases the date relatively ("the Monday after next") rather than reading out an ISO date — against 10.6% when they read one out, Fisher p = 3.9e-05 |
-| **Measured** | 2026-09-11 — [the experiment record](experiments/2026-09-11-17-deterministic-date-resolution.md) |
+| **Rate** | **2% wrong on the measured scenario** after the fifth candidate — 1 of 50, 2026-09-17. Before it, on that same scenario, **78% wrong** (11/50 correct). The 10.6% this row carried was a *different* scenario measured 2026-09-11 and is not comparable — **T194**, distance to the horizon is uncontrolled across every rate this project recorded before that date |
+| **Worst case** | **Unmeasured since the fix.** The relative-phrasing arm ("the Monday after next") was 55.2% wrong on 2026-09-11 against 10.6% for an ISO date, Fisher p = 3.9e-05. Rule 13 has only been measured against ISO dates, so whether it helps the relative phrasing is **an open question with zero trials** |
+| **Measured** | 2026-09-17 — [the fifth candidate's record](experiments/2026-09-17-17-reschedule-searches-the-requested-date.md). Earlier: 2026-09-11 — [the resolver's](experiments/2026-09-11-17-deterministic-date-resolution.md) |
 | **Ruling** | 2026-09-11 — phase 09's hallucination box is **not ticked at today's rates**, and a fourth candidate was authorised |
-| **Status** | **Open.** Three candidates rejected, two of them measurably harmful. The fourth, `resolve_date`, moved the primary measure from 18% to 58% (p = 3.5e-05) and is **one arm short of a verdict** — the deciding run stopped at fifteen trials of fifty when the OpenAI account ran out of credits |
+| **Status** | **The fifth candidate was accepted on 2026-09-17** — one prompt rule telling the model that a move searches from the *requested* date. Two fifty-trial arms, one day, one distance, 0 errored in both: correct landing **22% → 98%** (p = 1.4e-16), and the mechanism itself, *searched the requested day*, **18% → 100%** (p = 1.2e-19). Neither pre-registered veto fired. §8 of [the experiment record](experiments/2026-09-17-17-reschedule-searches-the-requested-date.md). **Not closed**: 98% is not 100%, one trial never moved the appointment, the residual is bounded at 10.6%, and the rate is for one phrasing at one distance |
 | **Issue** | [#17](https://github.com/sanama-stack/reception-booking-system/issues/17) |
 
 **This is what Functional boxes 9, 10 and 11 rest on**, and it is why all three were widened rather
 than left to tick on wording written before the defect class was known. The customer-visible shape is
 not a crash: ownership is proven, a real slot is returned by the real engine, a real appointment is
 written, and the only thing wrong is the day — which is the one part nothing downstream can check.
+
+### [#40] — the Receptionist refuses a legitimate move it was offered the slot for
+
+| | |
+|---|---|
+| **Rate** | **≈1.3% of conversations**, derived rather than measured directly: **2 of 23 pooled refusals** had the requested slot offered on the requested day (8.7% of refusals), and refusals ran at ~15% of trials. Across the three arms that is **2 observations in 150 conversations**. Two observations cannot characterise a distribution — the lesson this project has now paid for four times — so this is an order of magnitude, not a rate, and it is written here as one |
+| **Worst case** | **Every observation is of a prompt this repository no longer ships.** Trials 38 and 40 are in the fifth candidate's **baseline** arm, one tree apart from rule 13. On the shipped prompt the candidate arm refused **0 of 50**, which bounds the refusal rate at **5.8%** and establishes nothing about this sub-mode specifically. Whether rule 13 touches it at all is **an open question with zero targeted trials** |
+| **Measured** | 2026-09-17 — [the reopening comment](https://github.com/sanama-stack/reception-booking-system/issues/40#issuecomment-5625346280) and §8.5 of [the fifth candidate's record](experiments/2026-09-17-17-reschedule-searches-the-requested-date.md) |
+| **Ruling** | **None yet, and it is the principal's.** This entry records a measurement and a state; it is not a decision to ship the defect knowingly, which is what every other entry in this section carries |
+| **Status** | Open, and **not** closed by [#17]'s fix. 21 of the 23 refusals descend from the wrong-day search and rule 13 removes them; these two do not, because the day was right, the slot was offered and the search was not truncated. What it needs is a scenario where the wrong-day search *cannot* occur, so mechanism 2 can be counted alone — and at ~1.3% of conversations, fifty trials would see it about half the time. **That is a sample-size problem to solve before an arm is bought, not after.** `RescheduleRefusalRateTest` already records the three fields it needs |
+| **Issue** | [#40](https://github.com/sanama-stack/reception-booking-system/issues/40) |
+
+**Why this entry exists at all, stated against this section's own rule.** From 2026-09-17 to
+2026-09-18 [#40] was in neither this section nor *Gates that cannot be run* — it had been reopened,
+and the sentence below *Gates* saying it "does not yet qualify" was written when it was **one
+trial**. It is now two observations in a hundred and fifty, which is a denominator. A defect in
+neither place is *unnoticed*, which is the state this section exists to make impossible, and it had
+been in that state for a day while the README was being corrected to name it.
 
 **[#15]** ([issue](https://github.com/sanama-stack/reception-booking-system/issues/15)) is related and
 also open. It is **not** listed as accepted here, because its title still names a diagnosis a later
@@ -334,6 +372,7 @@ prerequisite to accepting it, not a formality.
 
 [#15]: https://github.com/sanama-stack/reception-booking-system/issues/15
 [#17]: https://github.com/sanama-stack/reception-booking-system/issues/17
+[#40]: https://github.com/sanama-stack/reception-booking-system/issues/40
 
 ---
 
@@ -347,21 +386,53 @@ whole of the difference between this section and the one above.
 An entry leaves this section in one direction only: the gate runs, and its result becomes a tick or a
 measured defect.
 
-### Level 3 — the live-model corpus has not run since 2026-09-10
+### Level 3 — the live-model corpus. **Ran on 2026-09-15. This entry has left this section**
 
 | | |
 |---|---|
 | **What it checks** | `LiveReceptionistTest` — twelve conversations against the real model, asserting tool sequences and database state. **The only instrument in this project that can evaluate the system prompt or a tool description**, because a scripted model reads neither ([08-testing-strategy.md](08-testing-strategy.md) §7) |
-| **Last ran** | **2026-09-10**, green — [the session record](sessions/2026-09-10-the-gap-that-was-hiding-a-wrong-write.md) |
-| **Changed since** | The system prompt, twice. `resolve_date` and the instructions that drive it (2026-09-11); §8's fencing of the description, the cancellation policy and up to fifty FAQs (2026-09-13) |
-| **Why it cannot run** | **The OpenAI account has no credits.** `429`, `insufficient_quota`, `credit_balance_exhausted`. Confirmed by a run on 2026-09-13 which cost nothing, because every call was refused before a token was billed |
-| **To run it again** | Add credits, then `-PincludeTags=llm`. Twelve `gpt-4o-mini` conversations — cents |
-| **Ruling** | **2026-09-13** — recorded as unavailable rather than carried as a pending decision |
+| **Last ran** | **2026-09-16** — **12 of 12**. Before it, 2026-09-15 — **11 of 12**, the failure being [#40]. Before that, 2026-09-10, green — [the session record](sessions/2026-09-10-the-gap-that-was-hiding-a-wrong-write.md) |
+| **Why it could not run** | The OpenAI account had no credits: `429`, `insufficient_quota`, `credit_balance_exhausted`, confirmed 2026-09-13. **Credits were restored on 2026-09-15 and the gate was run the same day** |
+| **Result** | One failure across two runs: `a customer who proves the appointment is theirs can move it`, the Receptionist declining an authorised move to a free slot. Filed as [#40], measured over two fifty-trial arms, and closed into [#17] on 2026-09-16 — the refusal read as #17's wrong-day search taking a different branch. **Reopened 2026-09-17, and that closure is retracted**: a third arm recorded `target searched` and found two refusals where the day *was* right and the slot *was* offered. 21 of 23 refusals are #17; two are not. It now has its own entry under *Accepted, measured, open defects* above |
+| **Ruling** | **2026-09-13** — recorded as unavailable. **Discharged on 2026-09-15 by running the gate**, which is the one exit this section allows |
 
-**What this does and does not change.** The three Receptionist rows in *Functional* are already
-unticked and already carried under [#17], so this entry does not move them. What it records is that
-they cannot be ticked at all until the corpus runs — a distinction that matters at sign-off, because
-"not yet ticked" reads as work outstanding and this is work that is not currently possible.
+> **This entry is kept, struck through by its own result, rather than deleted.** The rule at the top
+> of this section is that an entry leaves in one direction only — the gate runs, and its result
+> becomes a tick or a measured defect. The gate ran. What it produced is recorded above and on [#40].
+>
+> ⚠️ **The result does not yet qualify for *Accepted, measured, open defects*, and has deliberately
+> not been filed there.** That section requires a **rate**, and this is **one trial**. The corpus runs
+> each case once, so it can establish that a behaviour is reachable and can never establish how often
+> — the same limitation [#15] carries in writing. Naming a rate from a single observation is the error
+> that section exists to prevent, so the defect sits on [#40] with no rate until an instrument that
+> can measure one is built.
+>
+> **Superseded 2026-09-18 — the instrument was built and [#40] is now filed above.** The paragraph
+> is kept because its reasoning was right and is the reason the entry above states an order of
+> magnitude rather than a rate. What changed is the denominator: one trial became **two observations
+> in a hundred and fifty**, across three arms, once `target searched` was recorded per refusal.
+> **The gap it left is the lesson.** Between the reopening on 2026-09-17 and this entry, [#40] sat
+> in neither section — which this document defines as *unnoticed* — because "does not yet qualify"
+> was written of one trial and never re-read after the third arm made it false.
+
+**What this does and does not change.** The three Receptionist rows in *Functional* stay unticked —
+but for a materially better reason than before. They were unverifiable; box *"It never states a slot,
+price or policy that did not come from a tool"* now has a **concrete counter-example on a transcript**
+rather than an absent instrument. "Cannot be checked" has become "checked, and reachable".
+
+⚠️ **One green run does not tick these boxes, and the second corpus run was green.** The corpus runs
+each case once, so it can show a behaviour is reachable and can never show it is gone — the trap
+[#15](https://github.com/sanama-stack/reception-booking-system/issues/15) was re-opened for, one
+level up.
+
+**What the corpus did here is exactly what it is for, and what it cannot do is exactly why the rate
+harness exists.** It made a defect reachable in one transcript; two fifty-trial arms then established
+that the defect was [#17] wearing a different face, and [#40] closed into it — **a closure a third
+arm then retracted**, 21 of its 23 refusals being #17 and two being their own defect. **These rows
+tick when [#17]'s `date_from` is fixed and measured**, not when a single-shot corpus comes back
+green — and on the scenario those arms used, [#17] is wrong **38 of 48 trials, 79.2%**, CI [65.0%,
+89.5%]. *Since 2026-09-17 it is fixed and measured at 98% on one phrasing at one distance, and the
+rows still do not tick: see [#17]'s entry above for the three limits that keep them open.*
 
 **The exposure, stated narrowly.** §8's fencing could have made the Receptionist *less willing to use
 the FAQs it fences*, and nothing in levels 1 and 2 would say so — `SystemPromptSafetyTest` asserts the

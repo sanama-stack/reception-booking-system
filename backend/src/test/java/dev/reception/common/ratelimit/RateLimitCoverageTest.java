@@ -3,6 +3,8 @@ package dev.reception.common.ratelimit;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import dev.reception.support.IntegrationTest;
+import dev.reception.support.MappedSurface;
+import dev.reception.support.MappedSurface.Endpoint;
 import dev.reception.support.ResourceSurface;
 import jakarta.servlet.ServletContext;
 import jakarta.servlet.http.HttpServletRequest;
@@ -25,8 +27,6 @@ import org.springframework.security.core.Authentication;
 import org.springframework.security.core.authority.AuthorityUtils;
 import org.springframework.security.web.FilterChainProxy;
 import org.springframework.security.web.access.intercept.AuthorizationFilter;
-import org.springframework.web.method.HandlerMethod;
-import org.springframework.web.servlet.mvc.method.RequestMappingInfo;
 import org.springframework.web.context.WebApplicationContext;
 import org.springframework.web.servlet.mvc.method.annotation.RequestMappingHandlerMapping;
 
@@ -421,53 +421,20 @@ class RateLimitCoverageTest extends IntegrationTest {
      * does not: the renamed path arrives here as an uncovered public endpoint and the policy left
      * behind arrives as an orphan. Both fail, which is the outcome that was wanted — a build that
      * stops rather than a limit that disappears.
+     *
+     * <p><strong>{@link MappedSurface#declaringAMethod()} is the one narrowing left, and it is the
+     * one this class owes a reason for.</strong> It drops the mappings Spring pairs with no verb —
+     * today only {@code /error} — and since this derivation is not filtered by package, they would
+     * otherwise arrive here as uncovered public endpoints. A policy cannot be written for them
+     * anyway: {@link RateLimitPolicy#matches} takes a verb, and there is none. That was true before
+     * this narrowing was written down, when the endpoint simply never arrived and nothing recorded
+     * that it had not; what makes it <em>safe</em> rather than merely old is asserted elsewhere, by
+     * {@code MappedSurfaceTest.nothing_invisible_is_reachable_anonymously()} — the methodless
+     * mappings are not reachable without authentication, so an unlimited one is not a free
+     * amplifier. The day one is added to {@code permitAll}, that test fails. <strong>Do not delete
+     * this call without reading it: this is the exclusion, and that is its safety net.</strong>
      */
     private Set<Endpoint> mappedEndpoints() {
-        Set<Endpoint> endpoints = new TreeSet<>();
-        mappings.getHandlerMethods().forEach((info, handler) -> {
-            for (String pattern : patternsOf(info)) {
-                info.getMethodsCondition()
-                        .getMethods()
-                        .forEach(method -> endpoints.add(new Endpoint(method.asHttpMethod().name(), pattern)));
-            }
-        });
-        return endpoints;
-    }
-
-    private static Set<String> patternsOf(RequestMappingInfo info) {
-        return info.getPathPatternsCondition() == null
-                ? Set.of()
-                : info.getPathPatternsCondition().getPatternValues();
-    }
-
-    /**
-     * One mapped endpoint: the pattern as Spring declares it, and a concrete path to ask questions
-     * with.
-     *
-     * @param method the HTTP method, as {@link HandlerMethod}'s mapping declares it
-     * @param pattern the routing pattern, template variables and all
-     */
-    private record Endpoint(String method, String pattern) implements Comparable<Endpoint> {
-
-        /**
-         * The pattern with every template variable filled in.
-         *
-         * <p>Neither {@code AntPathMatcher} nor the security matchers can be asked about a pattern;
-         * both answer about a path. The value substituted is deliberately meaningless — nothing
-         * downstream of this test resolves it, and a value that looked like a real slug would
-         * suggest it had been looked up.
-         */
-        String samplePath() {
-            return pattern.replaceAll("\\{[^/]*}", "sample");
-        }
-
-        String signature() {
-            return method + " " + pattern;
-        }
-
-        @Override
-        public int compareTo(Endpoint other) {
-            return signature().compareTo(other.signature());
-        }
+        return MappedSurface.of(mappings).declaringAMethod().endpoints();
     }
 }

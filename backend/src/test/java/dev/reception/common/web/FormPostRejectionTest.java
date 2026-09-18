@@ -3,6 +3,8 @@ package dev.reception.common.web;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import dev.reception.support.IntegrationTest;
+import dev.reception.support.MappedSurface;
+import dev.reception.support.MappedSurface.Endpoint;
 import java.util.Set;
 import java.util.TreeMap;
 import java.util.TreeSet;
@@ -18,7 +20,6 @@ import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.servlet.mvc.method.RequestMappingInfo;
 import org.springframework.web.servlet.mvc.method.annotation.RequestMappingHandlerMapping;
 
 /**
@@ -164,45 +165,18 @@ class FormPostRejectionTest extends IntegrationTest {
         return HttpStatus.valueOf(response.getStatusCode().value());
     }
 
-    /** Every POST, PUT, PATCH and DELETE this application maps, framework endpoints excluded. */
+    /**
+     * Every POST, PUT, PATCH and DELETE this application maps, framework endpoints excluded.
+     *
+     * <p>{@link MappedSurface#answering} is what narrows this to writes, so the four verbs are named
+     * once rather than tested inside a loop. {@link MappedSurface#declaringAMethod()} is not needed
+     * on top of it: a mapping with no verb cannot be one of the four, and the filter this test is
+     * about runs on the content type of a request that has already been routed.
+     */
     private Set<Endpoint> stateChangingEndpoints() {
-        Set<Endpoint> endpoints = new TreeSet<>();
-        mappings.getHandlerMethods().forEach((info, handler) -> {
-            if (!handler.getBeanType().getPackageName().startsWith("dev.reception")) {
-                return;
-            }
-            for (String pattern : patternsOf(info)) {
-                info.getMethodsCondition().getMethods().forEach(method -> {
-                    String name = method.asHttpMethod().name();
-                    if (Set.of("POST", "PUT", "PATCH", "DELETE").contains(name)) {
-                        endpoints.add(new Endpoint(name, pattern));
-                    }
-                });
-            }
-        });
-        return endpoints;
-    }
-
-    private static Set<String> patternsOf(RequestMappingInfo info) {
-        return info.getPathPatternsCondition() == null
-                ? Set.of()
-                : info.getPathPatternsCondition().getPatternValues();
-    }
-
-    private record Endpoint(String method, String pattern) implements Comparable<Endpoint> {
-
-        /** Template variables filled with something that resolves to nothing. */
-        String samplePath() {
-            return pattern.replaceAll("\\{[^/]*}", "00000000-0000-0000-0000-000000000001");
-        }
-
-        String signature() {
-            return method + " " + pattern;
-        }
-
-        @Override
-        public int compareTo(Endpoint other) {
-            return signature().compareTo(other.signature());
-        }
+        return MappedSurface.of(mappings)
+                .ours()
+                .answering("POST", "PUT", "PATCH", "DELETE")
+                .endpoints();
     }
 }
