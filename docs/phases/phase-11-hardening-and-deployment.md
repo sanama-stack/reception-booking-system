@@ -418,7 +418,26 @@ argument that it was right.
       walked from a fresh clone of `origin/dev` at `82fc678`. Seeded to the two demo tenants, health
       green, `/book/salon-aria` `200`, services and prices served by the public API. **`make seed`
       failed first**, and the failure is G46
-- [ ] The demo script in the README runs end to end without deviation
+- [x] The demo script in the README runs end to end without deviation — **walked 2026-09-18**, all
+      ten steps, on the topology step 1 actually names: `make up`, both applications started from
+      the terminal, `make seed`. **The backend was asserted to carry rule 13 before anything rested
+      on it** — `grep -a` for the rule's own text in `build/classes`, because the stack that had
+      been up for 45 hours was a `make up-all` image and a five-day-old IDE process was still
+      holding `9081`. What the walk produced, in its own numbers: confirmation in Mailpit in **~15
+      s** with the outbox row `SENT` and the reminder queued for exactly 24 h before the
+      appointment; the move keeping its code (*"It is still AN9G65KS"*, in the email, not just on
+      the screen); tomorrow's booking refused **structurally** on the manage page, which renders no
+      move or cancel control at all; revenue **890.00 → 930.00 GEL** on one completion, exactly the
+      40.00 haircut; and the Receptionist booking 23 September 16:00 with `create_appointment`'s
+      real `SENT`/`RETURNED` JSON readable under **Conversations**, carrying no `business_id`.
+      **Two things are recorded rather than smoothed over.** Step 5 says *private window*; the
+      driver had one browser profile, so it signed out instead — the same end state, not the same
+      mechanism, and the row is ticked on that reading. And **the script had one wrong sentence**,
+      which is what a first walk is for: step 3 read *"Calendar → Week. Three employees…"*, and the
+      three-employee column layout is the **Day** view. Fixed in the same commit. Everything else in
+      that step — the proportions, the `AI` badge, the hatched leave week — was correct, and the
+      hatching was confirmed in a screenshot rather than off the DOM, since a stripe pattern is not
+      a thing the text layer can report
 - [x] Every tenant-scoped endpoint is probed by the isolation suite
 - [x] The E2E flow passes in CI
 - [ ] The concurrency test passes repeatedly
@@ -442,7 +461,12 @@ argument that it was right.
       Receptionist behaviour rows and the README demo script — are **all the same blocker**, credits,
       and all four are carried: the behaviour under *Accepted, measured, open defects* with a rate and
       [#17], and the corpus that would decide them under *Gates that cannot be run*. **Every box that
-      can be closed without a funded key is closed.** — or the
+      can be closed without a funded key is closed.**
+      **Updated 2026-09-18: 27 of 30, and the demo-script row is no longer one of the four.** It was
+      walked end to end, so the *"all the same blocker, credits"* sentence above now describes three
+      rows rather than four — and it was already the wrong word for this one by 2026-09-15, when the
+      credits returned. The three that remain are the Receptionist rows, and they are carried on
+      [#17] with a rate and a date, not on a key. — or the
       defect it covers is carried under that document's *Accepted, measured, open defects*, which
       requires a rate, a date and an issue, **or the gate that would decide it is carried under that
       document's *Gates that cannot be run***, which requires what the gate checks, when it last ran

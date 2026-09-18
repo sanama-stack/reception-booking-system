@@ -144,6 +144,19 @@ The MVP is complete when **all** of the following are true. Each line is verifia
 > | **Needs a run** | `make up` from a clean checkout | Nobody has done the clone-to-running walk, and it cannot be done from a working copy |
 > | **Needs CI, not a fix** | every phase's tests pass in CI; the README demo script | CI has not run since `6321485`; the demo needs a key |
 >
+> **Updated 2026-09-18 — the demo-script row has closed, and the list now stands at 27 ticked, 3
+> open.** The numbers above are left as the 2026-09-13 walk found them, because they are that walk's
+> record and not a running total: two of its six closed after it, when the clean-checkout walk and
+> CI were **run** rather than carried. The demo script is the third, followed end to end on the
+> topology its own step 1 names. **Counted rather than reasoned** — the first draft of this note
+> said 25 and 5, by carrying the walk's own figures forward as if nothing had closed since.
+>
+> **The three that remain are the three Receptionist rows, and they are now one question, not
+> three.** All three turn on [#17], which was measured and fixed on 2026-09-17 — 22% → 98% correct
+> landing — but 98% is not 100%, the residual is bounded at 10.6%, and the rate is for one phrasing
+> at one distance. Nothing about the demo-script walk decides them: one conversation that books the
+> day it was asked about is one trial, which is the error [#40] was reopened for.
+>
 > **No row was ticked by reading alone.** Each names the test that carries it, and two were measured
 > during the walk rather than cited: `.env.example` by comparing every `${VAR}` placeholder against
 > its keys (35 against 35), and the full-history secret scan by running it (239 commits, clean).
@@ -290,11 +303,18 @@ The MVP is complete when **all** of the following are true. Each line is verifia
       than read.* Every `${VAR}` placeholder in `application*.yml` and the three compose files was
       compared against `.env.example`'s keys: **35 used, 35 documented, none missing**. Worth repeating
       as a check rather than a reading — it is a `comm` over two sorted lists
-- [ ] `README.md` contains a demo script a stranger can follow — *walked 2026-09-13:* **blocked on the
-      same credits.** The script exists and step 9's second half was browser-verified on 2026-09-13
-      (*"without a key the panel says so"*). Its first half needs a working `OPENAI_API_KEY`, so the
-      script cannot be followed end to end without deviation — which is phase 11's own row, carried
-      under *Gates that cannot be run*
+- [x] `README.md` contains a demo script a stranger can follow — *ticked 2026-09-18, by following
+      it.* All ten steps, on step 1's own topology (`make up`, both applications from the terminal,
+      `make seed`), with the running backend asserted to carry rule 13 first. **Step 9's first half
+      is what had been missing and it now runs**: the Receptionist quoted 40.00 GEL and the real
+      afternoon slots for the date it was asked about, booked 23 September at 16:00 as `RT7QVP05`,
+      and the confirmation card was rendered from the booking rather than from the sentence — with
+      the whole transcript and `create_appointment`'s `SENT`/`RETURNED` payload readable under
+      **Conversations**. The 2026-09-13 reading of this row was right about its cause: the credits
+      returned on 2026-09-15 and nothing re-walked the script for three days. **Two deviations are
+      recorded on [phase 11](phases/phase-11-hardening-and-deployment.md)'s twin of this row** — a
+      sign-out standing in for step 5's *private window*, and step 3's own wrong sentence about the
+      Week view, corrected in the same commit
 
 ---
 

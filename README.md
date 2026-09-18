@@ -173,9 +173,10 @@ you see there is one your own clicking caused.
 1. **`make up`**, start both applications, **`make seed`**.
 2. Sign in as `owner@salonaria.example`. The home screen counts today, this week and this month, and
    says which timezone it is counting in.
-3. **Calendar → Week.** Three employees, appointments drawn in proportion to how long they take, an
-   `AI` badge on the ones the receptionist booked. Press **Next** — next week is hatched across
-   Monday to Friday for Mariam Beridze, who is on leave.
+3. **Calendar.** **Day** puts the three employees side by side, a column each. Switch to **Week** for
+   the seven days, appointments drawn in proportion to how long they take, and an `AI` badge on the
+   ones the receptionist booked. Press **Next** — next week is hatched across Monday to Friday for
+   Mariam Beridze, who is on leave.
 4. **Analytics.** Revenue is completed appointments only, priced in GEL. Change the range and every
    number moves with it.
 5. Open [**/book/salon-aria**](http://localhost:9080/book/salon-aria) in a private window — you are a
