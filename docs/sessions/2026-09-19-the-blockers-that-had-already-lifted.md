@@ -181,8 +181,18 @@ by checking the instrument against a case whose answer was already known.
    *before* it is bought.
 3. **[#17]'s relative-phrasing arm.** Zero trials since the fix, and the largest remaining unknown
    in the project. The 55.2% it replaced is the only reason to think rule 13 might not carry.
-4. **[#15]'s title**, which still names a diagnosis a later session disproved — its own entry calls
-   fixing it a prerequisite to accepting the issue, not a formality.
+4. ~~**[#15]'s title**, which still names a diagnosis a later session disproved — its own entry calls
+   fixing it a prerequisite to accepting the issue, not a formality.~~ **Done later the same day, and
+   the item was wrong when written.** The title had been corrected on 2026-09-10 — *the day before*
+   the sentence in `07-mvp-scope.md` that called it a prerequisite — and again on 2026-09-16. What
+   actually needed fixing was that sentence. [#15] now has a full entry under *Accepted, measured,
+   open defects* with its bound, and its title was sharpened once more: **undetectable** in row 4
+   became **not detected in 150 trials**, because the first reads as a property of the defect and
+   only the second is a property of the sample.
+   **This item is kept struck through because of what it is.** §7 of this document names T199 — *a
+   blocker is a claim with a date, and it expires* — and then, forty lines later, §8 repeated an
+   expired claim verbatim from the very document the lesson was drawn from. Writing a lesson down is
+   not the same as applying it, and the gap between the two here was under an hour.
 5. **The README's `--squash` line**, which disagrees with every merge this repository has made.
 6. **The 360 px `/conversations` filter button**, carried since 2026-09-10 and still not covered at
    that viewport.

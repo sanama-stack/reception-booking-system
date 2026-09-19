@@ -365,10 +365,29 @@ trial**. It is now two observations in a hundred and fifty, which is a denominat
 neither place is *unnoticed*, which is the state this section exists to make impossible, and it had
 been in that state for a day while the README was being corrected to name it.
 
-**[#15]** ([issue](https://github.com/sanama-stack/reception-booking-system/issues/15)) is related and
-also open. It is **not** listed as accepted here, because its title still names a diagnosis a later
-session disproved and it therefore has no trustworthy rate to carry. Fixing the title is a
-prerequisite to accepting it, not a formality.
+### [#15] — a named weekday can resolve to the wrong row of the seven-day list
+
+| | |
+|---|---|
+| **Rate** | **Not detected in 150 trials**, 2026-09-17, in the cell the old number was taken in — Thursday asking about Monday, **row 4 of seven**. 150/150, 0 errored, CI [97.6%, 100%], and the residual bounded at **[0%, 2.43%]**. This is a **bound, not an absence**: a true rate of 2% yields a clean 150 about one run in twenty |
+| **Worst case** | **Six of the seven asking-days have never been measured.** The two observed modes — the first row, and the SATURDAY row — do not sit the same distance from row 4 as from row 1 or row 7, so nothing here transfers to the other cells. The superseded 142/150 = 94.7% was measured 2026-09-10, before `resolve_date` shipped, and describes a prompt this repository no longer ships |
+| **Measured** | 2026-09-17 — [the re-baseline](experiments/2026-09-17-15-weekday-rate-rebaseline.md) §7, with `PROBE_ASKED_ON` and `make rebaseline-weekday` **refusing to run on any day but Thursday**, because a rate from another cell comes out in the same format and the same range. The first attempt was on a Tuesday and would have produced exactly that |
+| **Ruling** | **None yet, and it is the principal's** — the same shape as [#40]. No cause is established: several prompt changes landed between the two arms and this is a re-baseline, not a candidate arm, so it attributes the improvement to none of them |
+| **Status** | Open. **What would close it** is either a second Thursday arm agreeing with this one, or an explicit decision that *not detected at 150 in the cell customers actually hit* is the bar. The issue has always said someone must define "fixed" here before more budget is spent, and **that question is now the only thing between it and closed** |
+| **Issue** | [#15](https://github.com/sanama-stack/reception-booking-system/issues/15) |
+
+**This entry replaces a sentence that had expired under it.** From 2026-09-11 this document said
+[#15] was *"not listed as accepted here, because its title still names a diagnosis a later session
+disproved and it therefore has no trustworthy rate to carry"*, and that fixing the title was a
+prerequisite. **The title had already been corrected the day before that sentence was written**, on
+2026-09-10, and was corrected again on 2026-09-16 to carry its own limits. The prerequisite was met
+twice and the sentence was never re-read — which is the same failure as [#40] sitting in neither
+section, and as the demo script being carried as credit-blocked for three days after the credits
+returned. A carried claim reads as settled; the condition it names is what has to be re-checked.
+
+*Title sharpened again on 2026-09-19*: it said **undetectable** in row 4, which reads as a property
+of the defect, where what was established is a property of the sample. It now says **not detected in
+150 trials**. The distinction is the whole of this issue's own correction notice, one level down.
 
 [#15]: https://github.com/sanama-stack/reception-booking-system/issues/15
 [#17]: https://github.com/sanama-stack/reception-booking-system/issues/17
