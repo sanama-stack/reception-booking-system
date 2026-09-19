@@ -144,6 +144,40 @@ class SecretsGuardTest {
                 });
     }
 
+    // ---- the two secrets the guard deliberately ignores -------------------------------------
+
+    /**
+     * docs/06-security.md §9 names {@code MAIL_PASSWORD} and {@code OPENAI_API_KEY} as
+     * <em>deliberately not checked</em>, and then says "SecretsGuardTest holds all of this". Until
+     * 2026-09-19 it did not: every test above pins what the guard <em>refuses</em>, and a
+     * deliberate absence is pinned by nothing. Adding either key to {@link SecretsGuard} would make
+     * the {@code prod} profile refuse to start for a business whose SMTP relay needs no
+     * authentication, or one running without the Receptionist — both supported configurations —
+     * with the whole suite still green.
+     *
+     * <p>This is the inverse of the cases above and has to be, because the decision it protects is
+     * a decision <em>not</em> to build a control. §9 gives the reason in both directions: an empty
+     * SMTP password is legitimate, so the guard cannot tell "no auth needed" from "forgot it"; and
+     * a placeholder OpenAI key is a working application, because the Receptionist degrades to the
+     * Classic Flow rather than failing at startup.
+     *
+     * <p>The OpenAI value is the literal .env.example ships, and it is the sharp one: {@code
+     * sk-local-dev-only-not-a-real-key} <em>contains</em> the marker the guard matches on and is
+     * not <em>prefixed</em> by it. A guard widened to search rather than to match would refuse a
+     * fresh clone's key, which is the drift this case exists to catch.
+     */
+    @Test
+    void the_mail_password_and_the_openai_key_are_deliberately_not_checked() {
+        prod.withPropertyValues(good())
+                .withPropertyValues(
+                        "spring.mail.password=",
+                        "app.ai.api-key=sk-local-dev-only-not-a-real-key")
+                .run(context -> assertThat(context)
+                        .as("§9 excludes both on purpose: an empty SMTP password is legitimate, and a"
+                                + " placeholder OpenAI key degrades to the Classic Flow")
+                        .hasNotFailed());
+    }
+
     // ---- the default the guard matches ----------------------------------------------------
 
     /**
