@@ -8,7 +8,7 @@ Receptionist acts only through validated tools; those tools call the same endpoi
 calls; and the database makes double-booking structurally impossible regardless of what any layer above it
 believes.
 
-> **Build status: phase 10 of 11 complete.** An owner can configure a business and run its
+> **Build status: all eleven phases complete.** An owner can configure a business and run its
 > schedule from the dashboard — a real day and week **Calendar**, booking, moving, cancelling and
 > closing out appointments, seeing who has booked, and reading counts, revenue and top services
 > under **Analytics** — with double booking made impossible by the database rather than by a
@@ -18,12 +18,15 @@ believes.
 > through the same endpoints the form uses: every slot and price it quotes comes from a tool, and
 > its confirmation card is rendered from the booking the server made, never from what it said.
 > The owner reads every conversation, and every tool call inside it, under **Conversations**.
-> **Phase 11 is most of the way through**: the isolation suite, the E2E flow, the seed, the
-> security walk, the performance checks, transcript retention and the frontend runner are all in,
-> and the ten-step demo below was followed end to end on 2026-09-18. Three boxes are open — the
-> concurrency test asserted *repeatedly* rather than once, a final reading of the security list
-> against its own checklist, and `docs/deployment.md`, which is written but has never been run on a
-> host. See [docs/09-phase-plan.md](docs/09-phase-plan.md) for the build order.
+> **Phase 11 closed on 2026-09-19** — the isolation suite, the E2E flow, the seed, the security
+> walk, the performance checks, transcript retention, the frontend runner, the ten-step demo
+> script followed end to end, and the booking race run ten consecutive times. See
+> [docs/09-phase-plan.md](docs/09-phase-plan.md) for the build order.
+>
+> **Complete is not the same as finished, and two things are worth knowing before you read on.**
+> `docs/deployment.md` is a written path that **no host has ever run** — it says so in its own
+> header, and operating an internet-reachable instance was never in scope. And the defect below is
+> open, carried deliberately rather than closed quietly.
 >
 > **One measured defect ships with it, and it is much smaller than it was.** Asked to reschedule,
 > the receptionist used to search from the appointment's *current* date rather than the one the

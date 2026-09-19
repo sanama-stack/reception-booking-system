@@ -440,8 +440,45 @@ argument that it was right.
       a thing the text layer can report
 - [x] Every tenant-scoped endpoint is probed by the isolation suite
 - [x] The E2E flow passes in CI
-- [ ] The concurrency test passes repeatedly
-- [ ] All security items are implemented or explicitly listed as accepted risks
+- [x] The concurrency test passes repeatedly — **2026-09-19, ten consecutive runs, 10 of 10, 30
+      tests, zero failures.** `ConcurrentBookingTest`, `ConcurrentRescheduleTest` and
+      `DeadlockRetryTest` together, each run with `--rerun-tasks` so Gradle could not replay a
+      cached pass — which is the way this box could have been ticked by a build that executed
+      nothing. **The verdict is read from the JUnit XML, never from the exit code**, and the
+      harness was shown able to fail before any of the ten were trusted: a planted `failures="1"`
+      reports FAIL, an empty results directory reports FAIL, and three clean suites report PASS.
+      **The first harness was defective and is worth recording**: it computed the verdict in the
+      shell with `set -- $r`, which does not word-split in zsh, and it reported run 1 as FAIL when
+      that run had passed. A verdict that can be wrong in the safe direction can be wrong in the
+      other one, so it was rebuilt in Python and controlled before it was used. Ten is *repeatedly*
+      for a race, not proof: a fault rarer than about 25% per run would sit inside ten green runs
+      unseen
+- [x] All security items are implemented or explicitly listed as accepted risks — **2026-09-19**,
+      and the walk that closed it **found the checklist below overstating itself.** That row says
+      *"all fifteen sections done 2026-09-13"*. Twelve carry a recorded walk. **§9, §10 and §11 do
+      not** — §10 is not mentioned anywhere in this phase, and every `§11` here refers to a
+      *different document's* §11. The summary was counting sections nobody had walked, which is the
+      §3/§4 defect one level up: **summarised was not the same as walked.**
+      **All three turned out to be substantively covered, and each names its own tests inline** —
+      `SecretsGuardTest` (§9), `RequestLoggingTest`, `AppenderRedactionTest` and `AiCallLoggingTest`
+      (§10), `ErrorLeakageTest` (§11). Every one was checked to exist, to carry **no `@Tag`** so it
+      runs in the default suite, and to assert the section's load-bearing claim rather than merely
+      to share its subject — which is the §8 trap, where the only test naming `SystemPromptBuilder`
+      was `@Tag("probe")` and excluded. §11's sharpest claim is asserted exactly: the body's
+      `requestId` is compared **equal to the `X-Request-Id` header**, not merely present.
+      **One real gap, and it was §9's.** The section names `MAIL_PASSWORD` and `OPENAI_API_KEY` as
+      *deliberately not checked* and ends *"SecretsGuardTest holds all of this."* It did not. Twelve
+      tests pinned what the guard **refuses**; a deliberate *absence* was pinned by nothing, so
+      adding either key to `SecretsGuard` would make the `prod` profile refuse to start for a
+      business whose SMTP relay needs no authentication, or one running without the Receptionist —
+      both supported — with the suite green. `the_mail_password_and_the_openai_key_are_deliberately_not_checked`
+      closes it, **shown red two ways**: adding `MAIL_PASSWORD` to the guard (4 red, three of them
+      collateral), and — the sharp one — checking `OPENAI_API_KEY` with `contains` instead of
+      `startsWith`, **caught by the new test alone, 1 of 13**. That second plant is the realistic
+      drift rather than a contrived one: `.env.example` ships
+      `sk-local-dev-only-not-a-real-key`, which *contains* the marker the guard matches and is not
+      *prefixed* by it, so a guard widened to search would refuse a fresh clone's key. Both plants
+      reverted byte-identically, confirmed by `git diff`, and 13 green after
 - [x] No secret is in the repository or its history — **2026-09-13**, by running
       `make check-secrets` rather than by reading: 239 non-merge commits across every ref, the
       control assertion green (*"all 239 were read"*), no finding
@@ -453,7 +490,19 @@ argument that it was right.
 - [x] No `ai_message` outlives the documented retention window — ninety days after a
       conversation's last activity, enforced hourly by `TranscriptPurgeJob`. The window is
       `ConversationLimits.TRANSCRIPT_RETENTION_DAYS`, a constant, so widening it is a diff
-- [ ] `README.md`, `.env.example` and `docs/deployment.md` are complete
+- [x] `README.md`, `.env.example` and `docs/deployment.md` are complete — **2026-09-19**, each
+      checked rather than assumed. **`README.md`**: the ten-step demo script was followed end to end
+      on 2026-09-18, which found and fixed the one sentence it had wrong, and the front matter no
+      longer quotes a rate its own fix superseded. **`.env.example`**: re-measured today rather than
+      cited from the 2026-09-12 audit — every `${VAR}` in `application*.yml`, the three compose
+      files and the Caddyfile against the file's keys, **35 consumed, 35 declared, nothing missing
+      and nothing unused**, with `BACKEND_UPSTREAM` and `FRONTEND_UPSTREAM` correctly absent because
+      compose sets them. The one apparent miss was `${1}`, which is the Caddyfile's regex capture in
+      the manage-token redaction and not a variable at all. **`docs/deployment.md`**: complete as a
+      *document* — nine sections, and a §7 that separates what is verified from what is reasoned —
+      which is what this box can mean, since *operating an internet-reachable instance* is named
+      **out** of this phase's scope in *Scope* above. It says in its own header that no host has run
+      it, and that sentence is the reason it counts as complete rather than the reason it does not
 - [x] **Every box in [07-mvp-scope.md](../07-mvp-scope.md) § MVP Definition of Done is ticked** — *walked
       2026-09-13: **26 of 30 ticked, and the four that are not are all carried.*** Twenty-four ticked
       against named evidence in the walk; the clean-checkout row and the CI row were then **run** rather
@@ -526,7 +575,14 @@ argument that it was right.
 - [x] Credentials printed and documented
 
 ### Security
-- [x] Walk [06-security.md](../06-security.md) and verify each control — **all fifteen sections done 2026-09-13**. **§12 done 2026-09-12**,
+- [x] Walk [06-security.md](../06-security.md) and verify each control — ~~**all fifteen sections
+      done 2026-09-13**~~ **twelve walked and recorded on 2026-09-12/13; §9, §10 and §11 completed
+      2026-09-19.** *The struck wording is kept because it is the finding.* It counted fifteen while
+      recording twelve, and the three it skipped were the three with nothing written under them to
+      notice their absence — §10 appears nowhere in this phase at all. All three proved
+      substantively covered by tests they name inline, and §9 carried one genuine hole: its two
+      deliberately-unchecked secrets were asserted by nothing. See the Definition-of-Done row above
+      for the plants. **§12 done 2026-09-12**,
       and it is the shape to expect from the rest of this walk. Its claim that the database port is
       exposed *"only in the `local` compose profile"* was implemented by **no file**; the principal's
       call was that the file moves rather than the sentence. Both compose topologies now bind to
