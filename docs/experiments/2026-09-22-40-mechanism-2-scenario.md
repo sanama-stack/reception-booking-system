@@ -227,6 +227,121 @@ condition of every `probe`-tagged harness here and it is not fixed by this chang
   observations the slot was offered, so no cap hid it.
 - **Arm B's turn-2 decline is not evidence of anything.** It is correct behaviour, staged.
 
-## 9. Result
+## 9. Result — 2026-09-22. **Both arms zero.**
 
-*Empty. Nothing is written here until both arms have run.*
+Both arms at `PROBE_TARGET_DAYS=13`, target **2026-10-05** (Monday), on one tree, `RefusalAtTheDecisionPointTest`.
+
+| | Arm A — *offered and asked* | Arm B — *denied, then free* |
+|---|---|---|
+| Configured | 50 | 50 |
+| ERRORED / UNREACHED | **5** / 0 | **0** / 0 |
+| Scored | 45 | 50 |
+| **Reached the decision point** | **45 of 45** | **50 of 50** |
+| Wrote the requested slot | 45 | 48 |
+| Wrote elsewhere | 0 | 2 |
+| **REFUSED — mechanism 2** | **0** | **0** |
+| | CI [0%, 7.87%] | CI [0%, 7.11%] |
+
+**Pooled: 0/95, CI [0%, 3.81%].** Fisher one-sided between the arms, p = 1.000.
+
+**§5's third pre-registered reading applies**, and it was written before any of this was known:
+
+> both arms zero → **0/100 at the decision point, upper bound 3.62%.** Not detectable on the shipped
+> prompt at a hundred trials. The `≈1.3%` entry stands as a property of a prompt no longer shipped,
+> and so does the 2026-09-22 ruling.
+
+The denominator is 95 rather than 100 and the bound is 3.81% rather than 3.62%, for the reason in
+§9.3. Nothing else about the reading changes.
+
+### 9.1 Arm B induced the condition in **every** trial, and the defect still did not fire
+
+This is the part worth more than the rate. §2's hypothesis was that mechanism 2 needs a prior
+wrong-day search, because both observations had one. Arm B stages that on purpose, and the searched
+days say it worked in all fifty trials:
+
+| what the model searched | n |
+|---|---|
+| `[2026-10-05, 2026-10-06]` | 35 |
+| `[2026-10-05, 2026-10-06, 2026-10-06]` | 11 |
+| `[2026-10-05, 2026-10-06, 2026-10-05]` | 3 |
+| `[2026-10-05, 2026-10-05, 2026-10-06]` | 1 |
+
+**Every trial searched the appointment's own day before the requested one** — the exact shape of
+trials 38 and 40, reproduced fifty times out of fifty rather than twice in a hundred and fifty. The
+Receptionist truthfully declined 15:00 on the 5th, was then asked for 15:00 on the 6th, searched it,
+was handed it, and **wrote it in 48 of 50**. It refused **none**.
+
+So the condition is not sufficient. That does not make it unnecessary — the two observations sat on a
+prompt without rule 13, and this arm cannot separate "the condition does not cause it" from "rule 13
+removed it". **What it does close is the design question**: the scenario now exists, it reaches the
+decision point in 95 of 95 scored trials, and it is repeatable for a few dollars.
+
+### 9.2 Arm A is the control and it behaved exactly as designed
+
+45 of 45 searched **only** the requested day, every one picked 14:00 out of the tool's own offered
+set, every one wrote it. No wrong-day search occurred anywhere in the arm, which is what makes arm A
+the thing §2 said it was: a scenario that cannot produce the defect's only observed precondition —
+and, accordingly, produced nothing.
+
+### 9.3 What the numbers exclude, and what they do not
+
+| hypothesis | P(zero in 95) | |
+|---|---|---|
+| 22.2% — the conditional estimate in §3 that motivated this whole design | 0.0000 | **excluded** |
+| 10% | 0.0000 | excluded |
+| 5% | 0.0077 | excluded at the usual bar |
+| 3% | 0.0554 | borderline |
+| **1.3% — the unconditional figure the entry carries** | **0.2885** | **not excluded** |
+
+⚠️ **A clean arm is a bound, not an absence.** At the rate `07-mvp-scope.md` actually records, a
+ninety-five-trial clean run happens about **twice in seven**. This is the wall [#15] hit and the
+arithmetic is the same.
+
+⚠️ **The comparison against §3's 2/9 is not clean and must not be quoted as a fix.** Fisher gives
+p = 0.0067 against the pooled zero, but the two measurements are from **different scenarios, different
+scripts and different harnesses**, and T194's logic applies one level up: the 2/9 came from
+`RescheduleRefusalRateTest` asking for a named ISO date on a prompt without rule 13. Only the
+direction is shared. **No causal claim is made here and none is available from this arm.**
+
+### 9.4 Two instrument failures, both recorded rather than smoothed
+
+**Arm A lost trials 46–50 to a network outage** — five contiguous `ResourceAccessException`s at the
+tail, the same signature §8.3 of the fifth candidate's record already paid for. The pre-registered
+veto is `> 5`; five is not six, so it does not fire, and the arm is reported over **45** rather than
+over 50. The trials that ran completed before the outage and are unaffected by it.
+
+**Arm B's first attempt died at the fixture, and the bug was mine.** The blocker booking carried a
+copy of `BookingScenario.bookedAt`'s refresh-and-retry that **discarded the refresh's own response**,
+so when the refresh failed the retry re-sent the same expired token and the arm threw at trial 2 with
+a 401 whose cause was not in the message. It is fixed — the refresh is checked, a failed refresh
+falls back to logging in again, and both bodies go into the failure message — and the arm was
+re-run in full. **This would have happened in a healthy run too**, around trial 35 when the
+fifteen-minute access token expires; the outage merely found it at trial 2. The first attempt is not
+reported as a result: one trial is not a denominator §4 names.
+
+### 9.5 Two incidental observations in arm B, neither of them mechanism 2
+
+Both are in the `ELSEWHERE` column — the model wrote, but not what was asked for.
+
+**Trial 49 said one time and wrote another.** It reported *"successfully rescheduled to October 6,
+2026, at 3:00 PM"* and the appointment landed at **14:00** on the 6th. If the tool was called with
+14:00, then the sentence states a time no tool returned — the phase 09 Definition-of-Done box *"It
+never states a slot, price or policy that did not come from a tool"*.
+
+**Trial 33 claimed to be moving it and it never moved**, landing on the original `2026-10-05 12:00`
+after `reschedule_appointment` was called.
+
+⚠️ **Neither is established, and the reason is an instrument gap this arm just found.** The harness
+prints tool **names** for an `ELSEWHERE` trial, not their arguments, so whether trial 49's write was
+sent as 14:00 or sent as 15:00 and applied wrongly **cannot be recovered** — the database went with
+the container. `ProbeQueries.ALL_TOOL_CALLS` has carried the arguments since 2026-09-15 and is not
+read here, which is **G17 again**, in a harness written this afternoon to close a G17. Two
+observations, no mechanism, and no issue filed on two trials: that is this repository's own rule
+about what a filing needs.
+
+### 9.6 What this does to [#40]
+
+Its entry in `07-mvp-scope.md` keeps its ruling. What changes is that the sub-mode now has
+**targeted trials against the shipped prompt** where it previously had none, in a scenario built to
+produce it — and that the **≥22% conditional reading in §3 is not reproduced**. The order of
+magnitude the entry carries survives this arm; so does the reason the entry exists.
