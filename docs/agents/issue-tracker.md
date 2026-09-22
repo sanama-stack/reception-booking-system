@@ -13,6 +13,26 @@ Issues and specs for this repo live as GitHub issues. Use the `gh` CLI for all o
 
 Infer the repo from `git remote -v`; `gh` does this automatically when run inside a clone.
 
+### Reference issues without closing verbs
+
+GitHub auto-closes an issue when a commit message or a PR body merged to the default branch contains
+`Fix #N`, `Closes #N`, `Resolves #N` or any of their variants. **This repo does not want that.** A fix
+landing is not a decision that the issue is done: a defect here stays open carrying a rate until
+somebody rules on it, and the ruling is the principal's.
+
+Three issues were closed by this mechanism on 2026-09-18/19 while every document still described them
+as open — the state `docs/07-mvp-scope.md` calls *unnoticed*, arriving from the other direction.
+
+- **Write `#17`, not `Fix #17`** — in commit subjects, commit bodies and PR descriptions. Say what the
+  commit does and put the issue in parentheses: `Search from the date the customer asked for (#17)`.
+- **The verb fires from anywhere in the text, including inside a possessive.** PR #43's body said
+  `"Fix #15's title"`, which named the *title* and closed the *issue*.
+- **The verb does not expire when its reasoning does.** `Close #40 into #17` re-closed #40 on merge
+  two days after that closure had been retracted on the issue — from the same PR that carried the
+  retraction's own evidence.
+- **Close deliberately instead**: `gh issue close <n> --comment "<the ruling>"`. A close with no
+  comment is a close nobody can audit, which is what each of the three above looked like.
+
 ## Pull requests as a triage surface
 
 **PRs as a request surface: no.** _(Set to `yes` if this repo treats external PRs as feature requests; `/triage` reads this flag.)_

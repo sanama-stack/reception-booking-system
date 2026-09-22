@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import dev.reception.support.AuthTestClient;
 import dev.reception.support.DatabaseCleaner;
 import dev.reception.support.IntegrationTest;
+import java.time.Duration;
 import java.util.Map;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -13,6 +14,8 @@ import org.springframework.boot.test.web.client.TestRestTemplate;
 import org.springframework.boot.test.web.server.LocalServerPort;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.oauth2.jwt.Jwt;
+import org.springframework.security.oauth2.jwt.JwtDecoder;
 
 /**
  * Login, refresh rotation, replay detection and logout.
@@ -36,6 +39,9 @@ class SessionLifecycleTest extends IntegrationTest {
     private RefreshTokenRepository refreshTokens;
 
     @Autowired
+    private JwtDecoder jwtDecoder;
+
+    @Autowired
     private DatabaseCleaner databaseCleaner;
 
     private AuthTestClient client;
@@ -56,6 +62,38 @@ class SessionLifecycleTest extends IntegrationTest {
         assertThat(response.getBody()).contains("\"role\":\"OWNER\"").contains("\"slug\":\"salon-aria\"");
         assertThat(client.cookieValue("access_token")).isPresent();
         assertThat(client.cookieValue("refresh_token")).isPresent();
+    }
+
+    /**
+     * The fifteen minutes, pinned to the number instead of to the constant that holds it.
+     *
+     * <p><strong>Nothing asserted it until now, and the reason is worth keeping.</strong> Every
+     * test that needs an expired access token builds one <em>from</em>
+     * {@link JwtService#ACCESS_TOKEN_TTL} — {@code TransparentRefreshTest} does exactly that — so
+     * the constant was free to become fifteen hours without a single test going red, while
+     * docs/01-prd.md's FR-1 went on claiming the number. Found by walking those acceptance criteria
+     * on 2026-09-22. A constant every test derives from is a constant no test checks.
+     *
+     * <p>Read off the issued token's own claims rather than off a fixed clock, because the
+     * application's {@code Clock} is {@code systemUTC} here and the arithmetic is what matters:
+     * {@code exp} minus {@code iat} is exactly the TTL that was added, whenever the token was
+     * minted. That makes this deterministic without a clock fixture.
+     *
+     * <p>Not asserted on the cookie's {@code Max-Age}, although that is what a browser enforces.
+     * {@code AuthController} measures it as the gap from <em>now</em> to the token's expiry, which
+     * truncates to 899 whole seconds about as often as it lands on 900 — a test that has to be
+     * written with a tolerance is a worse pin than this one.
+     */
+    @Test
+    void the_access_token_expires_fifteen_minutes_after_it_is_issued() {
+        client.login(EMAIL, PASSWORD);
+
+        Jwt token = jwtDecoder.decode(client.cookieValue("access_token").orElseThrow());
+
+        assertThat(token.getIssuedAt()).isNotNull();
+        assertThat(token.getExpiresAt()).isNotNull();
+        assertThat(Duration.between(token.getIssuedAt(), token.getExpiresAt()))
+                .isEqualTo(Duration.ofMinutes(15));
     }
 
     /**

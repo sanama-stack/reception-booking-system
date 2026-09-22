@@ -141,18 +141,28 @@ adds no privileged path.
 ### Frontend
 - [x] Classic Flow completes end to end
 - [x] `409` refreshes the grid and preserves entered details
-- [ ] "Any available" shows a specific employee before the slot is chosen — **the branch is now
-      exercised, but not on a screen.** The fixture that did not exist now does:
-      `PublicBookingTest.secondStylist()` puts two Employees on one Service, and two cases assert
-      what the grid does with them — each start offered once, naming somebody specific, and a start
-      whose preferred Employee is busy offered as the other one rather than disappearing. That is
-      the engine and the wire. **This box is under *Frontend testing* and stays unticked because no
-      person has looked at the rendered page with two eligible Employees** — doing so needs a second
-      stylist in a real tenant, and the verification tenant was deliberately not altered for it.
-      **Decided 2026-09-11: verify it rather than strike it**, and it costs nothing to wait — phase
-      11's `make seed` builds Salon Aria with three Employees on differing schedules and one Service
-      deliberately unassigned from one of them, which *is* the fixture this box has been missing.
-      Tick it by looking at that grid, not by standing up a throwaway tenant
+- [x] "Any available" shows a specific employee before the slot is chosen — *ticked 2026-09-22, by
+      looking at the grid the 2026-09-11 decision said to wait for.* `make up-all` and `make seed`,
+      then `/book/salon-aria` → **Haircut** → **Anyone available**, which the page itself labels
+      *"3 people provide Haircut."* On **Wednesday 23 September** the grid offered **35 starts, each
+      appearing exactly once**, and **every one of them named somebody beneath the time before
+      anything was chosen**.
+      **The name is not a constant, which is the half a screenshot of one slot would not have
+      shown**: 10:00 through 17:30 read *Nino Kapanadze*, and 17:45 through 18:30 read *Mariam
+      Beridze*. That is the handover the second test case asserts, arriving here from the schedules
+      rather than from a booking — Nino works to 18:00, so 17:30 is the last 30-minute Haircut that
+      fits inside her day, and Mariam works to 19:00. The start does not disappear when the first
+      person runs out; it is offered as the other one.
+      **Giorgi Tsiklauri never appears, and that is correct rather than a miss.** His Wednesday is
+      09:00–15:00, which the salon's own 10:00 opening clips to 10:00–15:00 — a window Nino covers
+      entirely. Each start is offered once, so the third eligible person is simply never the one
+      resolved. His hour before opening being intersected away is what the seed put him there for.
+      **Selecting 17:45 carried the grid's choice into the confirm line** — *"Haircut with Mariam
+      Beridze, 23 September 2026 at 17:45"* — so what the page resolved is what the write would
+      have used, which is `classic-flow.tsx`'s *"never re-resolved"* comment seen from the outside.
+      Nothing was booked; the box asks about the grid.
+      **Read from the DOM, not from the screenshot.** The frame after the click still showed 17:45
+      unselected. The accessibility tree already carried the confirm line, and the frame was stale
 - [x] The page is usable at 360 px
 
 ## Definition of Done
