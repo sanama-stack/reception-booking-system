@@ -178,7 +178,7 @@ a few dollars — the same order as the fifth-candidate experiment, which was 10
 three turns. **Both arms run on one day, at one distance, one tree apart from nothing**: there is no
 prompt change here, only a scenario, so the two arms differ in the fixture and the script alone.
 
-## 7. The instrument must change first, and none of it costs a credit
+## 7. The instrument must change first, and none of it costs a credit — **done 2026-09-22**
 
 Three changes to `RescheduleRefusalRateTest` / `ProbeQueries`, all CI-provable through
 `ProbeInstrumentationTest`, all of which must land **before** the arm is bought. G17: an instrument
@@ -194,6 +194,25 @@ that has not been proven is not an instrument, and this repository has paid for 
    myself" are different defects with different fixes, and nothing in hand distinguishes them.
 3. **Print the decision-point denominator** defined in §5. No arm has ever printed it, which is why
    the rate in `07-mvp-scope.md` is the unconditional one.
+
+### All three landed before anything was bought
+
+| change | where | proven by |
+|---|---|---|
+| Per-trial `searched` / `offered` / `truncated` / landing on **every** branch | `RescheduleRefusalRateTest` | Not provable in CI — the harness is `@Tag("probe")` and needs a funded key. **Stated rather than claimed**: the format strings and counters are read by eye, and the SQL underneath them is what CI proves |
+| `ProbeQueries.ASSISTANT_PROSE` — the Receptionist's own words, whitespace flattened, cut at 240 with the marker | `ProbeQueries` | `ProbeInstrumentationTest`, two cases, **run on every push** |
+| The decision-point denominator and its three-way split | `RescheduleRefusalRateTest` | As the first row |
+
+**The two new CI cases were counterfactually checked, not merely run.** Replacing `ASSISTANT_PROSE`
+with a bare `select content …` — which drops the flattening, the cap and the `content is not null`
+guard at once — turns **both** of them red and leaves the other nine green. A projection test that
+passes against a broken projection is the shape this repository has already been caught by; a green
+run on its own is not evidence that it was looked at.
+
+**What is still unproven, and it is the first row.** The harness's printing and counting cannot run
+in CI, so a format-string or counter error would surface at spend time. That is the standing
+condition of every `probe`-tagged harness here and it is not fixed by this change — it is the reason
+`ProbeQueries` exists, and the reason the new SQL went into it rather than into the harness.
 
 ## 8. What this cannot answer
 
