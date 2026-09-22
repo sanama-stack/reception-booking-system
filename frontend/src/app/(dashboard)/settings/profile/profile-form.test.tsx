@@ -29,6 +29,141 @@ async function renameAndSave(): Promise<void> {
   await userEvent.click(screen.getByRole('button', { name: 'Save changes' }));
 }
 
+/** The zone the fixture is in, and one it is demonstrably not. */
+const FROM = 'UTC';
+const TO = 'Asia/Tbilisi';
+
+async function retimezoneAndSave(zone = TO): Promise<void> {
+  const timezone = screen.getByLabelText('Timezone');
+  await userEvent.clear(timezone);
+  await userEvent.type(timezone, zone);
+  await userEvent.click(screen.getByRole('button', { name: 'Save changes' }));
+}
+
+/** Every request the stubbed fetch received that was not a GET. */
+function writes(): string[] {
+  return vi
+    .mocked(fetch)
+    .mock.calls.filter(([, init]) => (init?.method ?? 'GET').toUpperCase() !== 'GET')
+    .map(([input]) => String(input));
+}
+
+/**
+ * FR-3... FR-2's last acceptance criterion in docs/01-prd.md: "changing timezone shows a
+ * confirmation warning describing the effect on existing appointments".
+ *
+ * <p>Written 2026-09-22. It was the only criterion in that document open for a reason a ruling
+ * could not touch: the dialog existed and its copy was right, and <em>nothing rendered it</em>.
+ * The five cases above are all about refusals and none of them ever changes the timezone, so the
+ * whole confirmation branch of `onSubmit` was unexercised.
+ *
+ * <p><strong>A warning and a confirmation are different things</strong>, and only the second is
+ * what ADR-0003 asked for. The distinguishing case is `cancelling`: if the patch went out anyway
+ * the dialog would be a notice, and an owner who realised mid-sentence that they were about to
+ * reinterpret every time on every screen would have no way to stop.
+ *
+ * <p>The control is `an ordinary change saves without asking`. Without it every assertion here
+ * would still pass against a form that confirmed *everything*, which is a different screen and a
+ * worse one.
+ */
+describe('ProfileForm, changing the timezone', () => {
+  it('asks before saving, and names both zones', async () => {
+    serve({ kind: 'body', bodies: { '/business': PROFILE } });
+    renderScreen(<ProfileForm profile={PROFILE} onSaved={vi.fn()} />);
+
+    await retimezoneAndSave();
+
+    const dialog = (await screen.findByText('Change your timezone?')).closest('dialog');
+    expect(dialog).not.toBeNull();
+    expect(dialog!.open).toBe(true);
+    expect(dialog!).toHaveTextContent(FROM);
+    expect(dialog!).toHaveTextContent(TO);
+  });
+
+  /**
+   * The row says "describing the effect on existing appointments", so this asserts the substance
+   * and not merely that some prose is present. The effect is the counter-intuitive one: nothing
+   * moves, and every displayed time changes anyway.
+   */
+  it('says the appointments do not move but the times shown do', async () => {
+    serve({ kind: 'body', bodies: { '/business': PROFILE } });
+    renderScreen(<ProfileForm profile={PROFILE} onSaved={vi.fn()} />);
+
+    await retimezoneAndSave();
+
+    const dialog = (await screen.findByText('Change your timezone?')).closest('dialog')!;
+    // `open` first, and not as ceremony. The confirmation is rendered on every pass, so reading
+    // its copy off a closed dialog asserts the component's markup rather than the screen's
+    // behaviour — this case passed with the whole confirmation branch deleted until this line.
+    expect(dialog.open).toBe(true);
+    expect(dialog).toHaveTextContent('No appointment moves.');
+    expect(dialog).toHaveTextContent('will be shown at a different hour');
+  });
+
+  /** Asking is only a confirmation if nothing has happened yet. */
+  it('has sent nothing while the question is still on screen', async () => {
+    serve({ kind: 'body', bodies: { '/business': PROFILE } });
+    const onSaved = vi.fn();
+    renderScreen(<ProfileForm profile={PROFILE} onSaved={onSaved} />);
+
+    await retimezoneAndSave();
+
+    await screen.findByText('Change your timezone?');
+    expect(writes()).toEqual([]);
+    expect(onSaved).not.toHaveBeenCalled();
+  });
+
+  it('saves once the owner confirms', async () => {
+    serve({ kind: 'body', bodies: { '/business': PROFILE } });
+    const onSaved = vi.fn();
+    renderScreen(<ProfileForm profile={PROFILE} onSaved={onSaved} />);
+
+    await retimezoneAndSave();
+    await userEvent.click(await screen.findByRole('button', { name: 'Change timezone' }));
+
+    await vi.waitFor(() => expect(onSaved).toHaveBeenCalledTimes(1));
+    expect(writes()).toHaveLength(1);
+  });
+
+  /** The case that makes this a confirmation rather than a notice. */
+  it('sends nothing at all when the owner backs out', async () => {
+    serve({ kind: 'body', bodies: { '/business': PROFILE } });
+    const onSaved = vi.fn();
+    renderScreen(<ProfileForm profile={PROFILE} onSaved={onSaved} />);
+
+    await retimezoneAndSave();
+    await userEvent.click(await screen.findByRole('button', { name: 'Cancel' }));
+
+    // The dialog's own `open`, not the absence of its text: jsdom implements no modal behaviour
+    // and `setup.ts`'s shim says so plainly, so a closed dialog's children are still here.
+    const dialog = screen.getByText('Change your timezone?').closest('dialog')!;
+    expect(dialog.open).toBe(false);
+    expect(writes()).toEqual([]);
+    expect(onSaved).not.toHaveBeenCalled();
+  });
+
+  /**
+   * The control. Without it, a form that confirmed every save would pass everything above.
+   *
+   * <p>Asserted on the dialog's own `open`, for the reason `delete-service` writes out: the
+   * confirmation is rendered on every pass with `open={pendingTimezone !== null}`, so its heading
+   * is in the document whether or not it is showing. The first draft of this case asked whether
+   * the text was absent and failed — correctly. In a browser it would have passed, which is worse:
+   * it would have been asserting a browser behaviour this environment does not have.
+   */
+  it('does not ask for an ordinary change', async () => {
+    serve({ kind: 'body', bodies: { '/business': PROFILE } });
+    const onSaved = vi.fn();
+    renderScreen(<ProfileForm profile={PROFILE} onSaved={onSaved} />);
+
+    await renameAndSave();
+
+    await vi.waitFor(() => expect(onSaved).toHaveBeenCalledTimes(1));
+    const dialog = screen.getByText('Change your timezone?').closest('dialog')!;
+    expect(dialog.open).toBe(false);
+  });
+});
+
 describe('ProfileForm, refused', () => {
   it('shows the message the server sent when the refusal names no field', async () => {
     serve({

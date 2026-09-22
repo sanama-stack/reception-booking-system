@@ -172,8 +172,14 @@ flows, edge cases, validation rules, acceptance criteria.
 > walk's own record rather than edited into agreement with what came after it — the walk found four,
 > and three of them were answered by a decision rather than by work.
 >
-> **The one that remains is FR-2's**, and it is the only row in this document open for a reason a
-> ruling cannot touch: nothing renders that dialog. It needs a test, which is small, or a person.
+> **Closed the same day — 89 of 89.** FR-2's row was the last, and the only one anywhere open for a
+> reason a ruling could not touch: nothing rendered that dialog. Six cases now do, and the
+> confirmation branch was deleted to watch five of them fail before they were kept.
+>
+> **That leaves no unticked acceptance criterion and no unticked box in any list this project
+> keeps** — 89 of 89 here, 30 of 30 in [07-mvp-scope.md](./07-mvp-scope.md), and no open phase box.
+> **Two measured defects ship knowingly**, [#17] at 2% and [#40] at ~1.3%, each carrying a rate, a
+> date and an issue, which is what this project decided a completed MVP is allowed to look like.
 >
 > **The walk found two requirements true in the source and asserted by nothing** — FR-1's fifteen
 > minutes and FR-3's required duration. Both were ticked with the gap written beside them, because
@@ -344,18 +350,24 @@ payload; manages closures and FAQs as collections.
       *"changing the slug moves the public booking url, and the old slug stops resolving"*, the row
       in one sentence. `PublicBookingTest` *"an unknown slug is a 404 on every public path, before
       any other work"* is what the old slug becomes
-- [ ] Changing timezone shows a confirmation warning describing the effect on existing appointments —
-      **open, and it is the only row in this document open for this reason.** The dialog exists and
-      its copy is right: `settings/profile/profile-form.tsx` renders *"Change your timezone?"*, names
-      both zones, and says *"No appointment moves. Every time you see in Reception does — an
-      appointment now shown at 09:00 will be shown at a different hour, because it is the same moment
-      described from a different place."* That is exactly what the row asks for, and
-      `ClosureEndpointTest` *"changing the timezone afterwards does not move a closure's instants"*
-      confirms the claim the dialog makes is true.
-      **What is missing is the instrument.** `profile-form.test.tsx` has five cases and not one of
-      them opens this dialog; no test in the suite renders it. Seeing it needs a dashboard sign-in,
-      which is the one thing an agent here does not do. **Ticking it needs a test, or a person** —
-      and a test is cheap, because the component is already isolated
+- [x] Changing timezone shows a confirmation warning describing the effect on existing appointments —
+      *ticked 2026-09-22, by writing the instrument that was missing.* `profile-form.test.tsx`
+      § *ProfileForm, changing the timezone*, six cases: the dialog opens and **names both zones**;
+      it carries the substance the row asks for — *"No appointment moves."* and *"will be shown at a
+      different hour"* — rather than merely some prose; **nothing has been sent while the question
+      is still on screen**; confirming saves exactly once; and **backing out sends nothing at all**,
+      which is the case separating a confirmation from a notice. `ClosureEndpointTest` *"changing
+      the timezone afterwards does not move a closure's instants"* confirms the claim the dialog
+      makes is true.
+      **The sixth is the control** — an ordinary change saves without asking. Without it every
+      assertion above would pass against a form that confirmed *everything*.
+      **Measured before it was kept**: with the confirmation branch deleted from `onSubmit`, **5 of
+      the 6 fail** and only the control survives. Two of the six had to be corrected to get there —
+      one asserted the heading was absent, and one read the copy off a closed dialog. The
+      confirmation is rendered on every pass with `open={pendingTimezone !== null}`, so **in this
+      environment its text is in the document whether or not it is showing**, and both cases were
+      asserting markup rather than behaviour. `delete-service.test.tsx` writes that trap down; I
+      walked into it twice before reading it
 
 ---
 
