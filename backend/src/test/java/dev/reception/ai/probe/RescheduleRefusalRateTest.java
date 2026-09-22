@@ -99,9 +99,40 @@ import org.springframework.test.context.TestPropertySource;
  * own first arm called truncation the likely mechanism, on five-of-seven; that was support for the
  * wrong proposition and is retracted.
  *
- * <p><strong>This test therefore measures #17, and #40 is closed.</strong> Its value is that it
- * separates the three outcomes: a candidate that merely converts refusals into wrong bookings moves
- * the refusal rate and fixes nothing, and only a harness that counts them apart can say so.
+ * <p><strong>That closure was retracted the next day and this paragraph said otherwise until
+ * 2026-09-22.</strong> It read <em>"this test therefore measures #17, and #40 is closed"</em>. #40
+ * was reopened on 2026-09-17 on the condition its own closing comment named — a refusal on a trial
+ * that <em>did</em> search the requested day — and the baseline arm of the fifth candidate produced
+ * two of them, both with 15:00 among the offered slots, one of them not truncated. So there are two
+ * mechanisms behind a refusal and this test measures both:
+ *
+ * <ol>
+ *   <li><strong>The wrong-day search</strong> — 21 of 23 pooled refusals, genuinely #17, removed by
+ *       rule 13.
+ *   <li><strong>A refusal of a slot the model was handed</strong> — 2 of 23, on the requested day,
+ *       and the only part of #40 rule 13 does not touch.
+ * </ol>
+ *
+ * <p>Its value is that it separates the three outcomes: a candidate that merely converts refusals
+ * into wrong bookings moves the refusal rate and fixes nothing, and only a harness that counts them
+ * apart can say so.
+ *
+ * <p><strong>Three things were added on 2026-09-22, before any arm was bought</strong>, for
+ * {@code docs/experiments/2026-09-22-40-mechanism-2-scenario.md} §7. None of them costs a credit and
+ * all three close holes that three paid arms had already been run through:
+ *
+ * <ul>
+ *   <li><strong>Every trial prints its evidence</strong>, not just the refusals. {@code searched}
+ *       and {@code offered} used to appear on the REFUSED branch alone, so the signature both
+ *       mechanism-2 observations share — a wrong-day search <em>before</em> the right-day one — has
+ *       no control in any arm run so far and cannot be recovered from them.
+ *   <li><strong>The Receptionist's own words</strong>, via {@link ProbeQueries#ASSISTANT_PROSE}.
+ *       Mechanism 2 had two observations and not one word of text, and <em>"that time is already
+ *       booked"</em> and <em>"I cannot move it myself"</em> are different defects.
+ *   <li><strong>The decision-point denominator</strong> — the requested day searched and 15:00
+ *       returned — which no arm had ever printed. It is why #40's entry carried an unconditional
+ *       {@code ~1.3%}: conditioned properly the same arms read 2 of 9 against 0 of 50.
+ * </ul>
  *
  * <p><strong>#17 competes with #40 for the same scenario, and it wins most trials.</strong> Measured
  * on the two-trial smoke run that proved this harness: both trials wrote to {@code booked + 1} —
@@ -228,6 +259,20 @@ class RescheduleRefusalRateTest extends IntegrationTest {
         // with no control to compare against. Named for the tally, so it cannot collide with the
         // per-trial boolean below.
         int trialsSearchingTheTargetDay = 0;
+
+        // THE DECISION POINT, and the denominator #40 is actually about. A trial reached it if the
+        // requested day was searched AND 15:00 came back among the slots -- that is, the model was
+        // holding the thing it was asked for. No arm before 2026-09-22 printed this, which is why
+        // #40's entry carried an UNCONDITIONAL rate: 2 events in 150 conversations reads as 1.3%,
+        // but most of those conversations never reached the decision point at all because the
+        // search went to the wrong day, so that fraction measures how often #17 fired as much as
+        // anything of #40's. Conditioned properly the same arms give 2 of 9 against 0 of 50.
+        // See docs/experiments/2026-09-22-40-mechanism-2-scenario.md §3.
+        int reachedTheDecisionPoint = 0;
+        int decisionPointWroteRequested = 0;
+        int decisionPointWroteElsewhere = 0;
+        int decisionPointRefused = 0;
+
         Map<String, Integer> landedOn = new LinkedHashMap<>();
 
         for (int trial = 1; trial <= CONVERSATIONS; trial++) {
@@ -292,10 +337,46 @@ class RescheduleRefusalRateTest extends IntegrationTest {
                 trialsSearchingTheTargetDay++;
             }
 
+            // EVERY TRIAL CARRIES ITS EVIDENCE, and until 2026-09-22 only the refusals did.
+            //
+            // `searched` and `offered` were printed on the REFUSED branch alone; MOVED printed the
+            // word MOVED and nothing else. So the one signature both of #40's mechanism-2
+            // observations share -- a wrong-day search BEFORE the right-day one -- has no control
+            // anywhere in three arms and cannot be recovered from them: whether the trials that did
+            // NOT refuse share it is simply unrecorded. T195, a signature consistent with two
+            // explanations is evidence for neither, and the control cost nothing but this line.
+            String evidence =
+                    "landed=%s  searched=%s  target searched=%s  15:00 offered=%s  truncated=%s  offered=%d slots"
+                            .formatted(
+                                    landed,
+                                    searched,
+                                    searchedTheTargetDay,
+                                    slotWasOffered,
+                                    truncated,
+                                    offered.size());
+
+            // What the Receptionist SAID. #40's second mechanism has two observations and not one
+            // word of text: "that time is already booked" is a false statement about a slot it was
+            // handed, and "I cannot move it myself" is a refusal to use a tool it has. Different
+            // defects, different fixes, and every arm so far classified a refusal without reading
+            // it. Printed for every trial, one turn, so the refusals are not the only ones with
+            // words -- a refusal gets one more turn below, because the decline may land in either
+            // of the last two.
+            List<String> prose =
+                    jdbc.queryForList(ProbeQueries.ASSISTANT_PROSE, String.class, started.conversationId());
+
+            boolean atTheDecisionPoint = searchedTheTargetDay && slotWasOffered;
+            if (atTheDecisionPoint) {
+                reachedTheDecisionPoint++;
+            }
+
             String expected = target + " 15:00";
             if (expected.equals(landed)) {
                 moved++;
-                System.out.printf("%3d  MOVED%n", trial);
+                if (atTheDecisionPoint) {
+                    decisionPointWroteRequested++;
+                }
+                System.out.printf("%3d  MOVED      %s%n     said: %s%n", trial, evidence, lastTurns(prose, 1));
             } else if (!tools.contains("reschedule_appointment")) {
                 // #40 exactly: authorised, asked twice, and no write attempted at all.
                 refused++;
@@ -310,15 +391,25 @@ class RescheduleRefusalRateTest extends IntegrationTest {
                 if (searchedTheTargetDay) {
                     refusedHavingSearchedTheTargetDay++;
                 }
+                if (atTheDecisionPoint) {
+                    decisionPointRefused++;
+                }
                 System.out.printf(
-                        "%3d  REFUSED  15:00 offered=%s  truncated=%s  offered=%d slots  "
-                                + "searched=%s  target searched=%s%n",
-                        trial, slotWasOffered, truncated, offered.size(), searched, searchedTheTargetDay);
+                        "%3d  REFUSED%s  %s%n     said: %s%n",
+                        trial,
+                        atTheDecisionPoint ? "  <-- MECHANISM 2, the slot was on the table" : "",
+                        evidence,
+                        lastTurns(prose, 2));
             } else {
                 // It wrote, but not where it was asked to. That is #17's territory, not #40's, and
                 // pooling the two would make each look like the other.
                 movedElsewhere++;
-                System.out.printf("%3d  ELSEWHERE  landed=%s  tools=%s%n", trial, landed, tools);
+                if (atTheDecisionPoint) {
+                    decisionPointWroteElsewhere++;
+                }
+                System.out.printf(
+                        "%3d  ELSEWHERE  %s  tools=%s%n     said: %s%n",
+                        trial, evidence, tools, lastTurns(prose, 1));
             }
         }
 
@@ -347,6 +438,28 @@ class RescheduleRefusalRateTest extends IntegrationTest {
                 target,
                 java.time.temporal.ChronoUnit.DAYS.between(today, target));
 
+        // THE DECISION-POINT TABLE. Printed apart from the outcome counts above, because the two
+        // denominators answer different questions and quoting one as the other is the correction
+        // #40's entry carries: the unconditional rate is what a caller experiences, and the
+        // conditional one is what this issue is about.
+        System.out.printf(
+                "%nDECISION POINT -- the requested day searched AND 15:00 among the slots returned, "
+                        + "so the model was holding the thing it was asked for.%n"
+                        + "reached in %d of %d trials that ran: %d wrote the requested slot, %d wrote "
+                        + "elsewhere, %d REFUSED%n"
+                        + "MECHANISM 2 = %d/%d%s -- this is #40's rate, and it is NOT the "
+                        + "refusals-over-all-trials figure above.%n",
+                reachedTheDecisionPoint,
+                CONVERSATIONS - errored,
+                decisionPointWroteRequested,
+                decisionPointWroteElsewhere,
+                decisionPointRefused,
+                decisionPointRefused,
+                reachedTheDecisionPoint,
+                reachedTheDecisionPoint == 0
+                        ? " (no trial reached the decision point -- this arm says NOTHING about #40)"
+                        : " = %.1f%%".formatted(100.0 * decisionPointRefused / reachedTheDecisionPoint));
+
         if (refusedWithSlotOffered > 0) {
             System.out.printf(
                     "%n%d refusal(s) happened with 15:00 ON THE TABLE — the Receptionist contradicted "
@@ -360,5 +473,19 @@ class RescheduleRefusalRateTest extends IntegrationTest {
                             + "measurement of the Receptionist — they are a measurement of a partial run.%n",
                     errored, CONVERSATIONS);
         }
+    }
+
+    /**
+     * The last {@code n} things the Receptionist said, joined for one printed line.
+     *
+     * <p>Says {@code (no prose)} rather than printing nothing, because a trial whose every assistant
+     * turn was a bare tool call is a real and readable outcome — the model searched and never spoke
+     * — and a blank line reads as the harness having failed to look.
+     */
+    private static String lastTurns(List<String> prose, int n) {
+        if (prose.isEmpty()) {
+            return "(no prose — every assistant turn was a bare tool call)";
+        }
+        return String.join("  ||  ", prose.subList(Math.max(0, prose.size() - n), prose.size()));
     }
 }

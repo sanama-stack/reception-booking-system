@@ -285,6 +285,59 @@ class ProbeInstrumentationTest extends IntegrationTest {
                 .isFalse();
     }
 
+    /**
+     * <strong>What the Receptionist actually said, which no arm has ever recorded.</strong>
+     *
+     * <p>#40's second mechanism — a refusal of a slot the model was handed, on the day it was asked
+     * about — has two observations and <strong>not one word of text</strong>. Both are printed as
+     * three booleans and a slot count. Whether the model said <em>"that time is already booked"</em>,
+     * which is a false statement about a slot it had just been given, or <em>"I cannot move it
+     * myself"</em>, which is a refusal to use a tool it has, decides which defect it is — and the
+     * evidence to tell them apart was thrown away three arms running.
+     *
+     * <p>The assertion that carries the weight is the <strong>first</strong> element: the tool-calling
+     * turn before it has {@code content} NULL and must contribute no row. That is the ordinary shape
+     * of a first iteration, so a harness asking for "the last two turns" would otherwise be handed
+     * an empty string and print a blank line where the refusal should be.
+     */
+    @Test
+    @DisplayName("the prose projection reads back what the model said, and skips a tool-only turn")
+    void the_prose_projection_reads_what_the_receptionist_said() {
+        model.willCall("find_available_slots", "{\"date_from\":\"%s\"}".formatted(aria.monday))
+                // Deliberately broken across lines and padded: the projection flattens whitespace,
+                // because this is printed one trial per line in a fifty-trial summary and a newline
+                // in the middle of it would split a trial's evidence across two lines.
+                .willSay("Here is what\n\n   I have.")
+                .willSay("That time is already booked.");
+
+        ConversationService.StartedConversation started = conversations.start(Optional.empty());
+        conversations.respond(started.sessionToken(), "what have you got free next Monday?");
+        conversations.respond(started.sessionToken(), "15:00 please");
+
+        assertThat(jdbc.queryForList(ProbeQueries.ASSISTANT_PROSE, String.class, started.conversationId()))
+                .containsExactly("Here is what I have.", "That time is already booked.");
+    }
+
+    /**
+     * A long answer is cut <em>and says so</em>, the same contract {@link ProbeQueries#ALL_TOOL_CALLS}
+     * carries and for the same reason: a silently truncated string reads exactly like a short one,
+     * and this class exists to stop that reading.
+     */
+    @Test
+    @DisplayName("an answer past the cap is cut and says that it was")
+    void a_long_answer_is_marked_as_truncated() {
+        // 640 characters, well past the 240 the projection allows. Rule 12 asks the model for two or
+        // three sentences, so a real answer does not reach this -- the cap is for the one that does.
+        model.willSay("I am terribly sorry about that. ".repeat(20));
+
+        UUID conversation = ask("hello");
+
+        String said = jdbc.queryForList(ProbeQueries.ASSISTANT_PROSE, String.class, conversation)
+                .getFirst();
+
+        assertThat(said).endsWith("...[truncated]").hasSize(240 + "...[truncated]".length());
+    }
+
     /** A valid search of the fixture's open day, which is what both projections above read. */
     private UUID searchTheFixturesOpenDay() {
         model.willCall(

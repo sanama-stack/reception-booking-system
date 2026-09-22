@@ -128,6 +128,33 @@ public final class ProbeQueries {
             "select coalesce(bool_or((tool_result->>'truncated')::boolean), false) from ai_messages "
                     + "where role = 'TOOL' and tool_name = 'find_available_slots' and conversation_id = ?";
 
+    /**
+     * <strong>What the Receptionist actually said</strong>, in order, one row per prose turn.
+     *
+     * <p>Added 2026-09-22 for <a href="https://github.com/sanama-stack/reception-booking-system/issues/40">#40</a>'s
+     * second mechanism, which has <strong>two observations and not one word of text</strong>. Both
+     * are printed in the reopening comment as three booleans and a slot count; whether the model
+     * said <em>"that time is already booked"</em> — a false statement about a slot it had just been
+     * handed — or <em>"I am not able to move it myself"</em> — a refusal to use a tool it has — is
+     * unrecorded and unrecoverable, and those are different defects with different fixes. Every
+     * previous arm classified a refusal without reading it.
+     *
+     * <p>A tool-only assistant turn has {@code content} NULL and contributes no row. That is the
+     * ordinary shape of a first iteration — the model's answer to "book me Thursday" is a tool call,
+     * not prose — so the guard is the common case rather than the edge one, and a harness taking
+     * "the last two turns" would otherwise take two empty strings.
+     *
+     * <p>Whitespace is flattened and the text cut at 240 characters with the same marker
+     * {@link #ALL_TOOL_CALLS} uses, because this is printed one trial per line in a fifty-trial
+     * summary and a silently cut string reads exactly like a short one. Rule 12 asks the model for
+     * two or three sentences, so 240 characters is the whole of a well-behaved answer.
+     */
+    public static final String ASSISTANT_PROSE = "select case when length(flat) > 240 "
+            + "then concat(left(flat, 240), '...[truncated]') else flat end from ("
+            + "select regexp_replace(content, '\\s+', ' ', 'g') as flat, created_at "
+            + "from ai_messages where role = 'ASSISTANT' and content is not null "
+            + "and conversation_id = ?) turns order by created_at";
+
     /** Every {@code date_from} the model searched, in order. The endpoint both harnesses read. */
     static final String SEARCHED_DATES = "select tool_arguments->>'date_from' from ai_messages "
             + "where role = 'TOOL' and tool_name = 'find_available_slots' "
