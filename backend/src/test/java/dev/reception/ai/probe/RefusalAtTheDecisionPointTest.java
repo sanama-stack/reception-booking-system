@@ -405,19 +405,46 @@ class RefusalAtTheDecisionPointTest extends IntegrationTest {
         return jdbc.queryForList(ProbeQueries.SEARCHED_DATES, String.class, conversation);
     }
 
-    /** Arm B only: a real appointment, so the Receptionist's first decline is true. */
+    /**
+     * Arm B only: a real appointment, so the Receptionist's first decline is true.
+     *
+     * <p><strong>This threw and killed the first arm B, on 2026-09-22.</strong> The fixture's access
+     * token lives fifteen minutes and a fifty-trial arm runs longer than that, so a 401 here is
+     * expected rather than exceptional — {@code BookingScenario.bookedAt} carries a refresh-and-retry
+     * for exactly that reason, and this method was written with a copy of it that
+     * <strong>discarded the refresh's own response</strong>. When the refresh itself failed, the
+     * retry re-sent the same dead token, and the arm died at the fixture with a 401 whose cause was
+     * not in the message.
+     *
+     * <p>So the refresh is checked, and a failed refresh falls back to logging the owner in again —
+     * the fixture's own constants, the same pair {@code BookingScenario.open} registers with. Both
+     * bodies go into the failure message if it still cannot book, because the thing that made the
+     * first failure hard to read was that it reported the symptom and not the step that produced it.
+     *
+     * <p>It throws rather than skipping the trial <strong>on purpose</strong>: an arm B whose blocker
+     * silently failed to book is an arm A wearing arm B's label, and it would print a refusal rate
+     * for a scenario that never happened.
+     */
     private void blockFifteenHundred(BookingScenario aria, LocalDate day) {
-        ResponseEntity<String> response =
-                aria.book(aria.at(day, 15, 0), aria.employeeId, "Davit Kapanadze", BLOCKER_PHONE);
+        ResponseEntity<String> response = bookTheBlocker(aria, day);
+        String refreshBody = "not attempted";
         if (response.getStatusCode().value() == 401) {
-            aria.owner.post("/auth/refresh", null);
-            response = aria.book(aria.at(day, 15, 0), aria.employeeId, "Davit Kapanadze", BLOCKER_PHONE);
+            ResponseEntity<String> refreshed = aria.owner.post("/auth/refresh", null);
+            refreshBody = refreshed.getStatusCode() + " " + refreshed.getBody();
+            if (!refreshed.getStatusCode().is2xxSuccessful()) {
+                aria.owner.login(BookingScenario.OWNER_EMAIL, BookingScenario.PASSWORD);
+            }
+            response = bookTheBlocker(aria, day);
         }
         if (!response.getStatusCode().is2xxSuccessful()) {
-            // Loudly, because an arm B whose blocker silently failed to book is an arm A wearing
-            // arm B's label, and it would print a refusal rate for a scenario that never happened.
-            throw new IllegalStateException("Arm B could not block 15:00: " + response.getBody());
+            throw new IllegalStateException(
+                    "Arm B could not block 15:00 on %s: %s (refresh: %s)"
+                            .formatted(day, response.getBody(), refreshBody));
         }
+    }
+
+    private ResponseEntity<String> bookTheBlocker(BookingScenario aria, LocalDate day) {
+        return aria.book(aria.at(day, 15, 0), aria.employeeId, "Davit Kapanadze", BLOCKER_PHONE);
     }
 
     private static String lastTurns(List<String> prose, int n) {
