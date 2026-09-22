@@ -158,6 +158,49 @@ class ServiceEndpointTest extends IntegrationTest {
         assertThat((String) JsonPath.read(patched.getBody(), "$.price.amount")).isEqualTo("70.00");
     }
 
+    /**
+     * The <em>requires</em> in "owner can create a service and it requires a duration" — FR-3's
+     * first acceptance criterion in docs/01-prd.md, which nothing asserted until now.
+     *
+     * <p><strong>Every other duration case here sends one.</strong> They vary the value — off the
+     * grid, out of range, negative — and a create with the field simply absent was never posted, so
+     * {@code @NotNull} on {@link dev.reception.catalog.web.ServiceRequests}'s create record was
+     * load-bearing and unguarded. Deleting it left this suite green, which is what the 2026-09-22
+     * walk of the PRD found and what this test exists to stop.
+     *
+     * <p>Absent is not the same request as null, so both are sent. Jackson binds a missing property
+     * and an explicit {@code null} to the same field, but only one of them is what a form actually
+     * sends, and a schema that accepted either would be wrong in a different way.
+     *
+     * <p>The counterpart is {@code ServiceValidationTest}'s "an absent duration is not a failure —
+     * a patch may leave it alone". These two are the pair: required on the way in, optional on the
+     * way through, which is the whole difference between POST and PATCH here.
+     */
+    @Test
+    @DisplayName("a create with no duration at all is refused, which is what makes it required")
+    void refuses_a_create_with_no_duration() {
+        Map<String, Object> absent = new HashMap<>();
+        absent.put("name", "Haircut");
+        absent.put("price", "60.00");
+
+        ResponseEntity<String> missing = owner.post("/services", absent);
+
+        assertThat(missing.getStatusCode()).isEqualTo(HttpStatus.UNPROCESSABLE_ENTITY);
+        assertThat(JsonPath.<List<String>>read(missing.getBody(), "$.errors[*].field"))
+                .containsExactly("durationMinutes");
+        assertThat(JsonPath.<List<String>>read(missing.getBody(), "$.errors[*].message"))
+                .containsExactly("Enter how long this takes.");
+
+        Map<String, Object> explicitNull = new HashMap<>(absent);
+        explicitNull.put("durationMinutes", null);
+
+        assertThat(owner.post("/services", explicitNull).getStatusCode())
+                .isEqualTo(HttpStatus.UNPROCESSABLE_ENTITY);
+
+        // The control: nothing above is refusing the request for some other reason.
+        assertThat(create("Haircut", 45, "60.00").getStatusCode()).isEqualTo(HttpStatus.CREATED);
+    }
+
     @Test
     @DisplayName("a duration off the five-minute grid is refused")
     void refuses_a_duration_off_the_grid() {

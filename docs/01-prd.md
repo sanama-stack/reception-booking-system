@@ -166,10 +166,17 @@ flows, edge cases, validation rules, acceptance criteria.
 > | **[#17]/[#40]/[#15]** | FR-9's first, second and sixth | The same three Receptionist rows [07-mvp-scope.md](./07-mvp-scope.md) carries, arrived at independently from a different list. That they land on exactly the same three is the useful result |
 > | **No instrument** | FR-2's timezone-warning row | The dialog is implemented and its copy is right. **No test renders it**, and looking at it needs a dashboard sign-in |
 >
-> **Two rows are ticked with an unpinned constant named in place** — FR-1's fifteen minutes and
-> FR-3's required duration. Both are true in the source and neither is asserted by a test, so both
-> would survive being changed. They are ticked because the behaviour is what the criterion asks for,
-> and the gap is written beside them rather than left for the next walk to rediscover.
+> **The walk found two requirements true in the source and asserted by nothing** — FR-1's fifteen
+> minutes and FR-3's required duration. Both were ticked with the gap written beside them, because
+> the behaviour was what the criterion asked for and the missing thing was an instrument.
+>
+> **Both gaps were closed the same day, and each was shown to fail before it was kept.** Changing
+> `ACCESS_TOKEN_TTL` from fifteen minutes to fifteen **hours** left 30 of 31 auth tests green —
+> including all six of `TransparentRefreshTest`, which is the class that looks like it covers this.
+> Deleting `@NotNull` from the service create record left 58 of 59 green, including the whole of
+> `ServiceValidationTest`. In both runs the new test was the only failure, which is the measurement
+> that makes the gap real rather than argued. **A constant every test derives from is a constant no
+> test checks** — that is the pattern, and it is worth looking for elsewhere.
 
 [#15]: https://github.com/sanama-stack/reception-booking-system/issues/15
 [#17]: https://github.com/sanama-stack/reception-booking-system/issues/17
@@ -232,10 +239,13 @@ return new cookies.
       five cases, including the two controls that make it a test rather than a demonstration:
       *"a_visitor_with_no_cookies_at_all_is_not_told_to_refresh"* and
       *"a_forged_access_token_is_not_refreshable_even_beside_a_valid_refresh_cookie"*.
-      **The fifteen minutes is not pinned by anything.** It is
-      `JwtService.ACCESS_TOKEN_TTL = Duration.ofMinutes(15)`, and every test that needs an expired
-      token builds one *from that constant* — so changing it to fifteen hours leaves the suite
-      green. The behaviour is what this row asks for; the number is carried by the source alone
+      **The fifteen minutes is now pinned, and was not when this row was first walked.**
+      `SessionLifecycleTest` *"the_access_token_expires_fifteen_minutes_after_it_is_issued"* reads
+      `exp` minus `iat` off the issued token and compares it to the literal — deterministic without
+      a clock fixture, because the arithmetic is the same whenever the token was minted.
+      **Measured before it was kept**: with `ACCESS_TOKEN_TTL` set to fifteen *hours*, 30 of 31 auth
+      tests still passed, `TransparentRefreshTest`'s six among them, because every test that needs
+      an expired token builds one *from that constant*
 - [x] Refresh rotation invalidates the previous token; replaying it revokes the family —
       `SessionLifecycleTest`, three cases in sequence:
       *"refresh_issues_a_new_refresh_token_and_revokes_the_old_one"*,
@@ -374,10 +384,13 @@ payload; manages closures and FAQs as collections.
       rules in `ServiceValidationTest`: *"a duration on the five-minute grid and inside the bounds is
       accepted"*, *"a duration off the five-minute grid is refused"*, *"a duration outside five
       minutes to twenty-four hours is refused"*.
-      **The *requires* is unpinned, the same way FR-1's fifteen minutes is.** It is
-      `@NotNull(message = "Enter how long this takes.")` on the create record in `ServiceRequests`,
-      and no test posts a service without one — `ServiceValidationTest` asserts the opposite case,
-      *"an absent duration is not a failure — a patch may leave it alone"*, which is the PATCH rule
+      **The *requires* is now pinned, and was not when this row was first walked.**
+      `ServiceEndpointTest` *"a create with no duration at all is refused, which is what makes it
+      required"* posts the field absent and then explicitly null, and carries a successful create as
+      its control. Until it existed no test omitted the field at all: the nearest case is
+      `ServiceValidationTest` *"an absent duration is not a failure — a patch may leave it alone"*,
+      which is the PATCH rule and the opposite assertion. **Measured before it was kept**: with
+      `@NotNull` deleted from the create record, 58 of 59 tests still passed
 - [x] Duplicate service names within one business are rejected — `ServiceEndpointTest`
       *"a duplicate name is refused, and the message lands on the name field"*, with
       *"name uniqueness is case-insensitive"* and *"a service may keep its own name through a
