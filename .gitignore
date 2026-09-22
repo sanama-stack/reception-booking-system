@@ -61,3 +61,9 @@ __pycache__/
 # Raw probe evidence, archived per run so the next --rerun cannot overwrite it. The numbers that
 # matter are quoted in docs/experiments/ and on the issue; these are the working files behind them.
 backend/probe-runs/
+
+# Design reference images — colour palettes and the like, collected while looking at something and
+# kept to look at again. Nothing in docs/ links to them and the consistency check does not know they
+# exist; they are working material, not documentation. Anything a document actually cites has to be
+# committed instead, so if a file here ever earns a link, take it out of this rule.
+docs/reference/
