@@ -74,9 +74,9 @@ difference attributed to the variable under test that in fact comes from the ins
 
 ```sh
 export OPENAI_API_KEY=$(grep '^OPENAI_API_KEY=' ../.env | cut -d= -f2-)
-PROBE_CONVERSATIONS=50 PROBE_TARGET_DAYS=14 PROBE_DATE_STYLE=ISO \
+PROBE_CONVERSATIONS=50 PROBE_DATE_STYLE=ISO \
   ./gradlew test -PincludeTags=probe --tests '*RescheduleDateFidelityRateTest' --rerun
-PROBE_CONVERSATIONS=50 PROBE_TARGET_DAYS=14 PROBE_DATE_STYLE=WEEKDAY \
+PROBE_CONVERSATIONS=50 PROBE_DATE_STYLE=WEEKDAY \
   ./gradlew test -PincludeTags=probe --tests '*RescheduleDateFidelityRateTest' --rerun
 ```
 
@@ -85,10 +85,22 @@ and it doubles as a bridge: if it does not land near 98%, the two harnesses disa
 neither of them changed, and **that is a finding about the instruments** that must be resolved
 before either number is quoted again.
 
-**`PROBE_TARGET_DAYS=14` is pinned** because T194 is not optional: `BookingScenario.monday` drifts
-between 7 and 14 days out depending on the weekday, and two arms across days compare the calendar as
-much as the phrasing. 14 is *"the Monday after next"*'s own distance, which is what makes the two
-phrasings name the same date.
+**`PROBE_TARGET_DAYS` is deliberately left unset, and the first draft of this section had it pinned
+at 14 — which would have been the confound it was written to prevent.** Corrected before any trial
+ran; nothing in this file has been edited after a number was collected.
+
+T194 is not optional: `BookingScenario.monday` is `today + 7` rolled forward to the next Monday, so
+it drifts with the weekday, and two arms at different distances compare the calendar as much as the
+phrasing. **The baseline this experiment tests against ran on 2026-09-15, a Tuesday, at 13 days out**
+— target Monday 2026-09-28, with `nearer = 2026-09-21` and `further = 2026-10-05`, which is exactly
+what §11.4 of the resolver's record documents. That is the harness default, not a pinned value.
+
+**Today is also a Tuesday.** The default therefore reproduces the baseline's geometry exactly —
+13 days out, a Monday target of 2026-10-05, phrased *"the Monday after next"* — and pinning 14 would
+instead have produced a **Tuesday** target at 14 days, a different distance *and* a different weekday
+from the only arm it is being compared with. The calendar is doing the work here and it is doing it
+by accident; if this experiment had been run a day later it would need a different design, and that
+is worth saying out loud rather than relying on again.
 
 ---
 
@@ -168,7 +180,104 @@ both arms before the second `--rerun` overwrites the first.
 
 ---
 
-## 8. Result
+## 8. Result — 2026-09-22. **Rule 13 carries to relative phrasing.**
 
-*Not yet run. This section stays empty until the arms are bought, and the four sections above are
-not to be edited when they are.*
+Two arms, 100 live conversations, one day, one tree, one distance — 13 days out, target Monday
+`2026-10-05` — differing only in `PROBE_DATE_STYLE`. **0 errored and 0 never-wrote in both**, so no
+denominator is doing quiet work anywhere below.
+
+| | Baseline 2026-09-15 | **WEEKDAY today** | ISO control today |
+|---|---|---|---|
+| **Strict landing** | 35/50 = 70.0% | **46/50 = 92.0%** | 48/50 = 96.0% |
+| Clopper-Pearson | [55.4%, 82.1%] | **[80.8%, 97.8%]** | — |
+| Fisher vs baseline | — | **p = 0.0047** | — |
+| Searched the named date | 19/50 window | 43/50 exact, 46/50 window | 48/50 |
+| `OTHER READING` | (miscounted — see 8.2) | 0 nearer, **4 further** | 0, 0 |
+| `resolve_date` called | 50/50 | **50/50** | **0/50** |
+
+§5 pre-registered **≥ 43/50** as *rule 13 carries*. The arm returns **46/50**.
+
+### 8.1 The rate is not the finding. The absence is.
+
+```
+wrong at trials: []
+resolve_date was called in 50 of 50 trials
+asked: {MONDAY+1 -> 2026-10-05 = 46, MONDAY+2 -> 2026-10-12 = 4}
+of the wrong writes, 0 landed on a date resolve_date GAVE and 0 on one it NEVER GAVE
+```
+
+**Zero wrong writes in fifty.** All four non-landings took the *further* reading of "the Monday
+after next" — `2026-10-12` — and reached it by **asking `resolve_date` and using the answer it
+gave**. That is the ambiguity `ResolveDateTool`'s javadoc named and deliberately declined to resolve
+in code, on the grounds that "a resolver that picked a reading in code would be guessing with more
+confidence than the model, not less". It is **not** [#17], which is a write landing on a date no tool
+ever produced.
+
+The provenance line is the proof and it is empty in both columns, because there was nothing to
+classify. Clopper-Pearson on the defect rate under relative phrasing: **[0%, 7.1%]**.
+
+**And phrasing no longer separates the arms.** ISO 48/50 against WEEKDAY 46/50, same day, same
+harness, same distance: **Fisher p = 0.34**. On 2026-09-11 the same contrast was **p = 3.9 × 10⁻⁵**.
+The gap that motivated the fourth candidate is gone — measured, not assumed.
+
+### 8.2 §4 chose a denominator the baseline cannot supply, and I am reporting it rather than using it
+
+§4 fixed the primary as excluding `OTHER READING` from **both** numerator and denominator. On this
+arm that gives **46/46 = 100%**, CI [92.3%, 100%].
+
+**That number is not comparable to 35/50 and is not used here.** The 2026-09-15 arm's counter watched
+the *nearer* reading, which nobody takes; its ten *further*-reading trials fell into `WRONG` and
+stayed there, because §11.4 of [the resolver's record](2026-09-11-17-deterministic-date-resolution.md)
+ruled that the arm is **reported as it was scored** and not re-scored under a rule written once its
+numbers were visible. That ruling is right and it binds this experiment too.
+
+So the comparison above uses the **baseline's own convention** — other-readings counted against the
+arm — which is the harsher reading of today's result and the only honest one. **The verdict is
+identical under either**, which is the sole reason this is a paragraph rather than a re-run.
+
+**The lesson is mine to carry: a pre-registered endpoint has to be computable on the control, not
+only on the candidate.** §4 was written without checking that, and a decision rule that could only
+be evaluated one-sided would have been useless at exactly the moment it mattered.
+
+### 8.3 The ISO control is what makes any of this quotable
+
+The veto in §5 fired at **below 40/50**. The ISO arm landed **48/50**.
+
+That matters more than it looks. The 98% this project has been quoting since 2026-09-17 came from
+`RescheduleRefusalRateTest`; today's 96% comes from `RescheduleDateFidelityRateTest`, five days
+later, with a different denominator convention and a third outcome category the other harness does
+not have. **Two instruments agreeing to within one trial about a prompt neither of them changed** is
+what licenses reading the WEEKDAY number as a fact about phrasing rather than about tooling.
+
+`resolve_date` was called **0 times in 50** on the ISO arm and **50 times in 50** on the WEEKDAY arm,
+exactly as the harness's javadoc says it must. The control is measuring the explicit-date path and
+nothing else.
+
+Both ISO wrong trials (4 and 41) landed on `2026-09-23` — **tomorrow** — which is [#17]'s original
+signature, not a phrasing artefact. The 2/50 residual is the same defect that ships knowingly at 2%.
+
+### 8.4 The distance was nearly wrong, and the calendar rescued it by accident
+
+§3's first draft pinned `PROBE_TARGET_DAYS=14`. **Corrected before any trial ran.** The baseline ran
+at the harness default — `today + 7` rolled to the next Monday — which from Tuesday 2026-09-15 is
+**13 days** to Monday 2026-09-28, confirmed against §11.4's recorded `nearer`/`further` pair of
+`2026-09-21` / `2026-10-05`. Pinning 14 would have produced a **Tuesday** target at 14 days: a
+different distance *and* a different weekday from the only arm it is compared with, which is T194
+with a new hat.
+
+Today is also a Tuesday, so the default reproduced the baseline's geometry exactly. **That is luck,
+not design.** A run one day later needs a different design, and the next person should not inherit
+the assumption that the default is safe.
+
+### 8.5 What this does not settle
+
+- **One distance.** 13 days. Nothing here transfers to *"next Monday"* at 3 days, which is both
+  untested and the more common customer input.
+- **One phrase.** *"The Monday after next"*, with its ambiguity counted rather than resolved. This
+  measures fidelity to a **named** date, not comprehension of a phrase.
+- **It attributes nothing.** Rule 13 is not the only change between 2026-09-15 and now. The
+  improvement is a property of the shipped system, not a causal claim about one prompt rule.
+- **The 4 further-reading trials are a real customer outcome.** They are not this defect and they are
+  not a success either: a customer who meant 5 October and got 12 October has a wrong appointment. It
+  is out of scope for [#17] and it is not out of scope for the product.
+- **Nothing about [#40]**, whose own ruling of 2026-09-22 puts scenario design before budget.

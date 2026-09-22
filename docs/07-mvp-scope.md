@@ -177,12 +177,16 @@ The MVP is complete when **all** of the following are true. Each line is verifia
 > true at once. The rows tick because the principal set a bar; the entries stay because 98% is not
 > 100% and saying otherwise would be the rounding-up this list was audited to stop.
 >
-> **What no ruling touched**: rule 13 has **zero trials** against relative phrasing. That is the
-> largest known unknown left in this system and it is not a box on any list. The nearest measurement
-> is **35/50 = 70% strict landing on 2026-09-15**, before rule 13 and on the shipped prompt —
-> *not* the 55.2% this document carried until 2026-09-22, which describes a prompt without
-> `resolve_date`. [The pre-registration](experiments/2026-09-22-17-relative-phrasing-after-rule-13.md)
-> records the correction and what it changes about the comparison.
+> **What no ruling touched has since been measured.** Rule 13 had **zero trials** against relative
+> phrasing, which made it the largest known unknown in the system and a box on no list. It was
+> pre-registered and run the same day: **46/50 = 92%**, zero wrong writes, and **phrasing no longer
+> separates the arms at all** (ISO 48/50 vs WEEKDAY 46/50, p = 0.34, against p = 3.9e-05 in
+> September). [The arm](experiments/2026-09-22-17-relative-phrasing-after-rule-13.md).
+>
+> Two things that survive it. **The 55.2% this document carried until 2026-09-22 was always the
+> wrong figure** — it describes a prompt without `resolve_date`, which this repository ships — and
+> the correction is recorded in §2 of that experiment. And **the measurement is one distance and one
+> phrase**: *"next Monday"* at three days out is untested, and is the commoner customer input.
 >
 > **No row was ticked by reading alone.** Each names the test that carries it, and two were measured
 > during the walk rather than cited: `.env.example` by comparing every `${VAR}` placeholder against
@@ -241,8 +245,9 @@ The MVP is complete when **all** of the following are true. Each line is verifia
       the one rule 13 fixed: **`date_from` aimed at the day the customer named, 18% → 100%**
       (p = 1.2e-19), and correct landing **22% → 98%** (p = 1.4e-16), over two fifty-trial arms with
       0 errored in either. Observed in the running application on 2026-09-18 and again on 2026-09-22.
-      **The limit**: one phrasing at one distance. Rule 13 has **zero trials** against relative
-      phrasing, whose nearest pre-fix measurement is 35/50 on 2026-09-15 — see [#17]'s entry
+      **The limit**: one distance. Relative phrasing was **measured on 2026-09-22 and holds** —
+      46/50, zero wrong writes, indistinguishable from ISO at p = 0.34 — so the tick no longer rests
+      on a phrasing customers do not use. Three days out remains untested; see [#17]'s entry
 - [x] The Receptionist reschedules and cancels an appointment after the customer proves ownership —
       **and the write lands on the date the customer named.** *Widened 2026-09-11; **ticked 2026-09-22
       on the principal's ruling**.* The **ownership half was always proven** and is enforced server-side
@@ -374,7 +379,7 @@ went quiet. The rate is part of the entry precisely so that shipping stays a dec
 | | |
 |---|---|
 | **Rate** | **2% wrong on the measured scenario** after the fifth candidate — 1 of 50, 2026-09-17. Before it, on that same scenario, **78% wrong** (11/50 correct). The 10.6% this row carried was a *different* scenario measured 2026-09-11 and is not comparable — **T194**, distance to the horizon is uncontrolled across every rate this project recorded before that date |
-| **Worst case** | **Unmeasured since the fix**, and the figure this row used to name was the wrong one. Rule 13 has only ever been measured against ISO dates, so whether it helps relative phrasing — *"the Monday after next"* — is **an open question with zero trials**. That part stands. **The applicable pre-fix number is 35/50 = 70% strict landing, measured 2026-09-15** on the shipped prompt. The **55.2% wrong** this row carried is from **2026-09-11 and describes a prompt without `resolve_date`**, which this repository does ship; `RescheduleDateFidelityRateTest`'s own javadoc says *"the baseline to compare against is 2026-09-15, not 2026-09-11"*. Corrected 2026-09-22 — see [the pre-registration](experiments/2026-09-22-17-relative-phrasing-after-rule-13.md) §2 |
+| **Worst case** | **Measured 2026-09-22, and it is no longer the worst case.** Relative phrasing — *"the Monday after next"* — now lands **46/50 = 92%**, CI [80.8%, 97.8%], against a pre-fix baseline of 35/50 = 70%, Fisher **p = 0.0047**. **Zero wrong writes in fifty**: all four non-landings took the further reading of an ambiguous English phrase, reached by asking `resolve_date` and using its answer, which is not this defect. CI on the defect rate under relative phrasing: **[0%, 7.1%]**. **And phrasing no longer separates the arms** — ISO 48/50 against WEEKDAY 46/50 on one day and one harness is **p = 0.34**, where the same contrast was p = 3.9e-05 on 2026-09-11. [The arm](experiments/2026-09-22-17-relative-phrasing-after-rule-13.md) §8. **Still one distance (13 days) and one phrase**; *"next Monday"* at 3 days is untested and is the commoner input |
 | **Measured** | 2026-09-17 — [the fifth candidate's record](experiments/2026-09-17-17-reschedule-searches-the-requested-date.md). Earlier: 2026-09-11 — [the resolver's](experiments/2026-09-11-17-deterministic-date-resolution.md) |
 | **Ruling** | **2026-09-22 — 98% on the measured scenario is the bar, and the three Receptionist rows tick against it.** The defect ships knowingly at 2%, which is what this section is for. Earlier: 2026-09-11 — phase 09's hallucination box **not ticked at today's rates**, and a fourth candidate authorised. That ruling is discharged; this one replaces it |
 | **Status** | **Accepted and shipped knowingly.** The fifth candidate was accepted on 2026-09-17 — one prompt rule telling the model that a move searches from the *requested* date. Two fifty-trial arms, one day, one distance, 0 errored in both: correct landing **22% → 98%** (p = 1.4e-16), and the mechanism itself, *searched the requested day*, **18% → 100%** (p = 1.2e-19). Neither pre-registered veto fired. §8 of [the experiment record](experiments/2026-09-17-17-reschedule-searches-the-requested-date.md). **The issue stays open**, because 98% is not 100% and the rows ticking is a decision about the bar rather than a claim the defect is gone — which is the distinction this whole section exists to keep. **The named residual**: one trial never moved the appointment, the bound is 10.6%, and relative phrasing has zero trials |
