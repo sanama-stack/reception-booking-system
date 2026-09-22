@@ -144,6 +144,37 @@ flows, edge cases, validation rules, acceptance criteria.
 
 ---
 
+> **Walked 2026-09-22 — the first time these eighty-nine were gone through.** They were written in
+> the phase-01 commit and **not one had ever been ticked**, in any of the twelve sections below.
+> Nothing said they were superseded, and nothing pointed at the lists that had been walked —
+> [07-mvp-scope.md](./07-mvp-scope.md)'s thirty on 2026-09-13, and each phase's own Definition of
+> Done. This is the same failure that audit recorded one document over, in a second copy nobody had
+> reached: *"the list had survived ten phases unread."*
+>
+> **85 ticked, 4 open.** The headline is the same one that walk found, and for the same reason — the
+> list was carrying far less risk than its zero suggested. Almost every criterion here already had a
+> test written against it, often word for word; what was missing was somebody reading the two side
+> by side.
+>
+> **Each tick names the test that carries it, and no row is ticked by reading alone.** Where the
+> evidence proves less than the sentence claims, the tick says so in place rather than rounding up.
+>
+> **The four that are open are three reasons, not four:**
+>
+> | | Rows | Why |
+> |---|---|---|
+> | **[#17]/[#40]/[#15]** | FR-9's first, second and sixth | The same three Receptionist rows [07-mvp-scope.md](./07-mvp-scope.md) carries, arrived at independently from a different list. That they land on exactly the same three is the useful result |
+> | **No instrument** | FR-2's timezone-warning row | The dialog is implemented and its copy is right. **No test renders it**, and looking at it needs a dashboard sign-in |
+>
+> **Two rows are ticked with an unpinned constant named in place** — FR-1's fifteen minutes and
+> FR-3's required duration. Both are true in the source and neither is asserted by a test, so both
+> would survive being changed. They are ticked because the behaviour is what the criterion asks for,
+> and the gap is written beside them rather than left for the next walk to rediscover.
+
+[#15]: https://github.com/sanama-stack/reception-booking-system/issues/15
+[#17]: https://github.com/sanama-stack/reception-booking-system/issues/17
+[#40]: https://github.com/sanama-stack/reception-booking-system/issues/40
+
 ### FR-1 — Authentication and accounts
 
 **Description.** Business users authenticate with email and password and receive a short-lived access token
@@ -182,14 +213,47 @@ return new cookies.
 - Access token TTL 15 minutes; refresh TTL 30 days; both httpOnly, `Secure` in non-local profiles, `SameSite=Lax`.
 
 **Acceptance criteria.**
-- [ ] Registration creates user, business, owner membership and default hours atomically; a failure at any
-      step leaves no partial rows
-- [ ] Duplicate email registration returns `409` and creates nothing
-- [ ] Login with wrong credentials returns `401` with a message that does not reveal whether the email exists
-- [ ] Access tokens expire after 15 minutes and the client transparently refreshes
-- [ ] Refresh rotation invalidates the previous token; replaying it revokes the family
-- [ ] Passwords are stored only as BCrypt hashes and never appear in any log or response
-- [ ] No token is readable from JavaScript
+- [x] Registration creates user, business, owner membership and default hours atomically; a failure at any
+      step leaves no partial rows — `RegistrationTest`
+      *"creates_user_business_membership_and_the_default_week_in_one_transaction"* for the four rows,
+      and `RegistrationAtomicityTest` for the clause that matters:
+      *"a_failure_writing_the_default_week_leaves_no_user_business_or_membership"*, with
+      *"the_email_can_be_registered_again_after_a_failed_attempt"* proving the rollback was real and
+      not merely invisible
+- [x] Duplicate email registration returns `409` and creates nothing — `RegistrationTest`
+      *"a_duplicate_email_is_refused_and_creates_nothing"*, asserting `CONFLICT` by name. Two
+      cases go further than the row asks: *"a_duplicate_email_in_a_different_case_is_still_a_duplicate"*
+      and *"concurrent_registration_on_one_email_produces_exactly_one_account"*
+- [x] Login with wrong credentials returns `401` with a message that does not reveal whether the email exists
+      — `SessionLifecycleTest` *"a_wrong_password_and_an_unknown_email_are_answered_identically"*,
+      which is the row's real content: not that a `401` comes back, but that the two cases are
+      indistinguishable. *"a_failed_login_sets_no_cookie"* closes the other half of the same door
+- [x] Access tokens expire after 15 minutes and the client transparently refreshes — `TransparentRefreshTest`,
+      five cases, including the two controls that make it a test rather than a demonstration:
+      *"a_visitor_with_no_cookies_at_all_is_not_told_to_refresh"* and
+      *"a_forged_access_token_is_not_refreshable_even_beside_a_valid_refresh_cookie"*.
+      **The fifteen minutes is not pinned by anything.** It is
+      `JwtService.ACCESS_TOKEN_TTL = Duration.ofMinutes(15)`, and every test that needs an expired
+      token builds one *from that constant* — so changing it to fifteen hours leaves the suite
+      green. The behaviour is what this row asks for; the number is carried by the source alone
+- [x] Refresh rotation invalidates the previous token; replaying it revokes the family —
+      `SessionLifecycleTest`, three cases in sequence:
+      *"refresh_issues_a_new_refresh_token_and_revokes_the_old_one"*,
+      *"replaying_a_rotated_token_revokes_the_entire_family"*, and
+      *"a_revoked_family_cannot_refresh_again"*. With
+      *"an_unknown_refresh_token_is_refused_without_revoking_anything"* as the control, so the
+      revocation is a response to replay rather than to any unrecognised string
+- [x] Passwords are stored only as BCrypt hashes and never appear in any log or response — all three
+      clauses separately. Stored: `RegistrationTest` *"the_password_is_stored_only_as_a_bcrypt_hash"*.
+      Response: *"the_response_body_carries_no_credential"*. Log: `AuthEventLoggingTest`
+      *"and no line carries the password or either token"*, alongside
+      *"every endpoint on the /auth surface is either a recorded event or an exemption"* —
+      which is what stops a new endpoint logging its way around this row
+- [x] No token is readable from JavaScript — `RegistrationTest`
+      *"the_response_carries_both_cookies_and_neither_is_reachable_from_javascript"*, with
+      `AuthCookieSecurityTest` on the rest of the cookie contract: *"turning Secure on does not cost
+      httpOnly, SameSite or Path"*, and *"a profile with no file of its own gets Secure by default,
+      not the other way round"* — a default that fails closed
 
 ---
 
@@ -227,14 +291,52 @@ payload; manages closures and FAQs as collections.
 - `ai_additional_info` ≤ 2000 characters. FAQ question ≤ 300, answer ≤ 1000, ≤ 50 FAQs per business.
 
 **Acceptance criteria.**
-- [ ] Owner can set every profile field, and the public page reflects changes immediately
-- [ ] A day with no configured hours yields no availability
-- [ ] Invalid IANA timezone is rejected with `422`
-- [ ] Business hours with `closes_at ≤ opens_at` are rejected
-- [ ] Overlapping intervals on the same day are rejected
-- [ ] A closure removes all availability in its range for every employee
-- [ ] Slug change updates the public URL and the old slug stops resolving
-- [ ] Changing timezone shows a confirmation warning describing the effect on existing appointments
+- [x] Owner can set every profile field, and the public page reflects changes immediately —
+      `BusinessSettingsTest` *"every profile and settings field can be patched and read back"*, with
+      *"a patch naming one field leaves the sixteen it does not mention alone"* and *"a blank value
+      clears an optional field — which is what an emptied form input sends"*. The public half is
+      *"changing the slug moves the public booking url, and the old slug stops resolving"*, and
+      `OnboardingDerivationTest` *"the booking url follows the slug, so a slug change moves it with
+      no second write"* — there is no cached copy that could go stale
+- [x] A day with no configured hours yields no availability — `BusinessHoursEndpointTest`
+      *"the whole week is replaced, and a day absent from the payload is closed"*, and the engine
+      end in `AvailabilityEngineTest` *"the business is shut that day"* and *"no business hours at
+      all"*, both of which are named **empty reasons** rather than silent empties
+- [x] Invalid IANA timezone is rejected with `422` — `BusinessSettingsTest`
+      *"an unreal timezone is rejected with a sentence naming the field"*, asserting
+      `UNPROCESSABLE_ENTITY`. `BusinessValidationTest` carries the harder edge:
+      *"anything ZoneId does not know is rejected, including a zone whose case is wrong"*, with
+      *"an absent timezone is not a failure — this is a PATCH"* as its control
+- [x] Business hours with `closes_at ≤ opens_at` are rejected — **both sides of the `≤`**, which is
+      the only way this row is actually satisfied. `BusinessHoursValidationTest`
+      *"closing before opening is rejected"* and *"closing at the opening time is rejected — a
+      zero-length opening is not a shift"*
+- [x] Overlapping intervals on the same day are rejected — `BusinessHoursValidationTest`
+      *"overlapping intervals on one day are rejected"*, with *"an interval overlapping one
+      submitted before it is still caught"* (order-independence) and two controls that stop the
+      check being a blunt one: *"adjacent intervals on one day are a split shift, not an overlap"*
+      and *"intervals that overlap only across different days are fine"*
+- [x] A closure removes all availability in its range for every employee — `AvailabilityEngineTest`
+      *"a closure removes availability for every employee, not just one"*, which is this row's whole
+      point and not a clause a per-employee test would have reached. `SlotBookabilityTest`
+      *"a closure takes the slot"* closes it on the other entry point, and `ClosureConversionTest`
+      covers the 23- and 25-hour days a closure can span
+- [x] Slug change updates the public URL and the old slug stops resolving — `BusinessSettingsTest`
+      *"changing the slug moves the public booking url, and the old slug stops resolving"*, the row
+      in one sentence. `PublicBookingTest` *"an unknown slug is a 404 on every public path, before
+      any other work"* is what the old slug becomes
+- [ ] Changing timezone shows a confirmation warning describing the effect on existing appointments —
+      **open, and it is the only row in this document open for this reason.** The dialog exists and
+      its copy is right: `settings/profile/profile-form.tsx` renders *"Change your timezone?"*, names
+      both zones, and says *"No appointment moves. Every time you see in Reception does — an
+      appointment now shown at 09:00 will be shown at a different hour, because it is the same moment
+      described from a different place."* That is exactly what the row asks for, and
+      `ClosureEndpointTest` *"changing the timezone afterwards does not move a closure's instants"*
+      confirms the claim the dialog makes is true.
+      **What is missing is the instrument.** `profile-form.test.tsx` has five cases and not one of
+      them opens this dialog; no test in the suite renders it. Seeing it needs a dashboard sign-in,
+      which is the one thing an agent here does not do. **Ticking it needs a test, or a person** —
+      and a test is cheap, because the component is already isolated
 
 ---
 
@@ -267,12 +369,42 @@ payload; manages closures and FAQs as collections.
 - A service with **no** active assigned employees is invalid for booking and shown as unavailable publicly.
 
 **Acceptance criteria.**
-- [ ] Owner can create a service and it requires a duration
-- [ ] Duplicate service names within one business are rejected
-- [ ] A service can be deactivated and immediately disappears from the public page and from availability
-- [ ] A service that has been booked cannot be hard-deleted
-- [ ] A service with no assigned active employee is surfaced to the owner as "not bookable"
-- [ ] Buffers are respected by the availability engine but do not shorten the bookable day (see FR-5)
+- [x] Owner can create a service and it requires a duration — `ServiceEndpointTest`
+      *"a created service reads back with its price and the business's currency"*, and the duration
+      rules in `ServiceValidationTest`: *"a duration on the five-minute grid and inside the bounds is
+      accepted"*, *"a duration off the five-minute grid is refused"*, *"a duration outside five
+      minutes to twenty-four hours is refused"*.
+      **The *requires* is unpinned, the same way FR-1's fifteen minutes is.** It is
+      `@NotNull(message = "Enter how long this takes.")` on the create record in `ServiceRequests`,
+      and no test posts a service without one — `ServiceValidationTest` asserts the opposite case,
+      *"an absent duration is not a failure — a patch may leave it alone"*, which is the PATCH rule
+- [x] Duplicate service names within one business are rejected — `ServiceEndpointTest`
+      *"a duplicate name is refused, and the message lands on the name field"*, with
+      *"name uniqueness is case-insensitive"* and *"a service may keep its own name through a
+      patch"* — the latter being the case a naive uniqueness check breaks
+- [x] A service can be deactivated and immediately disappears from the public page and from availability
+      — three surfaces, three tests. Management: `ServiceEndpointTest` *"deactivating hides a service
+      from the active listing but not from the management one"*, with *"re-activating restores it"*.
+      Public: `PublicBookingTest` *"services carry a duration and a price, and inactive ones are not
+      offered"*. Availability: `AvailabilityEndpointTest` *"a deactivated service is refused rather
+      than answered with nothing"* — `SERVICE_INACTIVE`, which is **stronger than this row asks**,
+      because an empty grid and a withdrawn service are different answers to a caller
+- [x] A service that has been booked cannot be hard-deleted — `ServiceInUseTest`
+      *"deleting a booked service is refused with 409 SERVICE_IN_USE"*, with two controls:
+      *"a service that has never been booked is still deletable"* and *"another tenant's booked
+      service is a 404, not a 409"* — so the guard cannot be used to probe another tenant
+- [x] A service with no assigned active employee is surfaced to the owner as "not bookable" —
+      `OnboardingProgressionTest` carries this as `hasBookableService`, and its cases are the
+      reasons a service stops being one: *"an assignment to an employee with no schedule is not a
+      bookable service"*, *"a schedule belonging to a deactivated employee is not readiness"*,
+      *"deactivating the only assigned employee takes the page out of the ready state"*. With
+      *"one bookable service is enough, even alongside services nobody can perform"* as the control
+- [x] Buffers are respected by the availability engine but do not shorten the bookable day (see FR-5) —
+      `AvailabilityEngineTest`'s *buffers* nest, and the row's second clause is two of its cases by
+      name: *"a trailing buffer past closing does NOT remove the final slot of the day"* and
+      *"a leading buffer before opening does not remove the first slot either"*. The first clause is
+      *"a trailing buffer blocks the slot that would start on top of it"*, *"a leading buffer blocks
+      the slot that would start too soon after"* and *"buffers on both sides block on both sides"*
 
 ---
 
@@ -308,13 +440,47 @@ payload; manages closures and FAQs as collections.
   foreign keys, not by application code alone.
 
 **Acceptance criteria.**
-- [ ] Owner can create an employee with a job title and active flag
-- [ ] Owner can assign a subset of services to each employee
-- [ ] Owner can give two employees different weekly schedules and availability differs accordingly
-- [ ] An inactive employee produces no availability
-- [ ] Time Off removes availability for exactly the affected range and no more
-- [ ] Effective availability is the intersection of business hours and working schedule
-- [ ] It is impossible to assign an employee to a service belonging to another business
+- [x] Owner can create an employee with a job title and active flag — `EmployeeEndpointTest`
+      *"a created employee reads back, active and assigned to nothing"* and *"optional details are
+      stored when given"*, with the deactivation path in *"deactivating hides an employee from the
+      active listing but not from the management one"* and *"a deactivated employee keeps their
+      assignments"*
+- [x] Owner can assign a subset of services to each employee — `AssignmentEndpointTest`
+      *"assigning employees to a service reads back from both ends"* and its mirror, with the
+      replace semantics the word *subset* implies: *"a replace removes the rows that are no longer in
+      the set"*, *"an empty set clears the assignments"*, *"replacing is idempotent"*, and
+      *"one employee's set is independent of another's"*
+- [x] Owner can give two employees different weekly schedules and availability differs accordingly —
+      `EmployeeScheduleEndpointTest` *"one employee's schedule is independent of another's"* for the
+      configuration, and `AvailabilityEngineTest` *"two different schedules produce one merged list,
+      each slot named correctly"* for the *accordingly*. `DemoSeedTest` holds a real instance of it.
+      **Also seen on screen on 2026-09-22**, closing phase 08's last box: Salon Aria's Wednesday grid
+      reads *Nino Kapanadze* to 17:30 and *Mariam Beridze* from 17:45, which is two schedules
+      differing in the only place a customer can observe them
+- [x] An inactive employee produces no availability — `AvailabilityEndpointTest`
+      *"a deactivated employee stops producing availability immediately"*, and
+      *"a deactivated employee asked for by name is refused as inactive"* for the case where the
+      caller names them, which would otherwise read as an ordinary empty day
+- [x] Time Off removes availability for exactly the affected range and no more — the *and no more*
+      is the row, and `AvailabilityEngineTest` answers it in three sizes:
+      *"a full day off removes the whole day"*, *"an afternoon off leaves the morning"*, and
+      *"a multi-day absence removes every day it covers and no more"*. The storage half is
+      `TimeOffEndpointTest` *"the stored range is half-open — ends_at is the start of the day after
+      the last day off"*, which is where an off-by-one day would come from
+- [x] Effective availability is the intersection of business hours and working schedule —
+      `AvailabilityEngineTest`'s *business hours intersected with the working schedule* nest, which
+      walks the relationship in every direction: *"a schedule wider than the hours is cut down to
+      them"*, *"a schedule narrower than the hours is what limits availability"*, *"a partly
+      overlapping schedule leaves only the overlap"*, *"a schedule that never meets the hours
+      produces nothing"*, *"an employee scheduled on a day the business is shut produces nothing"*.
+      **Observed on 2026-09-22**: the seeded barber opens at 09:00 and the salon at 10:00, and the
+      grid's first start is 10:00
+- [x] It is impossible to assign an employee to a service belonging to another business —
+      `CrossTenantAssignmentTest`, and it is tested **below the API as well as through it**:
+      *"a legitimate assignment written straight to the database is accepted"* is the control that
+      makes the next three mean something — *"one tenant's employee cannot be assigned to another
+      tenant's service"*, its mirror, and *"a third business id cannot be used to smuggle two other
+      tenants' rows together"*. Through the API it is simply *"not found"*
 
 ---
 
@@ -365,17 +531,64 @@ which that service can actually be performed. This is the heart of the product.
 - `employee_id`, when supplied, must be active, belong to the business, and be assigned to the service.
 
 **Acceptance criteria.**
-- [ ] Slots respect business hours, working schedule, and their intersection
-- [ ] Slots never overlap an existing `CONFIRMED` appointment's blocked range
-- [ ] A service longer than the remaining open time is not offered near closing
-- [ ] Buffers block neighbouring slots but do not remove the final slot of the day
-- [ ] Time Off and Closures remove availability
-- [ ] Past slots and slots inside the lead time are never returned
-- [ ] Slots beyond the maximum advance are never returned
-- [ ] Back-to-back appointments with no buffer are both offered
-- [ ] Every returned slot carries the employee who would perform it
-- [ ] Results are correct across both DST transitions in the business's zone
-- [ ] The engine is pure and deterministic given an injected `Clock`
+- [x] Slots respect business hours, working schedule, and their intersection — `AvailabilityEngineTest`,
+      the same nest FR-4's intersection row cites, plus `SlotBookabilityTest` on the other side of
+      the pair: *"outside the business hours is named as such, even when the employee is willing"*
+      and *"inside the business hours but outside this employee's schedule is a different answer"*
+- [x] Slots never overlap an existing `CONFIRMED` appointment's blocked range — `AvailabilityEngineTest`'s
+      *existing appointments* nest: *"an appointment containing a candidate removes it"*, *"a
+      partially overlapping appointment removes only what it touches"*, *"an appointment outside the
+      day changes nothing"*. `AppointmentStatusTest` *"only CONFIRMED holds the employee's time,
+      which is the constraint's own predicate"* is why the row says `CONFIRMED`, and
+      `AppointmentLifecycleTest` *"a cancelled appointment's time becomes bookable again"* is the
+      same fact from the other end
+- [x] A service longer than the remaining open time is not offered near closing — `AvailabilityEngineTest`
+      *"a service one minute too long is not offered at all"* and *"the last possible start is
+      offered — the service ends exactly at closing"*, which fix the boundary from both sides. With
+      *"a service cannot span a lunch break, even though the day is long enough"* for the case where
+      the remaining time is not contiguous
+- [x] Buffers block neighbouring slots but do not remove the final slot of the day — the same nest
+      FR-3's buffer row cites, where both halves of this sentence are named cases. `SlotBookabilityTest`
+      *"the last slot of the day is bookable even with a buffer that runs past closing"* asserts it
+      on the write path too, which is where it would actually cost a booking
+- [x] Time Off and Closures remove availability — `AvailabilityEngineTest`'s *time off and closures*
+      nest, four cases, including the one this row understates:
+      *"a closure removes availability for every employee, not just one"*. `SlotBookabilityTest`
+      *"time off takes the slot"* and *"a closure takes the slot"* on the write path
+- [x] Past slots and slots inside the lead time are never returned — `AvailabilityEngineTest`
+      *"slots already past are dropped, the rest of the day stays"*, *"a slot exactly at now plus the
+      lead time is allowed"*, *"one minute inside the lead time is rejected"*. The two are kept
+      distinct where it counts: `BookingEndpointTest` *"too soon is BELOW_MIN_LEAD_TIME, not
+      BOOKING_IN_PAST"*, and `SlotBookabilityTest` *"a start in the past is refused as past, not as
+      too soon"*
+- [x] Slots beyond the maximum advance are never returned — `AvailabilityEngineTest`
+      *"a slot exactly at the maximum advance is allowed"* and *"one minute beyond the maximum
+      advance is rejected"*, with *"a range entirely in the past is empty and not an error"* as the
+      neighbouring case
+- [x] Back-to-back appointments with no buffer are both offered — `AvailabilityEngineTest`
+      *"back-to-back is offered on both sides — touching is not overlapping"* and *"a slot ending
+      exactly when the appointment starts is offered"*, with `BookingEndpointTest`
+      *"back-to-back appointments with no buffer are both bookable"* proving the grid's offer is
+      one the write path honours
+- [x] Every returned slot carries the employee who would perform it — `AvailabilityEngineTest`
+      *"two different schedules produce one merged list, each slot named correctly"*, and the
+      tie-break that decides **which** name when more than one could: *"the tie-break prefers the
+      employee with fewer appointments that day"*, *"with equal load the tie-break is the
+      lexicographically smaller id"*, *"the tie-break is stable across repeated runs and input
+      orderings"*. `PublicBookingTest` *"with two who can perform it, each start is offered once and
+      names who would take it"* is the public shape. **Seen on screen 2026-09-22**
+- [x] Results are correct across both DST transitions in the business's zone — `AvailabilityEngineTest`'s
+      *daylight saving* nest — *"spring forward: the local times that do not exist are skipped"*,
+      *"a booking spanning the gap is two real hours, not three"*, *"fall back: the repeated hour is
+      offered once, at its first occurrence"* — each with *"a zone with no daylight saving answers
+      identically on both transition dates"* as its control. `SlotGeneratorTest` carries eight more
+      on the grid either side, and `ClosureConversionTest` the 23- and 25-hour days
+- [x] The engine is pure and deterministic given an injected `Clock` — determinism is
+      `AvailabilityEngineTest` *"the tie-break is stable across repeated runs and input orderings"*
+      and `SlotGeneratorTest` *"candidates come back in ascending order of real time"*. **Purity is
+      enforced rather than demonstrated**: `NoAmbientClockTest` is an architecture test, so a new
+      call to `Instant.now()` fails the build instead of quietly reintroducing the thing this row
+      forbids
 
 ---
 
@@ -434,16 +647,58 @@ transition further.
 - Status transitions: `CONFIRMED → {COMPLETED, NO_SHOW, CANCELLED}`; all others rejected with `422`.
 
 **Acceptance criteria.**
-- [ ] Creating an appointment writes exactly one row with a snapshotted price and a unique code
-- [ ] Concurrent creation of the same slot yields one success and one `409` — proven by a threaded test
-- [ ] Booking outside hours, outside the working schedule, in the past, inside the lead time, beyond the
-      horizon, for an inactive service, or for an unassigned employee is rejected with a specific code
-- [ ] Cancellation records who cancelled, when, and why
-- [ ] Reschedule preserves the appointment id and Confirmation Code
-- [ ] A failed reschedule leaves the original appointment intact
-- [ ] Customer-initiated cancellation inside the window is refused; owner-initiated is not
-- [ ] Every state change appends an audit event
-- [ ] Notifications are enqueued in the same transaction as the state change
+- [x] Creating an appointment writes exactly one row with a snapshotted price and a unique code —
+      `BookingEndpointTest` *"a booking returns the appointment, its code and the price agreed"*, with
+      the snapshot proven by its consequence: *"the price is a snapshot: changing the service
+      afterwards does not move it"*. The code is `ConfirmationCodeGeneratorTest` —
+      *"a code already taken by this business is not handed out again"*, *"if every candidate is
+      taken it fails loudly rather than looping"*, and *"two businesses can hold the same code,
+      because uniqueness is per business"*, which is the scope the word *unique* has here
+- [x] Concurrent creation of the same slot yields one success and one `409` — proven by a threaded test
+      — `ConcurrentBookingTest` *"twenty threads book one slot: one 201, nineteen 409, exactly one
+      row"*, which is stronger than the two this row asks for. `ConcurrentRescheduleTest` and
+      `DeadlockRetryTest` cover the same exclusion constraint on the other write paths, and
+      `ConcurrentToolRescheduleTest` on the Receptionist's
+- [x] Booking outside hours, outside the working schedule, in the past, inside the lead time, beyond the
+      horizon, for an inactive service, or for an unassigned employee is rejected with a specific code —
+      the *specific* is the row. `BookingEndpointTest` *"each rejection carries its own code, not one
+      generic refusal"*, with *"too soon is BELOW_MIN_LEAD_TIME, not BOOKING_IN_PAST"* and
+      *"an inactive service or employee is refused by name, before anything is written"*.
+      `SlotBookabilityTest` names the seven separately and then closes the pair both ways:
+      *"every slot findSlots offers passes isSlotBookable"* **and** *"every start it does NOT offer
+      is refused with a reason"* — so no condition can be refused anonymously
+- [x] Cancellation records who cancelled, when, and why — `AppointmentLifecycleTest`
+      *"cancelling records who did it, when, and why"*, the row verbatim, with
+      *"cancelling twice is idempotent and writes no second event"* so the trail cannot be padded
+- [x] Reschedule preserves the appointment id and Confirmation Code — `AppointmentLifecycleTest`
+      *"rescheduling keeps the id and the code, and records the times it moved from"*, and
+      `PublicAppointmentAuthorityTest` *"a customer moves the appointment in place, keeping its id
+      and its code"* — the same guarantee on the surface a customer actually reaches, which is what
+      makes the code on their confirmation email keep working
+- [x] A failed reschedule leaves the original appointment intact — `AppointmentLifecycleTest`
+      *"rescheduling into a taken slot is refused and leaves the original where it was"*, with
+      `PublicAppointmentAuthorityTest` *"a reschedule onto a taken slot is refused and the
+      appointment does not move"* on the public path and `ConcurrentRescheduleTest` under a race
+- [x] Customer-initiated cancellation inside the window is refused; owner-initiated is not —
+      `CancellationWindowTest` on the boundary itself: *"inside the window it is refused with
+      CANCELLATION_WINDOW_CLOSED"*, *"exactly at the boundary the window is already shut"*, and
+      *"a window of zero hours closes only once the appointment has started"*. The second clause is
+      the half a domain test cannot reach, and it is asserted twice —
+      `AppointmentLifecycleTest` *"the business is never bound by its own cancellation window"* and
+      `PublicAppointmentAuthorityTest` *"inside the window a customer is refused, and the business is
+      not"*
+- [x] Every state change appends an audit event — `BookingEndpointTest`
+      *"the appointment and its CREATED event are written in one transaction"*,
+      `AppointmentLifecycleTest` *"cancelling records who did it, when, and why"*,
+      *"rescheduling keeps the id and the code, and records the times it moved from"* and
+      *"marking completed writes the status and an event naming the move"*. `AppointmentStatusTest`
+      fixes which changes exist at all, so the set this row quantifies over is a closed one
+- [x] Notifications are enqueued in the same transaction as the state change — `NotificationEnqueueTest`
+      *"a booking enqueues exactly two rows, in the booking's own transaction"*, and the clause that
+      proves the transaction is shared rather than merely adjacent: *"a refused booking enqueues
+      nothing"*. `PublicBookingTest` *"the confirmation email is enqueued by the booking itself, in
+      its own transaction"* says the same on the public path. This is [ADR-0005](./adr/0005-database-outbox-instead-of-queue.md)'s
+      whole argument, asserted rather than asserted-in-prose
 
 ---
 
@@ -469,10 +724,27 @@ can browse customers, view appointment history, and correct a name or email.
 `full_name` 1–120 chars.
 
 **Acceptance criteria.**
-- [ ] Booking twice with the same phone number reuses one customer record
-- [ ] Customers are strictly scoped to one business
-- [ ] Owner can list customers and open a full appointment history
-- [ ] Owner cannot see any customer of another business, by any endpoint or id
+- [x] Booking twice with the same phone number reuses one customer record — `CustomerEndpointTest`
+      *"a booking creates the customer, and a second booking reuses them"*, with the case that makes
+      it real rather than a string comparison: *"the same number written differently is still the
+      same person"*. `BookingEndpointTest` *"the same phone twice is one customer, and the stored
+      name is not overwritten"* adds the clause this row omits — a second booking must not rewrite
+      the first booking's name
+- [x] Customers are strictly scoped to one business — `TenantIsolationSweepTest`, whose first
+      assertion is that **every catalogued collection and singleton has a control registered for
+      it**, so the sweep cannot pass by covering nothing; `GET /customers` is one of the collections
+      it drives. `SmuggledBusinessIdTest` asserts the catalogue matches what is actually mapped
+- [x] Owner can list customers and open a full appointment history — `CustomerEndpointTest`
+      *"a customer's history is their appointments, newest first"*, with *"search matches on name,
+      phone or email, case-insensitively"* and *"a customer with no appointments left is still a
+      customer, with a count of zero"*. On screen: `customers-screen.test.tsx` and
+      `customer-history.test.tsx`, the latter carrying the empty case —
+      *"explains a customer with no appointments rather than drawing an empty table"*
+- [x] Owner cannot see any customer of another business, by any endpoint or id — the *by any* is
+      what makes this a sweep rather than a case, and `TenantIsolationSweepTest` is derived from the
+      endpoint catalogue rather than hand-listed. `AppointmentListingTest` *"an unknown appointment
+      is 404, the same answer another tenant's id gets"* is the shape every one of them takes: a
+      foreign id and a fictional id are indistinguishable, so neither confirms the other's existence
 
 ---
 
@@ -504,12 +776,42 @@ therefore the same rules. **The public API exposes no field that is not needed t
 beyond what the flow requires, no employee emails or phone numbers, no other customers, no analytics.
 
 **Acceptance criteria.**
-- [ ] `/book/{slug}` renders business name, description, address, hours, services, durations and prices
-- [ ] Classic Flow completes a booking end to end using the same endpoints the Receptionist's tools call
-- [ ] "Any available" resolves to a specific employee before the slot is displayed
-- [ ] A taken slot produces a clear `409` message and a refreshed grid, never a silent failure
-- [ ] No internal or cross-tenant data is present in any public response body
-- [ ] The page is fully usable at 360 px width
+- [x] `/book/{slug}` renders business name, description, address, hours, services, durations and prices —
+      `PublicBookingTest` *"the booking page shows the business, its hours and its policy"* and
+      *"services carry a duration and a price, and inactive ones are not offered"*, with
+      `business-panel.test.tsx` on the rendering. **Seen 2026-09-22**: Salon Aria's page carried the
+      address, the week's hours, the cancellation policy, and four services with their prices
+- [x] Classic Flow completes a booking end to end using the same endpoints the Receptionist's tools call
+      — `PublicBookingTest` *"a stranger books end to end and the booking is sourced CLASSIC"*, and
+      the *same endpoints* clause is its own assertion: *"public availability is the internal
+      endpoint's answer, byte for byte"*. The E2E's `a stranger books through the Classic Flow` runs
+      it through a browser
+- [x] "Any available" resolves to a specific employee before the slot is displayed — *ticked
+      2026-09-22 on screen*, which is what phase 08's twin of this row had been waiting for since
+      2026-09-11. `PublicBookingTest` *"with two who can perform it, each start is offered once and
+      names who would take it"* and *"booking the one the grid named leaves the time offered as the
+      other one"* are the engine and the wire; the grid itself showed 35 starts on one Wednesday,
+      each naming somebody before anything was chosen, and the name changing from *Nino Kapanadze*
+      to *Mariam Beridze* at 17:45 where the first schedule runs out. Full record on
+      [phase 08](./phases/phase-08-public-booking.md)
+- [x] A taken slot produces a clear `409` message and a refreshed grid, never a silent failure —
+      `PublicBookingTest` *"losing the race for a slot is a 409, not a 500"* for the status, and
+      *"an inactive service, an inactive employee and an unassigned one each say why"* for the
+      *clear*. The refresh is phase 08's own ticked box, *"409 refreshes the grid and preserves
+      entered details"* — the second clause being the one that decides whether a customer re-types
+      their details or gives up
+- [x] No internal or cross-tenant data is present in any public response body — `PublicFieldAllowListTest`
+      is an **allow-list**, not a deny-list, which is the only shape that can carry a row saying
+      *any*: *"no public response carries a path outside the allow-list"*, with *"an employee's
+      contact details never reach the public surface"*, *"no public controller returns an entity"*,
+      and the control *"every mapped public endpoint is one this test actually drives"*.
+      `PublicSurfaceSweepTest` *"every public endpoint in the catalogue has a probe written for it"*
+      is what stops a new endpoint being exempt by being forgotten
+- [x] The page is fully usable at 360 px width — carried by [phase 08](./phases/phase-08-public-booking.md)'s
+      own *"The page is usable at 360 px"*, ticked when the phase shipped. **This is the one row in
+      this document ticked on another list's authority rather than on a test**, and it is worth
+      naming as that: it is a rendering judgement, it was made by a person at the time, and nothing
+      since has changed the layout it was made about
 
 ---
 
@@ -561,15 +863,80 @@ booking operations **exclusively** through validated backend tools. Full design 
 - Message length ≤ 2000 characters.
 
 **Acceptance criteria.**
-- [ ] The Receptionist books, reschedules and cancels appointments correctly through tools
+- [ ] The Receptionist books, reschedules and cancels appointments correctly through tools — **open,
+      and it is [#17]**. *Through tools* is proven: `ToolExecutionTest` and `ToolRefusalTest` carry
+      every tool, and `ConversationLoopTest` *"a booking populates appointmentCreated from the tool
+      result, not from the prose"* means nothing reaches a customer that a tool did not do.
+      **`correctly` is the open word.** On the measured scenario a reschedule lands on the date the
+      customer named **98% of the time** after rule 13 — up from 22%, p = 1.4e-16 — and 98% is not
+      100%, the residual is bounded at 10.6%, and the rate is for one phrasing at one distance.
+      [#40] is a second mode: the Receptionist refusing a legitimate move it was offered the slot
+      for, ~1.3% of conversations, **awaiting the principal's ruling**. Rates, limits and dates in
+      [07-mvp-scope.md](./07-mvp-scope.md)
 - [ ] It never states a slot, price, duration or policy that did not come from a tool or the configured context
-- [ ] It never confirms an appointment before `create_appointment` returns success
-- [ ] It cannot cancel or reschedule an appointment whose ownership was not proven
-- [ ] It cannot access any other business's data by any prompt
-- [ ] It answers "I don't know" plus a fallback when information is absent
-- [ ] Tool-call ceilings, turn ceilings and rate limits are enforced server-side
-- [ ] Every conversation, message and tool call is persisted and viewable by the owner
-- [ ] A provider outage degrades to the Classic Flow rather than failing the page
+      — **open, and it is the same issue seen from the other side.** This is phase 09's own
+      Definition-of-Done box and [07-mvp-scope.md](./07-mvp-scope.md)'s ninth Functional row, which
+      the principal ruled **not ticked at today's rates** on 2026-09-11. The counter-example is on a
+      transcript: *"the earliest I can reschedule your appointment for is tomorrow"* — false, from
+      no tool, and said unprompted mid-reschedule. **`never` is a universal, and the only instrument
+      that can test it is the live corpus**, which runs each case once: it can show a behaviour is
+      reachable and can never show it is gone
+- [x] It never confirms an appointment before `create_appointment` returns success — **and this one
+      is structural rather than behavioural, which is why it ticks while the two rows above do not.**
+      `ConversationLoopTest` *"a model that claims a booking it never made produces no
+      appointmentCreated and no row"*, and on screen `receptionist-panel.test.tsx` *"renders no card
+      when the model claims a move the server did not make"* with *"renders a card for a move, from
+      appointmentUpdated"*. The confirmation a customer sees is drawn from the tool result, so a
+      model that confirms early is contradicted by the page rather than believed by it.
+      [ADR-0012](./adr/0012-writes-are-checked-against-offered-slots-and-never-refused.md)
+- [x] It cannot cancel or reschedule an appointment whose ownership was not proven — **enforced
+      server-side, so the model cannot be wrong about it.** `ConversationLoopTest` *"a turn that
+      proves nothing leaves the authority set empty"*, *"a model that invents an appointment id
+      cannot cancel with it, and gains no authority"*, and *"a booking in one turn authorises a
+      cancellation in the next"*. `ToolExecutionTest` *"lookup_appointment with a matching code and
+      phone authorises it"*. `PublicAppointmentAuthorityTest` carries the proof rules themselves,
+      including *"the right code with the wrong number proves nothing"* and *"a phone number on its
+      own is refused by the schema, before it costs an attempt"*.
+      **This is the half of [#17] that was never broken**, and it is what makes a wrong-day write
+      indistinguishable from a right one
+- [x] It cannot access any other business's data by any prompt — *by any prompt* is answered by
+      removing the parameter rather than by testing prompts. `ToolSchemaTest` *"no published schema
+      contains a business_id, anywhere, at any depth"*: there is no argument through which a model
+      could name another tenant. `PublicChatTest` *"a session token from one business cannot be used
+      on another's chat endpoint"* closes the transport, and `PublicIsolationTest` and
+      `TenantIsolationSweepTest` the surfaces underneath
+- [ ] It answers "I don't know" plus a fallback when information is absent — **open, and it is the
+      second clause of the row two above.** `SystemPromptSafetyTest` asserts the fence around the
+      configured context is emitted; it cannot assert the model reads through it, and
+      [08-testing-strategy.md](./08-testing-strategy.md) §7 is explicit that a scripted model reads
+      neither the system prompt nor a tool description. **The instrument is the live corpus and it
+      has been green**, twice — which shows the behaviour is reachable, not that the absence of the
+      failure is general
+- [x] Tool-call ceilings, turn ceilings and rate limits are enforced server-side — `ConversationLoopTest`
+      names each: *"six tool calls in one response are capped at five, and the turn hands off"*,
+      *"a model that only ever calls tools is stopped, and the customer gets a hand-off"*,
+      *"the message ceiling closes the conversation, and the next turn is refused"*, and
+      *"the daily cost cap stops the turn before any model call is made"* — before, which is the
+      difference between a cap and a bill. Rate limits are `RateLimitTest` on the refusal and
+      `RateLimitCoverageTest` on the harder half: **every endpoint an anonymous caller can reach is
+      covered by a policy**, the public surface derived rather than listed, every exemption carrying
+      a reason. The ceilings live in `ConversationLimits` rather than in configuration, deliberately
+- [x] Every conversation, message and tool call is persisted and viewable by the owner — persistence
+      is `AiCallLoggingTest` *"a tool call records its name and outcome, and never its arguments"*
+      in the log and the `ai_messages` row in the database; `TranscriptRetentionTest` bounds how long
+      it is kept. Viewable is `ConversationQueryController`, `conversations-screen.test.tsx` and
+      `transcript.test.tsx`, whose subject is the tool rows rather than the prose.
+      **Verified against a real conversation on 2026-09-18**: the whole transcript and
+      `create_appointment`'s payload readable under **Conversations**
+- [x] A provider outage degrades to the Classic Flow rather than failing the page — and the three
+      cases that matter are told apart. **No model configured**: `PublicChatTest` *"with no model
+      configured the page says so, and the door agrees"* — the page renders, advertising no
+      Receptionist, and the Classic Flow is the whole of it. **A transient outage**: *"a provider
+      outage still leaves a Receptionist on the page"*, with `ConversationLoopTest` *"a provider
+      failure is AI_UNAVAILABLE and leaves the conversation resumable"* and
+      `receptionist-panel.test.tsx` *"keeps the composer when the failure is transient"*.
+      **And the control**: *"the page and the door never disagree about whether there is a
+      Receptionist"* — the defect that would otherwise show a chat box nothing can answer
 
 ---
 
@@ -603,13 +970,45 @@ Channel is `EMAIL` in MVP. Every email includes the Confirmation Code and, for f
 Manage Link.
 
 **Acceptance criteria.**
-- [ ] A booking produces a confirmation email containing the code and a working Manage Link
-- [ ] A reminder is scheduled for 24 hours before, and not scheduled when that time has passed
-- [ ] Cancelling removes pending reminders and sends a cancellation email
-- [ ] Rescheduling reschedules the reminder
-- [ ] Failed sends retry with backoff and are marked `FAILED` after 5 attempts without blocking others
-- [ ] Two poller instances never send the same notification twice
-- [ ] All emails are visible in Mailpit during local development
+- [x] A booking produces a confirmation email containing the code and a working Manage Link —
+      `NotificationDeliveryTest` *"a booking produces a real email carrying the code and a working
+      Manage Link"*, the row verbatim and against a real message rather than a rendered template.
+      `ManageTokenServiceTest` carries the signing, and `PublicAppointmentAuthorityTest`
+      *"a tampered, expired or foreign token is one indistinguishable 401"* what the link refuses.
+      **The row is not universal, by design**: *"a customer with no email causes no message and no
+      failure"*, per [ADR-0007](./adr/0007-booking-response-says-whether-a-confirmation-was-sent.md)
+- [x] A reminder is scheduled for 24 hours before, and not scheduled when that time has passed —
+      both halves, and the second is the one an implementation gets wrong. `NotificationEnqueueTest`
+      *"a booking enqueues exactly two rows, in the booking's own transaction"* and
+      *"an appointment less than 24 hours away gets a confirmation and no reminder"*
+- [x] Cancelling removes pending reminders and sends a cancellation email — `NotificationEnqueueTest`
+      *"cancelling supersedes the pending rows and enqueues a cancellation"*, with
+      *"cancelling twice does not enqueue a second email"*. `NotificationDeliveryTest`
+      *"cancelling sends the cancellation and never the superseded reminder"* proves the supersede
+      reached the wire and not merely the row — which is the failure a customer would actually see
+- [x] Rescheduling reschedules the reminder — `NotificationEnqueueTest`
+      *"a reschedule supersedes the old reminder, schedules a new one, and says so"*, with two edges:
+      *"a reschedule supersedes the old reminder even with no address on file"* — the supersede is
+      not conditional on there being something to send — and *"rescheduling twice sends two
+      reschedule emails"*
+- [x] Failed sends retry with backoff and are marked `FAILED` after 5 attempts without blocking others —
+      three clauses, three cases in `NotificationDispatchTest`: *"a failure counts the attempt,
+      records the reason and backs off"*, *"the fifth failure is the last: FAILED, and never claimed
+      again"*, and *"one poisoned row does not stop the rest of the batch"*. `RetryBackoffTest`
+      pins the schedule itself, and *"the batch goes out oldest first"* is why a stuck row cannot
+      starve the queue behind it
+- [x] Two poller instances never send the same notification twice — `ConcurrentPollerTest`
+      *"two pollers drain one queue: every row sent exactly once"*, which is the row as a threaded
+      test rather than as a claim about a lock. `NotificationEnqueueTest` *"a second live
+      confirmation for one appointment is refused by the database"* is the same guarantee one level
+      down, where a partial index rather than the application enforces it
+- [x] All emails are visible in Mailpit during local development — `NotificationDeliveryTest` drives
+      a real SMTP send and reads the message back, so this is asserted rather than assumed.
+      Confirmed by hand on **2026-09-18** and again on **2026-09-22**: a booking's confirmation
+      arrived carrying its code and a Manage Link that resolved.
+      **One note worth keeping, because it nearly became a defect report**: the outbox is drained on
+      a 60-second poll, so an empty Mailpit immediately after booking is the documented interval and
+      not a failure
 
 ---
 
@@ -629,15 +1028,69 @@ analytics → Receptionist transcripts.
 - The calendar defaults to today, in the **business** timezone, regardless of the browser's timezone.
 
 **Acceptance criteria.**
-- [ ] Onboarding checklist reflects real configuration state and completes only when the page is bookable
-- [ ] Appointment list filters by date range, status and employee
-- [ ] Calendar shows a day and week view with appointments positioned by real duration
-- [ ] Appointments created by the Receptionist are visibly badged
-- [ ] Appointment detail shows customer, service, price snapshot, source and audit history
-- [ ] Owner can cancel, reschedule and change status from the dashboard
-- [ ] Customer list links to full per-customer history
-- [ ] Every screen has empty, loading and error states
-- [ ] All times display in the business timezone
+- [x] Onboarding checklist reflects real configuration state and completes only when the page is bookable
+      — `OnboardingProgressionTest` *"the checklist reaches 'your page is ready' as configuration
+      completes, one step at a time"*, and **the *only when* is proven by taking it back out** —
+      *"deactivating the only assigned employee takes the page out of the ready state"*,
+      *"deactivating the only service takes the page out of the ready state"*, *"clearing the
+      opening hours takes the page out of the ready state"*. `OnboardingDerivationTest` asserts the
+      flags are derived from configuration rather than stored
+- [x] Appointment list filters by date range, status and employee — `AppointmentListingTest`
+      *"filtering by status and by employee each narrows the list on its own"* and *"filters
+      combine"*, with *"a date range is inclusive of both ends, read in the business's zone"* and
+      the control *"with no filters at all, everything comes back in start order"*. On screen,
+      `appointments-screen.test.tsx`
+- [x] Calendar shows a day and week view with appointments positioned by real duration — the data is
+      `CalendarViewTest` *"one call carries the appointments, the closures and the time off"*, and
+      the positioning is `day-view.test.tsx`, which runs **with the browser four hours ahead of the
+      business** and asserts *"labels the block 09:00, not 13:00"* and *"draws the block 60 px down,
+      where 09:00 is, and not at 300 px"* — a number, not a rendering that merely looks plausible.
+      `lib/time/index.test.ts` carries the geometry both views compute from.
+      **The week view is not rendered by any test of its own.** It shares `geometry.ts`,
+      `blocks.tsx` and `time-grid.tsx` with the day view, so the arithmetic under test is the
+      arithmetic it uses — and a person looked at it on **2026-09-18**, which is how the README's
+      own wrong sentence about the Week view came to be corrected
+- [x] Appointments created by the Receptionist are visibly badged — *visibly* is the word, so the
+      evidence is the E2E's `the owner sees both bookings, one badged AI and one cancelled`, which
+      is the badge on a rendered page rather than a column in a payload. `CalendarViewTest`
+      *"a block knows what booked it, so the AI badge has something to draw from"* is the data
+      behind it, and `PublicBookingTest` *"a stranger books end to end and the booking is sourced
+      CLASSIC"* the control that the source is recorded rather than guessed
+- [x] Appointment detail shows customer, service, price snapshot, source and audit history —
+      `AppointmentListingTest` *"the detail endpoint carries the history and never the blocked
+      range"*, the second clause keeping an internal value off the screen. On screen,
+      `appointments/[id]/page.test.tsx` carries the trail in both states: *"names the trail as empty
+      rather than drawing an empty list"* and *"draws the trail instead when there is one, which is
+      what makes the case above a case"*
+- [x] Owner can cancel, reschedule and change status from the dashboard — `AppointmentLifecycleTest`
+      on the endpoints and `AppointmentStatusTest` on which moves are legal at all. On screen,
+      `appointment-actions.test.tsx` and `reschedule-section.test.tsx`, including the refusal paths:
+      *"toasts the server sentence for an ordinary refusal"* and *"re-reads the appointment on a
+      version conflict instead of repeating the server"*. The E2E's `marking one completed moves
+      analytics revenue` runs the status change end to end
+- [x] Customer list links to full per-customer history — `CustomerEndpointTest` *"a customer's
+      history is their appointments, newest first"* for the data, `customers-screen.test.tsx` and
+      `customer-history.test.tsx` for the screens, the latter covering all three states of the pair
+      this row names
+- [x] Every screen has empty, loading and error states — **and this row is carried by a gate rather
+      than by a habit**, which is the only way an *every* survives. `test/screens/coverage.test.ts`
+      derives the list of screens from the API surface every request goes through — not from a name
+      a new screen could fail to use — and then asserts that each one is classified, that every
+      empty state *"has an assertion, a source for its copy, or a written reason — never nothing"*,
+      and that every writing component *"either names tests that really render it, or admits that
+      none does"*. **Both admissions currently stand at zero**: `UNASSERTED_EMPTY_STATES = 0` and
+      `UNASSERTED_WRITE_FAILURES = 0`. The three states themselves are `resource-gate.test.tsx` —
+      *"shows a busy spinner while the first load is in flight"*, *"renders the server's own message
+      when the load failed, not one of its own"*, *"keeps the current content on screen when a
+      reload fails"*
+- [x] All times display in the business timezone — `lib/time/index.test.ts`, and its design is the
+      reason this ticks: the suite **runs four hours ahead of the business, so a fallback to the
+      browser would show**. *"draws a UTC business's 09:00Z at 09:00, not at the browser's 13:00"*,
+      *"reads the same instant differently for a business that really is at +04:00"*, *"follows the
+      business across a DST change the browser does not have"*, *"answers the date in the business
+      zone, not the browser one"*. `CalendarViewTest` *"times are rendered in the business timezone,
+      offset and all"* on the wire, and `AnalyticsSummaryTest` *"the day boundaries follow the
+      business timezone, not the server's"* where a boundary decides which number a day lands in
 
 ---
 
@@ -659,12 +1112,39 @@ month totals, revenue, cancellation rate, no-show rate and top five services by 
 **Validation rules.** Range ≤ 366 days; `from ≤ to`; all boundaries interpreted in the business timezone.
 
 **Acceptance criteria.**
-- [ ] Counts by status are correct for the selected range
-- [ ] Revenue derives from snapshotted prices on completed appointments only
-- [ ] Changing a service's price does not change historical revenue
-- [ ] Top services are ranked by completed and confirmed appointment count
-- [ ] Cancellation and no-show rates are correct, and `null` when there is no denominator
-- [ ] Date boundaries follow the business timezone, not the server's or the browser's
+- [x] Counts by status are correct for the selected range — `AnalyticsSummaryTest` *"the counts are
+      the four statuses and their total, over the range the owner picked"*, with the boundary as its
+      own case: *"an appointment on the last day of the range is inside it"*. The range itself is
+      bounded — *"a range wider than 366 days is refused rather than quietly narrowed"*, *"exactly
+      366 days is allowed, because both ends are inclusive"*, *"a backwards range is refused, not
+      swapped"*
+- [x] Revenue derives from snapshotted prices on completed appointments only — `AnalyticsSummaryTest`
+      *"revenue counts COMPLETED only, and never the appointments that were not attended"*.
+      **The row understates what shipped**, per
+      [ADR-0010](./adr/0010-revenue-reports-one-currency-and-names-the-remainder.md): revenue is
+      filtered to one currency, so the remainder is *named* rather than dropped —
+      *"after a currency change, revenue reports the new currency and names the remainder beside
+      it"*, and *"with one currency the remainder is an empty list, not null and not absent"*
+- [x] Changing a service's price does not change historical revenue — `AnalyticsSummaryTest`
+      *"raising the price afterwards does not rewrite the revenue already earned"*, which is the
+      snapshot of FR-6's first row observed through the report that would expose its absence.
+      `BookingEndpointTest` *"the price is a snapshot: changing the service afterwards does not move
+      it"* is the same fact at the row
+- [x] Top services are ranked by completed and confirmed appointment count — `AnalyticsSummaryTest`
+      *"the top services are ordered by count, and ties break the same way every time"*. The
+      tie-break is asserted rather than left to the database, which is what stops a ranking
+      reshuffling between two identical requests
+- [x] Cancellation and no-show rates are correct, and `null` when there is no denominator —
+      `AnalyticsSummaryTest` *"the rates are the share of the range's appointments, to a tenth of a
+      percent"* and, for the row's second clause, *"an empty range returns zeroes and null rates,
+      not an error and not 0%"* — the distinction being that 0% claims something a missing
+      denominator cannot
+- [x] Date boundaries follow the business timezone, not the server's or the browser's —
+      `AnalyticsSummaryTest` *"the day boundaries follow the business timezone, not the server's"*
+      for the server half, and `lib/time/index.test.ts` for the browser half, under a test clock
+      four hours off. *"the periods answer about now, not about the range that was asked for"*
+      covers the neighbouring confusion, and *"another business's appointments are in nobody else's
+      numbers"* the tenancy one
 
 ---
 
