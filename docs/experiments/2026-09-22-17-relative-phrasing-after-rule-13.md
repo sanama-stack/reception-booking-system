@@ -167,8 +167,9 @@ both arms before the second `--rerun` overwrites the first.
 
 ## 7. What this experiment cannot answer
 
-- **One distance.** 14 days out, pinned. Nothing here transfers to *"next Monday"* at 3 days, which
-  is a different arm and probably the more common customer input.
+- **One distance.** 13 days, the harness default. *(This line said "14 days out, pinned" until
+  2026-09-22 — left over from §3's first draft and contradicting §3 and §8.4 of this same document
+  once they were corrected. Fixed when it was noticed, which was after the arm had run.)*
 - **One reading of one phrase.** *"The Monday after next"* is ambiguous in English and the harness
   counts both readings separately rather than resolving the ambiguity. That is deliberate — see
   `ResolveDateTool`'s javadoc — but it means this arm measures fidelity to a *named* date, not
@@ -271,8 +272,8 @@ the assumption that the default is safe.
 
 ### 8.5 What this does not settle
 
-- **One distance.** 13 days. Nothing here transfers to *"next Monday"* at 3 days, which is both
-  untested and the more common customer input.
+- **One distance.** 13 days. **A short-distance arm was proposed here and withdrawn on
+  2026-09-22 — see §8.6, because the proposal was wrong in a way worth keeping.**
 - **One phrase.** *"The Monday after next"*, with its ambiguity counted rather than resolved. This
   measures fidelity to a **named** date, not comprehension of a phrase.
 - **It attributes nothing.** Rule 13 is not the only change between 2026-09-15 and now. The
@@ -281,3 +282,155 @@ the assumption that the default is safe.
   not a success either: a customer who meant 5 October and got 12 October has a wrong appointment. It
   is out of scope for [#17] and it is not out of scope for the product.
 - **Nothing about [#40]**, whose own ruling of 2026-09-22 puts scenario design before budget.
+
+### 8.6 The short-distance arm was proposed, authorised, and is not runnable
+
+This document and `07-mvp-scope.md` both ended by naming *"next Monday at three days out"* as the
+obvious next arm — *"untested, and the commoner customer input"*. It was authorised. **It was then
+withdrawn before a single conversation was bought, because it cannot produce evidence.**
+
+Two reasons, and the second is the one that matters.
+
+**The harness cannot phrase it.** `spokenDate` is `"the " + dayName + " after next"` for every
+non-ISO style, and `dayName` is derived *from the target*. `PROBE_TARGET_DAYS=3` from a Tuesday gives
+a Friday target of `2026-09-25` and the sentence *"the Friday after next"*, which means `2026-10-02`.
+The spoken phrase would name a different date than the one being scored, and **every trial would read
+as wrong for a reason belonging to the instrument** — T36 exactly.
+
+**And the defect is unreachable at that distance by construction.** `RescheduleDateFidelityRateTest`'s
+own javadoc says so, under *Why not a bare weekday*: a bare weekday can only ever name a date within
+seven days, and every observed failure of [#17] had the model searching `[tomorrow, tomorrow+6]` — so
+a short target sits **inside the very window the model wrongly substitutes**. Such an arm *"would come
+back near-perfect while proving nothing"*. **#17 needs a target more than a week out, which a bare
+weekday cannot express.**
+
+**The proposal was written without reading the file it was a proposal about** — the same javadoc that
+had already corrected this experiment once, by naming 2026-09-15 rather than 2026-09-11 as the
+baseline. Twice in one day, from one document, on the same reading.
+
+**What would be a real short-distance question**, kept here so the withdrawal does not read as a dead
+end:
+
+- **ISO at three days.** Explicit date, near target, no phrasing ambiguity and no harness change —
+  does rule 13's *search from the requested date* hold when the date is close? Runnable today.
+- **A bare-weekday style**, added to `DATE_STYLE`. It answers a **product** question — does the
+  Receptionist handle *"next Monday"* correctly? — and it is **not** a [#17] arm. Filing it as one
+  would be measuring a defect in a place it is known not to occur.
+
+---
+
+## 9. Pre-registration — the distance arm, ISO at three days
+
+> **Written 2026-09-22 after §8, before the arm runs.** A second question on the same tree, reusing
+> §8's ISO arm as its control. §9.1–§9.3 are fixed now; §9.4 is where the result goes.
+
+### 9.1 The endpoint is the mechanism, not the landing — and this is the whole point
+
+§8.6 withdrew a bare-weekday arm because the target would sit inside `[tomorrow, tomorrow+6]`, the
+window [#17] substitutes, making the failure **unreachable in the outcome**. **That argument applies
+to an ISO date at three days just as hard.** A model that ignores the requested date and searches
+the coming week still covers `2026-09-25`, still gets offered a real 15:00 slot, and still writes the
+right appointment. **Landing would come back near-perfect and mean nothing.**
+
+So landing is *not* the primary here. The primary is **`searched the requested date` exactly** —
+`date_from == target` — which the harness already records separately from `window covered`. That
+distinction is precisely what separates *did the right thing* from *got away with it*, and at this
+distance it is the only thing that can.
+
+It is also the literal text of the rule under test: rule 13 says **"search from the date the customer
+asked for"**. This arm asks whether that holds when the date is close enough that nothing would go
+wrong if it did not.
+
+**Primary**: exact-search count over 50 trials. **Reported and deciding nothing**: strict landing
+(expected at or near ceiling, for the reason above — written here *before* the run so a high number
+cannot later be read as a success), `window covered`, and the provenance split.
+
+### 9.2 The control is §8's ISO arm, and the comparison is distance alone
+
+Same day, same tree, same harness, same `PROBE_DATE_STYLE=ISO`, same fixture. **The only variable is
+`PROBE_TARGET_DAYS`.** That is the first time this project has isolated distance, which
+**T194** has called uncontrolled in every reschedule rate it ever recorded.
+
+Control: **48/50 exact-search** at 13 days (target `2026-10-05`). Arm: three days, target
+**`2026-09-25`, a Friday** — the weekend guard passes, so no trial is lost to a closed business.
+
+### 9.3 The decision rule
+
+| Exact search at 3 days | Fisher vs 48/50 | Reading |
+|---|---|---|
+| **≥ 43/50** | no significant difference | Rule 13 holds at short distance. The mechanism is not distance-dependent |
+| **≤ 42/50** | **p ≤ 0.0458**, worse | **The rule degrades when the date is near** — and would have been invisible in every landing-based measurement this project has taken |
+
+**Veto — the arm is void, not interpreted**, if `ERRORED` **+** `NO WRITE` exceeds **5/50**. Both were
+0 in both of §8's arms, so anything material here is the fixture behaving differently at a short
+distance rather than the model, and a rate computed over a shrunken denominator is the T36 shape this
+project keeps paying for.
+
+**Cost**: 50 conversations, roughly 9 minutes, on the same key.
+
+### 9.4 Result — 2026-09-22. **Distance is not the variable.**
+
+| | 13 days (§8's ISO arm) | **3 days** |
+|---|---|---|
+| **Exact search** — the primary | 48/50 | **47/50**, CI [83.5%, 98.7%] |
+| Landing — reported, decides nothing | 48/50 | 47/50 |
+| `window covered` | 48/50 | 47/50 |
+| `ERRORED` + `NO WRITE` | 0 | **0** — veto does not fire |
+| `resolve_date` calls | 0/50 | 0/50 |
+
+§9.3 set **≤ 42/50** as *the rule degrades when the date is near*. The arm returns **47/50**, and
+Fisher against the control is **p = 0.50** — as close to no difference as fifty trials can express.
+
+**This is the first arm in this project to isolate distance.** Same day, same tree, same harness,
+same `PROBE_DATE_STYLE`, same fixture; only `PROBE_TARGET_DAYS` differs. **T194** has called distance
+uncontrolled in every reschedule rate recorded here. Controlled, it does nothing.
+
+#### The pre-registration protected against a failure that did not occur, and that is still the point
+
+§9.1 predicted landing would sit at ceiling and mean nothing, because a wrong `[tomorrow,
+tomorrow+6]` search still covers a three-day target — the model would **get away with it**, and a
+landing-based primary would read that as success.
+
+**That mechanism never appeared.** Exact search, landing and `window covered` are all **47/50**: the
+model either aimed at the requested date or it did not, and no trial was rescued by a sloppy window
+that happened to contain the answer.
+
+So the primary and the discounted secondary agree, and **choosing the harder endpoint changed
+nothing about the conclusion**. It was still right to choose it. Had landing decided, this arm would
+have reached the same verdict *by luck*, and nothing in the result would have revealed the
+difference. **A pre-registration that turns out to be unnecessary is not a pre-registration that was
+wrong** — it is the only kind whose value can be checked afterwards, and the check is that §9.1's
+reasoning was published before the numbers existed and can now be read against them.
+
+#### The three misses are [#17] intact, not a distance effect
+
+```
+landed on: {2026-09-25=47, 2026-09-28=3}
+of the wrong writes, 0 landed on a date resolve_date GAVE and 3 on one it NEVER GAVE
+```
+
+All three went to **`2026-09-28`, the following Monday** — a date **no tool ever produced**, which is
+this defect's original signature rather than anything about proximity. 3/50 here against 2/50 at
+thirteen days: the same residual, and the difference is noise.
+
+#### What §8 and §9 establish together
+
+Rule 13 holds across **both phrasings and both distances tested** — ISO and relative, three days and
+thirteen — with a residual of **2–6%** that looks like one defect rather than several. [#17]'s entry
+in [07-mvp-scope.md](../07-mvp-scope.md) carried three limits this morning; §8 removed the phrasing
+limit and §9 removes the distance one.
+
+**What is left is not a limit on these arms but a property of the defect**: it persists at a few
+percent, it writes a date no tool produced, and nothing measured today moves it. Whether that is
+worth a sixth candidate is the principal's, and the ruling of 2026-09-22 — *ship knowingly at 2%* —
+already answers it until somebody asks again.
+
+#### What this still cannot say
+
+- **One fixture.** `BookingScenario`, one business, one service, one employee, a booking at 12:00 and
+  a request for 15:00 the same day. The *time*-change flow is the one [#17] was observed in, and it
+  is the only flow either section measured.
+- **Two distances are not a curve.** Three days and thirteen agree; nothing here says what happens at
+  forty, near the sixty-day horizon.
+- **It says nothing about bare-weekday phrasing**, which §8.6 explains cannot be an arm for this
+  defect at all.
