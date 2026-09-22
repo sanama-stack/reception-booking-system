@@ -157,6 +157,30 @@ The MVP is complete when **all** of the following are true. Each line is verifia
 > at one distance. Nothing about the demo-script walk decides them: one conversation that books the
 > day it was asked about is one trial, which is the error [#40] was reopened for.
 >
+> ---
+>
+> ## **Closed 2026-09-22 — 30 ticked, 0 open, on three rulings by the principal**
+>
+> The question those three rows were held open for was never an engineering question. It was
+> *what counts as fixed*, and the issues had said so in writing for eleven days.
+>
+> | | Ruling |
+> |---|---|
+> | **[#17]** | **98% on the measured scenario is the bar.** The three rows tick against it; the defect ships knowingly at 2% |
+> | **[#40]** | **Accepted at ~1.3% of conversations.** A targeted arm was declined *for now* on sample-size grounds — at that rate fifty trials see it about half the time — so the scenario design comes before the budget |
+> | **[#15]** | ***Not detected at 150 in the cell customers actually hit* is the bar.** Closed against it. A second Thursday arm was declined: it tightens one cell and leaves six untouched |
+>
+> **Ticking a box and closing a defect are different acts, and only one of them happened to [#17]
+> and [#40].** Both remain open under *Accepted, measured, open defects*, carrying their rates.
+> That is the whole design of this document: a box is ticked against evidence **or** the defect it
+> covers is named below with a rate, a date and an issue — and here, for the first time, both are
+> true at once. The rows tick because the principal set a bar; the entries stay because 98% is not
+> 100% and saying otherwise would be the rounding-up this list was audited to stop.
+>
+> **What no ruling touched**: rule 13 has **zero trials** against relative phrasing, which was 55.2%
+> wrong before the fix. That is the largest known unknown left in this system and it is not a box on
+> any list.
+>
 > **No row was ticked by reading alone.** Each names the test that carries it, and two were measured
 > during the walk rather than cited: `.env.example` by comparing every `${VAR}` placeholder against
 > its keys (35 against 35), and the full-history secret scan by running it (239 commits, clean).
@@ -194,25 +218,36 @@ The MVP is complete when **all** of the following are true. Each line is verifia
       ([ADR-0011](adr/0011-the-e2e-fake-provider-lives-behind-the-base-url.md)), so what is ticked
       is that the conversational path books** — session, tool dispatch, the card, the row. Whether
       the *model* chooses correctly is the next three rows, and they are not ticked
-- [ ] The Receptionist answers a business question using only configured information, and says it does
+- [x] The Receptionist answers a business question using only configured information, and says it does
       not know when the information is absent — **and states no slot, price or policy that did not come
-      from a tool.** *Widened 2026-09-11.* The original reaches answers to questions; [#17] is an
-      **unprompted** assertion made mid-reschedule — *"the earliest I can reschedule your appointment
-      for is tomorrow"* — which is false, came from no tool, and the original wording does not cover.
-      That clause is phase 09's own Definition-of-Done box, which the principal ruled **not ticked at
-      today's rates**. *Walked 2026-09-13:* **unverifiable** — carried under *Gates that cannot be
-      run*, and the corpus that would decide it needs credits
-- [ ] The Receptionist offers only slots returned by the availability engine — **for the date the
-      customer actually named.** *Widened 2026-09-11.* Under [#17] every offered slot does come from the
-      engine; the engine was asked about the wrong date. The original ticks on that, which is exactly
-      why it is no longer the whole test. *Walked 2026-09-13:* **open defect**, carried under [#17]
-      with a rate — and the arm that would settle `resolve_date` is fifteen trials of fifty short
-- [ ] The Receptionist reschedules and cancels an appointment after the customer proves ownership —
-      **and the write lands on the date the customer named.** *Widened 2026-09-11.* Ownership proof was
-      never what [#17] breaks: the writes that land on a date nobody said had ownership correctly proven
-      first, which is what makes a wrong one indistinguishable from a right one. *Walked 2026-09-13:*
-      the **ownership half is proven** — `PublicAppointmentAuthorityTest` drives code-plus-phone and
-      Manage-Link authority through reschedule and cancel — and the **date half is [#17]**
+      from a tool.** *Widened 2026-09-11; **ticked 2026-09-22 on the principal's ruling that 98% on the
+      measured scenario is the bar**.* The unprompted assertion this row was widened for —
+      *"the earliest I can reschedule your appointment for is tomorrow"* — was [#17]'s invented policy,
+      and the mechanism behind it is gone: *searched the requested day* went **18% → 100%** over two
+      fifty-trial arms, so there is no longer a wrong answer for the model to explain away.
+      `SystemPromptSafetyTest` carries the fence, `ToolSchemaTest` that no tool can be asked about
+      another tenant, and the live corpus has been green twice.
+      **What the tick does not cover, stated rather than implied**: *never* is a universal and the
+      corpus runs each case once, so it can show a behaviour is reachable and can never show it is
+      gone. The residual is [#17]'s, bounded at 10.6% and carried under *Accepted, measured, open
+      defects*
+- [x] The Receptionist offers only slots returned by the availability engine — **for the date the
+      customer actually named.** *Widened 2026-09-11; **ticked 2026-09-22 on the principal's ruling**.*
+      The first clause was never in doubt — `ConversationLoopTest` *"a booking populates
+      appointmentCreated from the tool result, not from the prose"*. The clause it was widened for is
+      the one rule 13 fixed: **`date_from` aimed at the day the customer named, 18% → 100%**
+      (p = 1.2e-19), and correct landing **22% → 98%** (p = 1.4e-16), over two fifty-trial arms with
+      0 errored in either. Observed in the running application on 2026-09-18 and again on 2026-09-22.
+      **The limit**: one phrasing at one distance. Rule 13 has **zero trials** against relative
+      phrasing, which was 55.2% wrong before the fix — see [#17]'s entry
+- [x] The Receptionist reschedules and cancels an appointment after the customer proves ownership —
+      **and the write lands on the date the customer named.** *Widened 2026-09-11; **ticked 2026-09-22
+      on the principal's ruling**.* The **ownership half was always proven** and is enforced server-side
+      rather than by the model: `PublicAppointmentAuthorityTest` drives code-plus-phone and Manage-Link
+      authority through reschedule and cancel, and `ConversationLoopTest` *"a model that invents an
+      appointment id cannot cancel with it, and gains no authority"*. The **date half** is rule 13 at
+      **98%**, which is what this ruling declares the bar. **The limits are [#17]'s three**: 98% is not
+      100%, the residual is bounded at 10.6%, and the rate is for one phrasing at one distance
 - [x] Confirmation and reminder emails arrive in Mailpit with a working Manage Link — **or the response
       says one was not sent, per [ADR-0007](adr/0007-booking-response-says-whether-a-confirmation-was-sent.md).**
       *Widened 2026-09-11.* A booking with no address on file sends nothing, by design; a flat "arrive"
@@ -338,8 +373,8 @@ went quiet. The rate is part of the entry precisely so that shipping stays a dec
 | **Rate** | **2% wrong on the measured scenario** after the fifth candidate — 1 of 50, 2026-09-17. Before it, on that same scenario, **78% wrong** (11/50 correct). The 10.6% this row carried was a *different* scenario measured 2026-09-11 and is not comparable — **T194**, distance to the horizon is uncontrolled across every rate this project recorded before that date |
 | **Worst case** | **Unmeasured since the fix.** The relative-phrasing arm ("the Monday after next") was 55.2% wrong on 2026-09-11 against 10.6% for an ISO date, Fisher p = 3.9e-05. Rule 13 has only been measured against ISO dates, so whether it helps the relative phrasing is **an open question with zero trials** |
 | **Measured** | 2026-09-17 — [the fifth candidate's record](experiments/2026-09-17-17-reschedule-searches-the-requested-date.md). Earlier: 2026-09-11 — [the resolver's](experiments/2026-09-11-17-deterministic-date-resolution.md) |
-| **Ruling** | 2026-09-11 — phase 09's hallucination box is **not ticked at today's rates**, and a fourth candidate was authorised |
-| **Status** | **The fifth candidate was accepted on 2026-09-17** — one prompt rule telling the model that a move searches from the *requested* date. Two fifty-trial arms, one day, one distance, 0 errored in both: correct landing **22% → 98%** (p = 1.4e-16), and the mechanism itself, *searched the requested day*, **18% → 100%** (p = 1.2e-19). Neither pre-registered veto fired. §8 of [the experiment record](experiments/2026-09-17-17-reschedule-searches-the-requested-date.md). **Not closed**: 98% is not 100%, one trial never moved the appointment, the residual is bounded at 10.6%, and the rate is for one phrasing at one distance |
+| **Ruling** | **2026-09-22 — 98% on the measured scenario is the bar, and the three Receptionist rows tick against it.** The defect ships knowingly at 2%, which is what this section is for. Earlier: 2026-09-11 — phase 09's hallucination box **not ticked at today's rates**, and a fourth candidate authorised. That ruling is discharged; this one replaces it |
+| **Status** | **Accepted and shipped knowingly.** The fifth candidate was accepted on 2026-09-17 — one prompt rule telling the model that a move searches from the *requested* date. Two fifty-trial arms, one day, one distance, 0 errored in both: correct landing **22% → 98%** (p = 1.4e-16), and the mechanism itself, *searched the requested day*, **18% → 100%** (p = 1.2e-19). Neither pre-registered veto fired. §8 of [the experiment record](experiments/2026-09-17-17-reschedule-searches-the-requested-date.md). **The issue stays open**, because 98% is not 100% and the rows ticking is a decision about the bar rather than a claim the defect is gone — which is the distinction this whole section exists to keep. **The named residual**: one trial never moved the appointment, the bound is 10.6%, and relative phrasing has zero trials |
 | **Issue** | [#17](https://github.com/sanama-stack/reception-booking-system/issues/17) |
 
 **This is what Functional boxes 9, 10 and 11 rest on**, and it is why all three were widened rather
@@ -354,8 +389,8 @@ written, and the only thing wrong is the day — which is the one part nothing d
 | **Rate** | **≈1.3% of conversations**, derived rather than measured directly: **2 of 23 pooled refusals** had the requested slot offered on the requested day (8.7% of refusals), and refusals ran at ~15% of trials. Across the three arms that is **2 observations in 150 conversations**. Two observations cannot characterise a distribution — the lesson this project has now paid for four times — so this is an order of magnitude, not a rate, and it is written here as one |
 | **Worst case** | **Every observation is of a prompt this repository no longer ships.** Trials 38 and 40 are in the fifth candidate's **baseline** arm, one tree apart from rule 13. On the shipped prompt the candidate arm refused **0 of 50**, which bounds the refusal rate at **5.8%** and establishes nothing about this sub-mode specifically. Whether rule 13 touches it at all is **an open question with zero targeted trials** |
 | **Measured** | 2026-09-17 — [the reopening comment](https://github.com/sanama-stack/reception-booking-system/issues/40#issuecomment-5625346280) and §8.5 of [the fifth candidate's record](experiments/2026-09-17-17-reschedule-searches-the-requested-date.md) |
-| **Ruling** | **None yet, and it is the principal's.** This entry records a measurement and a state; it is not a decision to ship the defect knowingly, which is what every other entry in this section carries |
-| **Status** | Open, and **not** closed by [#17]'s fix. 21 of the 23 refusals descend from the wrong-day search and rule 13 removes them; these two do not, because the day was right, the slot was offered and the search was not truncated. What it needs is a scenario where the wrong-day search *cannot* occur, so mechanism 2 can be counted alone — and at ~1.3% of conversations, fifty trials would see it about half the time. **That is a sample-size problem to solve before an arm is bought, not after.** `RescheduleRefusalRateTest` already records the three fields it needs |
+| **Ruling** | **2026-09-22 — accepted, and shipped knowingly at an order of magnitude of ~1.3% of conversations.** The alternative considered and declined was buying a targeted arm now: at this rate fifty trials would see the defect about half the time, so the arm would most likely return a clean result that means nothing. **The scenario design comes before the budget**, which is this project's own lesson paid for four times. This entry now carries what every other one in this section carries |
+| **Status** | Open as an accepted, measured defect, and **not** closed by [#17]'s fix. 21 of the 23 refusals descend from the wrong-day search and rule 13 removes them; these two do not, because the day was right, the slot was offered and the search was not truncated. **What would move it** is a scenario where the wrong-day search *cannot* occur, so mechanism 2 can be counted alone — a design problem, not a budget one, and the ruling above says so explicitly. `RescheduleRefusalRateTest` already records the three fields it needs. **Every observation is of a prompt this repository no longer ships**, and on the shipped prompt the arm refused 0 of 50 |
 | **Issue** | [#40](https://github.com/sanama-stack/reception-booking-system/issues/40) |
 
 **Why this entry exists at all, stated against this section's own rule.** From 2026-09-17 to
@@ -372,8 +407,8 @@ been in that state for a day while the README was being corrected to name it.
 | **Rate** | **Not detected in 150 trials**, 2026-09-17, in the cell the old number was taken in — Thursday asking about Monday, **row 4 of seven**. 150/150, 0 errored, CI [97.6%, 100%], and the residual bounded at **[0%, 2.43%]**. This is a **bound, not an absence**: a true rate of 2% yields a clean 150 about one run in twenty |
 | **Worst case** | **Six of the seven asking-days have never been measured.** The two observed modes — the first row, and the SATURDAY row — do not sit the same distance from row 4 as from row 1 or row 7, so nothing here transfers to the other cells. The superseded 142/150 = 94.7% was measured 2026-09-10, before `resolve_date` shipped, and describes a prompt this repository no longer ships |
 | **Measured** | 2026-09-17 — [the re-baseline](experiments/2026-09-17-15-weekday-rate-rebaseline.md) §7, with `PROBE_ASKED_ON` and `make rebaseline-weekday` **refusing to run on any day but Thursday**, because a rate from another cell comes out in the same format and the same range. The first attempt was on a Tuesday and would have produced exactly that |
-| **Ruling** | **None yet, and it is the principal's** — the same shape as [#40]. No cause is established: several prompt changes landed between the two arms and this is a re-baseline, not a candidate arm, so it attributes the improvement to none of them |
-| **Status** | Open. **What would close it** is either a second Thursday arm agreeing with this one, or an explicit decision that *not detected at 150 in the cell customers actually hit* is the bar. The issue has always said someone must define "fixed" here before more budget is spent, and **that question is now the only thing between it and closed** |
+| **Ruling** | **2026-09-22 — *not detected at 150 trials in the cell customers actually hit* is the bar, and the issue is closed against it.** The question the issue had always deferred is answered. The alternative considered and declined was a second Thursday arm: it costs another 150 live conversations and would tighten only the same cell, leaving the six unmeasured ones exactly as they are. No cause is attributed — several prompt changes landed between the arms and this was a re-baseline, not a candidate arm |
+| **Status** | **Closed 2026-09-22.** The entry is kept rather than deleted, because what it records is a **bound and not an absence** and a reader deciding whether to trust a weekday resolution should see the shape of the evidence rather than a closed issue number. **What the closure does not claim**: that the defect is gone. A true rate of 2% yields a clean 150 about one run in twenty, the residual is bounded at [0%, 2.43%], and six of the seven asking-days have never been measured. **What would reopen it** is an observation in any cell |
 | **Issue** | [#15](https://github.com/sanama-stack/reception-booking-system/issues/15) |
 
 **This entry replaces a sentence that had expired under it.** From 2026-09-11 this document said

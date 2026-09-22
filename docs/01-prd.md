@@ -166,6 +166,15 @@ flows, edge cases, validation rules, acceptance criteria.
 > | **[#17]/[#40]/[#15]** | FR-9's first, second and sixth | The same three Receptionist rows [07-mvp-scope.md](./07-mvp-scope.md) carries, arrived at independently from a different list. That they land on exactly the same three is the useful result |
 > | **No instrument** | FR-2's timezone-warning row | The dialog is implemented and its copy is right. **No test renders it**, and looking at it needs a dashboard sign-in |
 >
+> **Superseded the same week — 88 ticked, 1 open.** On **2026-09-22** the principal ruled that 98%
+> on the measured scenario is the bar, and FR-9's three ticked against it on the same day
+> [07-mvp-scope.md](./07-mvp-scope.md)'s three Receptionist rows did. The table above is kept as the
+> walk's own record rather than edited into agreement with what came after it — the walk found four,
+> and three of them were answered by a decision rather than by work.
+>
+> **The one that remains is FR-2's**, and it is the only row in this document open for a reason a
+> ruling cannot touch: nothing renders that dialog. It needs a test, which is small, or a person.
+>
 > **The walk found two requirements true in the source and asserted by nothing** — FR-1's fifteen
 > minutes and FR-3's required duration. Both were ticked with the gap written beside them, because
 > the behaviour was what the criterion asked for and the missing thing was an instrument.
@@ -876,24 +885,28 @@ booking operations **exclusively** through validated backend tools. Full design 
 - Message length ≤ 2000 characters.
 
 **Acceptance criteria.**
-- [ ] The Receptionist books, reschedules and cancels appointments correctly through tools — **open,
-      and it is [#17]**. *Through tools* is proven: `ToolExecutionTest` and `ToolRefusalTest` carry
-      every tool, and `ConversationLoopTest` *"a booking populates appointmentCreated from the tool
-      result, not from the prose"* means nothing reaches a customer that a tool did not do.
-      **`correctly` is the open word.** On the measured scenario a reschedule lands on the date the
-      customer named **98% of the time** after rule 13 — up from 22%, p = 1.4e-16 — and 98% is not
-      100%, the residual is bounded at 10.6%, and the rate is for one phrasing at one distance.
-      [#40] is a second mode: the Receptionist refusing a legitimate move it was offered the slot
-      for, ~1.3% of conversations, **awaiting the principal's ruling**. Rates, limits and dates in
-      [07-mvp-scope.md](./07-mvp-scope.md)
-- [ ] It never states a slot, price, duration or policy that did not come from a tool or the configured context
-      — **open, and it is the same issue seen from the other side.** This is phase 09's own
-      Definition-of-Done box and [07-mvp-scope.md](./07-mvp-scope.md)'s ninth Functional row, which
-      the principal ruled **not ticked at today's rates** on 2026-09-11. The counter-example is on a
-      transcript: *"the earliest I can reschedule your appointment for is tomorrow"* — false, from
-      no tool, and said unprompted mid-reschedule. **`never` is a universal, and the only instrument
-      that can test it is the live corpus**, which runs each case once: it can show a behaviour is
-      reachable and can never show it is gone
+- [x] The Receptionist books, reschedules and cancels appointments correctly through tools — *ticked
+      2026-09-22 on the principal's ruling that **98% on the measured scenario is the bar***.
+      *Through tools* was always proven: `ToolExecutionTest` and `ToolRefusalTest` carry every tool,
+      and `ConversationLoopTest` *"a booking populates appointmentCreated from the tool result, not
+      from the prose"* means nothing reaches a customer that a tool did not do. **`correctly` is what
+      the ruling decided.** After rule 13 a reschedule lands on the date the customer named **98% of
+      the time** — up from 22%, p = 1.4e-16, two fifty-trial arms, 0 errored in either.
+      **Two defects stay open under the tick, both accepted and shipped knowingly**: [#17] at 2% on
+      the measured scenario, and [#40] at ~1.3% of conversations. A box ticked against a bar and a
+      defect carrying a rate are different things, and [07-mvp-scope.md](./07-mvp-scope.md) holds
+      both
+- [x] It never states a slot, price, duration or policy that did not come from a tool or the configured context
+      — *ticked 2026-09-22 on the same ruling*, which **replaces** the principal's 2026-09-11 ruling
+      that this was not ticked at the rates of the day. The counter-example was
+      *"the earliest I can reschedule your appointment for is tomorrow"* — false, from no tool, said
+      unprompted mid-reschedule — and it was [#17]'s invented policy. The mechanism behind it is
+      gone: *searched the requested day* went **18% → 100%**, so there is no wrong answer left for
+      the model to justify. `SystemPromptSafetyTest` carries the fence and `ToolSchemaTest` that no
+      tool can be asked about another tenant.
+      **What the tick does not cover, and this is the row where it matters most**: `never` is a
+      universal, the live corpus runs each case once, and a single-shot instrument can show a
+      behaviour is reachable but never that it is gone
 - [x] It never confirms an appointment before `create_appointment` returns success — **and this one
       is structural rather than behavioural, which is why it ticks while the two rows above do not.**
       `ConversationLoopTest` *"a model that claims a booking it never made produces no
@@ -918,13 +931,14 @@ booking operations **exclusively** through validated backend tools. Full design 
       could name another tenant. `PublicChatTest` *"a session token from one business cannot be used
       on another's chat endpoint"* closes the transport, and `PublicIsolationTest` and
       `TenantIsolationSweepTest` the surfaces underneath
-- [ ] It answers "I don't know" plus a fallback when information is absent — **open, and it is the
-      second clause of the row two above.** `SystemPromptSafetyTest` asserts the fence around the
-      configured context is emitted; it cannot assert the model reads through it, and
-      [08-testing-strategy.md](./08-testing-strategy.md) §7 is explicit that a scripted model reads
-      neither the system prompt nor a tool description. **The instrument is the live corpus and it
-      has been green**, twice — which shows the behaviour is reachable, not that the absence of the
-      failure is general
+- [x] It answers "I don't know" plus a fallback when information is absent — *ticked 2026-09-22 on
+      the same ruling*, and it is the second clause of the row above. The live corpus asserts the
+      behaviour directly and has been **green twice**, on 2026-09-15 and 2026-09-16.
+      **The same limit applies and is the reason this row is worth re-reading before trusting it**:
+      `SystemPromptSafetyTest` asserts the fence around the configured context is *emitted*, not that
+      the model reads through it, and [08-testing-strategy.md](./08-testing-strategy.md) §7 is
+      explicit that a scripted model reads neither a system prompt nor a tool description. Green
+      twice shows the behaviour is reachable, not that the failure is absent in general
 - [x] Tool-call ceilings, turn ceilings and rate limits are enforced server-side — `ConversationLoopTest`
       names each: *"six tool calls in one response are capped at five, and the turn hands off"*,
       *"a model that only ever calls tools is stopped, and the customer gets a hand-off"*,

@@ -176,8 +176,10 @@ Assertions target tool sequences and database state, never the model's wording.
       The refusal half was what this box asked for; the success half is what makes the refusal
       meaningful, because a tool that refuses everything satisfies the refusal half perfectly
 - [x] It answers configured questions accurately and says "I don't know" otherwise
-- [ ] It never states a slot, price or policy that did not come from a tool or the context —
-      **not established, and the first real conversation is why.** Asked for Monday 14 September the
+- [x] It never states a slot, price or policy that did not come from a tool or the context —
+      **ticked 2026-09-22 on the principal's ruling; the history below is kept because it is what
+      the ruling was made against.** *Not established when written, and the first real conversation
+      is why.* Asked for Monday 14 September the
       model called the tool for the 12th, got a correct `CLOSED`, and told the customer *Monday* was
       closed while the form beside it offered nine times that day. Nothing was invented — every
       value came from a tool — but it was attributed to a date the customer named and the tool never
@@ -203,7 +205,18 @@ Assertions target tool sequences and database state, never the model's wording.
       [07-mvp-scope.md](../07-mvp-scope.md) § *Accepted, measured, open defects*: this box does not
       block the MVP, but [#17] is carried there with its rate so that it cannot be ticked by going
       quiet. That document's Functional boxes 9, 10 and 11 were widened the same day, because as
-      originally written all three ticked while this one could not — the scaffold predates the defect
+      originally written all three ticked while this one could not — the scaffold predates the defect.
+      **Settled 2026-09-22, and by a decision rather than by work.** The fifth candidate — rule 13,
+      accepted 2026-09-17 — took the mechanism behind the invented policy from **18% to 100%**
+      *searched the requested day*, and correct landing from **22% to 98%**. The principal then
+      ruled that **98% on the measured scenario is the bar**, which is exactly the question this box
+      named when it said *"ticking it means deciding that ~95% is the bar"* — the number was wrong,
+      the shape of the question was right, and it took eleven days for anyone to ask it.
+      **Two things the tick does not claim.** That `never` has been established: it is a universal,
+      and the corpus runs each case once. And that the **44.8% relative-date arm this box's own
+      threshold was pre-registered against** has been retested — rule 13 has **zero trials** against
+      relative phrasing, so the arm that motivated the fourth candidate has never been re-run
+      against the fifth
 - [x] The confirmation card renders from backend data, not from the reply text — measured against
       its counterfactual, not argued
 - [x] No tool accepts a tenant identifier
