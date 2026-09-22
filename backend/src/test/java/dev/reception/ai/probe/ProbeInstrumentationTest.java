@@ -338,6 +338,74 @@ class ProbeInstrumentationTest extends IntegrationTest {
         assertThat(said).endsWith("...[truncated]").hasSize(240 + "...[truncated]".length());
     }
 
+    /**
+     * <strong>The arguments, filtered to one conversation — the gap arm B found the hard way.</strong>
+     *
+     * <p>That arm produced two trials that wrote something other than what was asked for, and the
+     * harness had printed tool <em>names</em>. Whether the write was sent wrong or applied wrong was
+     * unrecoverable once the container went. {@link ProbeQueries#ALL_TOOL_CALLS} had carried the
+     * arguments for a week and could not be used, because it is deliberately unfiltered and a rate
+     * harness pours fifty conversations into one database.
+     *
+     * <p><strong>The filter is what this asserts.</strong> A second conversation runs first and its
+     * search must not appear in the first one's dump — an unfiltered projection passes every other
+     * assertion here and fails only this one.
+     */
+    @Test
+    @DisplayName("the per-conversation dump carries arguments and contains only its own conversation")
+    void the_filtered_tool_call_dump_carries_arguments_and_is_scoped() {
+        model.willCall("find_available_slots", "{\"date_from\":\"%s\"}".formatted(aria.monday.plusDays(1)))
+                .willSay("Another conversation entirely.");
+        UUID other = ask("what about the Tuesday?");
+
+        model.willCall("resolve_date", "{\"weekday\":\"MONDAY\",\"weeks_ahead\":1}")
+                .willCall("find_available_slots", "{\"date_from\":\"%s\"}".formatted(aria.monday))
+                .willSay("Here is what I have.");
+        UUID conversation = ask("the Monday after next, please");
+
+        List<String> calls =
+                jdbc.queryForList(ProbeQueries.TOOL_CALLS_IN_CONVERSATION, String.class, conversation);
+
+        assertThat(calls).hasSize(2);
+        assertThat(calls.get(0)).startsWith("resolve_date(").contains("\"weekday\": \"MONDAY\"");
+        assertThat(calls.get(1))
+                .startsWith("find_available_slots(")
+                .contains("\"date_from\": \"" + aria.monday + "\"");
+        // The other conversation's search is in the same table and must not be in this list.
+        assertThat(calls).noneMatch(call -> call.contains(aria.monday.plusDays(1).toString()));
+        assertThat(jdbc.queryForList(ProbeQueries.TOOL_CALLS_IN_CONVERSATION, String.class, other))
+                .hasSize(1);
+    }
+
+    /**
+     * The write's own arguments, which is the single line every trial will now print.
+     *
+     * <p>Exercised through a <strong>refused</strong> {@code create_appointment}, because that is the
+     * case that carries information: the row exists, the arguments the model sent are in it, and the
+     * result is the error. A projection that dropped a failed call would answer "it never tried" for
+     * the trials where it tried and was turned away.
+     */
+    @Test
+    @DisplayName("the write projection returns the write calls alone, with what was sent")
+    void the_write_projection_carries_the_arguments_of_a_write() {
+        model.willCall("find_available_slots", "{\"date_from\":\"%s\"}".formatted(aria.monday))
+                .willCall("create_appointment", "{\"starts_at\":\"%s\"}".formatted(aria.at(aria.monday, 15, 0)))
+                .willSay("Let me get that booked.");
+
+        UUID conversation = ask("book me Monday at three");
+
+        List<String> writes = jdbc.queryForList(ProbeQueries.WRITE_CALLS, String.class, conversation);
+
+        assertThat(writes).hasSize(1);
+        assertThat(writes.getFirst())
+                .startsWith("create_appointment(")
+                .contains("\"starts_at\"")
+                .contains(") -> ");
+        // The search is a tool call and is not a write; the whole point of this projection is that
+        // one short line per trial is the write and not the search.
+        assertThat(writes).noneMatch(call -> call.startsWith("find_available_slots("));
+    }
+
     /** A valid search of the fixture's open day, which is what both projections above read. */
     private UUID searchTheFixturesOpenDay() {
         model.willCall(

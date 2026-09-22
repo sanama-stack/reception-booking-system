@@ -364,6 +364,11 @@ class RescheduleRefusalRateTest extends IntegrationTest {
             // of the last two.
             List<String> prose =
                     jdbc.queryForList(ProbeQueries.ASSISTANT_PROSE, String.class, started.conversationId());
+            // What the model SENT to the write tool. Applied to both rate harnesses at once and on
+            // purpose: these two had near-identical resolver SQL by copy and a fix to one left the
+            // other blind for as long as the resolver existed.
+            List<String> writes =
+                    jdbc.queryForList(ProbeQueries.WRITE_CALLS, String.class, started.conversationId());
 
             boolean atTheDecisionPoint = searchedTheTargetDay && slotWasOffered;
             if (atTheDecisionPoint) {
@@ -376,7 +381,9 @@ class RescheduleRefusalRateTest extends IntegrationTest {
                 if (atTheDecisionPoint) {
                     decisionPointWroteRequested++;
                 }
-                System.out.printf("%3d  MOVED      %s%n     said: %s%n", trial, evidence, lastTurns(prose, 1));
+                System.out.printf(
+                        "%3d  MOVED      %s%n     wrote: %s%n     said: %s%n",
+                        trial, evidence, callDump(writes), lastTurns(prose, 1));
             } else if (!tools.contains("reschedule_appointment")) {
                 // #40 exactly: authorised, asked twice, and no write attempted at all.
                 refused++;
@@ -395,10 +402,12 @@ class RescheduleRefusalRateTest extends IntegrationTest {
                     decisionPointRefused++;
                 }
                 System.out.printf(
-                        "%3d  REFUSED%s  %s%n     said: %s%n",
+                        "%3d  REFUSED%s  %s%n     calls: %s%n     said: %s%n",
                         trial,
                         atTheDecisionPoint ? "  <-- MECHANISM 2, the slot was on the table" : "",
                         evidence,
+                        callDump(jdbc.queryForList(
+                                ProbeQueries.TOOL_CALLS_IN_CONVERSATION, String.class, started.conversationId())),
                         lastTurns(prose, 2));
             } else {
                 // It wrote, but not where it was asked to. That is #17's territory, not #40's, and
@@ -408,8 +417,12 @@ class RescheduleRefusalRateTest extends IntegrationTest {
                     decisionPointWroteElsewhere++;
                 }
                 System.out.printf(
-                        "%3d  ELSEWHERE  %s  tools=%s%n     said: %s%n",
-                        trial, evidence, tools, lastTurns(prose, 1));
+                        "%3d  ELSEWHERE  %s%n     calls: %s%n     said: %s%n",
+                        trial,
+                        evidence,
+                        callDump(jdbc.queryForList(
+                                ProbeQueries.TOOL_CALLS_IN_CONVERSATION, String.class, started.conversationId())),
+                        lastTurns(prose, 1));
             }
         }
 
@@ -482,6 +495,20 @@ class RescheduleRefusalRateTest extends IntegrationTest {
      * turn was a bare tool call is a real and readable outcome — the model searched and never spoke
      * — and a blank line reads as the harness having failed to look.
      */
+
+    /**
+     * Every tool call in the trial, one per line and indented, for a trial that needs explaining.
+     *
+     * <p>Not printed for a trial that landed exactly where it was asked to: a thirty-slot result
+     * repeated fifty times buries the arm in its own log, and there is no question to answer.
+     */
+    private static String callDump(List<String> calls) {
+        if (calls.isEmpty()) {
+            return "(no tool call at all)";
+        }
+        return String.join("%n            ".formatted(), calls);
+    }
+
     private static String lastTurns(List<String> prose, int n) {
         if (prose.isEmpty()) {
             return "(no prose — every assistant turn was a bare tool call)";

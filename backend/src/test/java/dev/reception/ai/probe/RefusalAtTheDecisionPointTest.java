@@ -271,6 +271,13 @@ class RefusalAtTheDecisionPointTest extends IntegrationTest {
             List<String> searched = searchedDates(started.conversationId());
             List<String> prose =
                     jdbc.queryForList(ProbeQueries.ASSISTANT_PROSE, String.class, started.conversationId());
+            // WHAT THE MODEL SENT, not merely which tool it reached for. Arm B produced a trial that
+            // announced 3:00 PM and landed at 14:00, and the harness could not say whether the write
+            // was sent wrong or applied wrong -- it printed tool names. Printed for EVERY trial,
+            // because a claim about the trials that missed needs the trials that did not to compare
+            // against.
+            List<String> writes =
+                    jdbc.queryForList(ProbeQueries.WRITE_CALLS, String.class, started.conversationId());
             boolean truncated = Boolean.TRUE.equals(
                     jdbc.queryForObject(ProbeQueries.ANY_SEARCH_TRUNCATED, Boolean.class, started.conversationId()));
 
@@ -305,17 +312,21 @@ class RefusalAtTheDecisionPointTest extends IntegrationTest {
                 if (atTheDecisionPoint) {
                     decisionPointWroteRequested++;
                 }
-                System.out.printf("%3d  MOVED      %s%n     said: %s%n", trial, evidence, lastTurns(prose, 1));
+                System.out.printf(
+                        "%3d  MOVED      %s%n     wrote: %s%n     said: %s%n",
+                        trial, evidence, callDump(writes), lastTurns(prose, 1));
             } else if (!tools.contains("reschedule_appointment")) {
                 refused++;
                 if (atTheDecisionPoint) {
                     decisionPointRefused++;
                 }
                 System.out.printf(
-                        "%3d  REFUSED%s  %s%n     said: %s%n",
+                        "%3d  REFUSED%s  %s%n     calls: %s%n     said: %s%n",
                         trial,
                         atTheDecisionPoint ? "  <-- MECHANISM 2, the slot was on the table" : "",
                         evidence,
+                        callDump(jdbc.queryForList(
+                                ProbeQueries.TOOL_CALLS_IN_CONVERSATION, String.class, started.conversationId())),
                         lastTurns(prose, 3));
             } else {
                 movedElsewhere++;
@@ -323,8 +334,12 @@ class RefusalAtTheDecisionPointTest extends IntegrationTest {
                     decisionPointWroteElsewhere++;
                 }
                 System.out.printf(
-                        "%3d  ELSEWHERE  %s  tools=%s%n     said: %s%n",
-                        trial, evidence, tools, lastTurns(prose, 1));
+                        "%3d  ELSEWHERE  %s%n     calls: %s%n     said: %s%n",
+                        trial,
+                        evidence,
+                        callDump(jdbc.queryForList(
+                                ProbeQueries.TOOL_CALLS_IN_CONVERSATION, String.class, started.conversationId())),
+                        lastTurns(prose, 1));
             }
         }
 
@@ -445,6 +460,20 @@ class RefusalAtTheDecisionPointTest extends IntegrationTest {
 
     private ResponseEntity<String> bookTheBlocker(BookingScenario aria, LocalDate day) {
         return aria.book(aria.at(day, 15, 0), aria.employeeId, "Davit Kapanadze", BLOCKER_PHONE);
+    }
+
+
+    /**
+     * Every tool call in the trial, one per line and indented, for a trial that needs explaining.
+     *
+     * <p>Not printed for a trial that landed exactly where it was asked to: a thirty-slot result
+     * repeated fifty times buries the arm in its own log, and there is no question to answer.
+     */
+    private static String callDump(List<String> calls) {
+        if (calls.isEmpty()) {
+            return "(no tool call at all)";
+        }
+        return String.join("%n            ".formatted(), calls);
     }
 
     private static String lastTurns(List<String> prose, int n) {
