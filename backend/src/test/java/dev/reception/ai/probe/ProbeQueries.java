@@ -129,6 +129,61 @@ public final class ProbeQueries {
                     + "where role = 'TOOL' and tool_name = 'find_available_slots' and conversation_id = ?";
 
     /**
+     * How a tool call is rendered for a probe log: {@code name({args}) -> {result}}.
+     *
+     * <p><strong>The arguments are never cut and the result is.</strong> A slot list runs to thirty
+     * entries and would bury the one part that has repeatedly been wanted — what the model
+     * <em>sent</em>. The 200-character cap keeps an error object whole, which is the result that
+     * carries information, and announces itself when it fires.
+     *
+     * <p>Shared by the three projections below rather than re-typed into each. The two rate
+     * harnesses already had near-identical resolver SQL by copy, and a fix applied to one silently
+     * left the other blind for as long as the resolver existed; this file exists because of that.
+     */
+    private static final String RENDER_CALL = "concat(tool_name, '(', "
+            + "coalesce(tool_arguments::text, '{}'), ') -> ', "
+            + "case when tool_result is null then 'null' "
+            + "when length(tool_result::text) > 200 "
+            + "then concat(left(tool_result::text, 200), '...[truncated]') "
+            + "else tool_result::text end)";
+
+    /**
+     * Every tool call in <strong>one conversation</strong>, with its arguments, in the order made.
+     *
+     * <p><strong>Added 2026-09-22, after an arm needed it and did not have it.</strong> Arm B of the
+     * mechanism-2 scenario produced two trials that wrote something other than what was asked for —
+     * one announced <em>"rescheduled to October 6 at 3:00 PM"</em> and landed at 14:00, the other
+     * claimed to be moving an appointment that never moved. The harness printed the tool
+     * <em>names</em> for those trials, so whether the write was <em>sent</em> wrong or <em>applied</em>
+     * wrong could not be recovered: the database went with the container when the run ended.
+     *
+     * <p>{@link #ALL_TOOL_CALLS} had carried the arguments since 2026-09-15 and could not be used —
+     * it is deliberately unfiltered, correct only where the database holds one test's rows, and a
+     * rate harness running fifty conversations into one database would have read every other
+     * trial's calls as this one's. <strong>That is G17 in a harness written the same afternoon to
+     * close a G17</strong>, and it is this constant rather than a note in a document.
+     */
+    public static final String TOOL_CALLS_IN_CONVERSATION = "select " + RENDER_CALL
+            + " from ai_messages where role = 'TOOL' and conversation_id = ? order by created_at";
+
+    /**
+     * The write calls alone — {@code reschedule_appointment}, {@code create_appointment},
+     * {@code cancel_appointment} — with their arguments, for one conversation.
+     *
+     * <p><strong>Printed for every trial, where the full dump is not.</strong> A trial that landed
+     * exactly where it was asked to raises no question about its search, so fifty full dumps of
+     * thirty-slot results would bury the arms in their own logs. The write's arguments are a single
+     * short line and they are the thing that separates <em>said one time and wrote another</em> from
+     * <em>wrote what it said and the write went wrong</em> — and a claim about the trials that
+     * missed needs the trials that did not miss to compare against, which is the control the last
+     * arm could not produce.
+     */
+    public static final String WRITE_CALLS = "select " + RENDER_CALL
+            + " from ai_messages where role = 'TOOL' and conversation_id = ? "
+            + "and tool_name in ('reschedule_appointment', 'create_appointment', 'cancel_appointment') "
+            + "order by created_at";
+
+    /**
      * <strong>What the Receptionist actually said</strong>, in order, one row per prose turn.
      *
      * <p>Added 2026-09-22 for <a href="https://github.com/sanama-stack/reception-booking-system/issues/40">#40</a>'s

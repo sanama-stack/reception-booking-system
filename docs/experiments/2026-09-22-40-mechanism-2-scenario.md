@@ -331,13 +331,26 @@ never states a slot, price or policy that did not come from a tool"*.
 **Trial 33 claimed to be moving it and it never moved**, landing on the original `2026-10-05 12:00`
 after `reschedule_appointment` was called.
 
-⚠️ **Neither is established, and the reason is an instrument gap this arm just found.** The harness
-prints tool **names** for an `ELSEWHERE` trial, not their arguments, so whether trial 49's write was
+⚠️ **Neither is established, and the reason was an instrument gap this arm found.** The harness
+printed tool **names** for an `ELSEWHERE` trial, not their arguments, so whether trial 49's write was
 sent as 14:00 or sent as 15:00 and applied wrongly **cannot be recovered** — the database went with
-the container. `ProbeQueries.ALL_TOOL_CALLS` has carried the arguments since 2026-09-15 and is not
-read here, which is **G17 again**, in a harness written this afternoon to close a G17. Two
+the container. `ProbeQueries.ALL_TOOL_CALLS` had carried the arguments since 2026-09-15 and was not
+read here, which is **G17 again**, in a harness written the same afternoon to close a G17. Two
 observations, no mechanism, and no issue filed on two trials: that is this repository's own rule
 about what a filing needs.
+
+**Closed for the next arm, not for these two.** `ProbeQueries.TOOL_CALLS_IN_CONVERSATION` and
+`ProbeQueries.WRITE_CALLS` were added on 2026-09-22 and are read by **both** rate harnesses: every
+trial now prints the write's own arguments, and a trial that refused or wrote elsewhere prints its
+whole call sequence with what was sent. `ALL_TOOL_CALLS` could not be used — it is deliberately
+unfiltered, correct only where the database holds one test's rows, and a rate harness pours fifty
+conversations into one. Both new projections are proven by `ProbeInstrumentationTest` on every push
+and were counterfactually checked: disabling the conversation filter and the write filter turns those
+two cases red and leaves the other eleven green. Verified live at two trials, where the line now
+reads `new_starts_at: 2026-10-06T15:00:00+04:00` beside the landing.
+
+**Trials 49 and 33 stay unexplained, and no claim is made about them.** An instrument added after
+the run does not reach back into it.
 
 ### 9.6 What this does to [#40]
 
